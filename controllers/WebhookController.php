@@ -14,33 +14,30 @@ class WebhookController extends Controller
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $rawBody = Yii::$app->request->rawBody;
-
-        file_put_contents(
-            Yii::getAlias('@app/runtime/logs/webhook-error.log'),
-            date('c') . ' | ' . $rawBody . "\n",
-            FILE_APPEND
-        );
-
-        $update = json_decode($rawBody, true);
-
+        $update = json_decode(Yii::$app->request->rawBody, true);
         if (!$update) {
-            return ['status' => 'empty', 'rawBody' => $rawBody];
+            return ['status' => 'error', 'message' => 'Empty body'];
         }
 
         $chat_id = $update['message']['chat']['id'] ?? null;
-        $text = $update['message']['text'] ?? '';
+        $text = $update['message']['text'] ?? null;
 
-        if ($chat_id && $text) {
-            return [
-                'status' => 'ready_to_send',
-                'chat_id' => $chat_id,
-                'text' => $text,
-                'env' => getenv('BOT_TOKEN') ? 'token_loaded' : 'token_missing'
-            ];
+        if (!$chat_id || !$text) {
+            return ['status' => 'error', 'message' => 'Missing chat_id or text'];
         }
 
-        return ['status' => 'no message data'];
-    }
+        $botToken = getenv('BOT_TOKEN');
+        if (!$botToken) {
+            return ['status' => 'error', 'message' => 'Bot token not set'];
+        }
 
+        $url = "https://api.telegram.org/bot{$botToken}/sendMessage?" . http_build_query([
+                'chat_id' => $chat_id,
+                'text' => "Ты написал: $text"
+            ]);
+
+        file_get_contents($url);
+
+        return ['status' => 'ok', 'chat_id' => $chat_id, 'text' => $text];
+    }
 }
