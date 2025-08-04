@@ -1,4 +1,7 @@
 <?php
+
+namespace app\controllers;
+
 use Yii;
 use yii\web\Controller;
 use yii\web\Response;
@@ -11,46 +14,35 @@ class WebhookController extends Controller
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $body = Yii::$app->request->rawBody;
-        $update = json_decode($body, true);
+        try {
+            $data = Yii::$app->request->getRawBody();
 
-        if (!$update) {
-            $this->log("Empty or invalid JSON: $body");
-            return ['status' => 'error', 'message' => 'empty or invalid payload'];
-        }
+            // Сохраняем лог
+            $logFile = Yii::getAlias('@runtime/webhook.log');
+            file_put_contents($logFile, date('Y-m-d H:i:s') . ' ' . $data . PHP_EOL, FILE_APPEND);
 
-        $chat_id = $update['message']['chat']['id'] ?? null;
-        $text = $update['message']['text'] ?? '';
-
-        if ($chat_id && $text) {
-            $this->log("Received from $chat_id: $text");
-
-            $token = getenv('BOT_TOKEN') ?: Yii::$app->params['botToken'] ?? null;
-
-            if (!$token) {
-                $this->log("BOT_TOKEN not set");
-                return ['status' => 'error', 'message' => 'BOT_TOKEN not set'];
+            // Пробуем разобрать JSON
+            $update = json_decode($data, true);
+            if (!$update) {
+                return ['status' => 'empty', 'reason' => 'invalid json'];
             }
 
-            $url = "https://api.telegram.org/bot$token/sendMessage";
-            $params = [
-                'chat_id' => $chat_id,
-                'text' => "Ты написал: $text",
-            ];
+            $chat_id = $update['message']['chat']['id'] ?? null;
+            $text = $update['message']['text'] ?? '';
 
-            $result = file_get_contents($url . '?' . http_build_query($params));
-            $this->log("Response: $result");
+            if ($chat_id && $text) {
+                $botToken = getenv('BOT_TOKEN');
+                file_get_contents("https://api.telegram.org/bot{$botToken}/sendMessage?" . http_build_query([
+                        'chat_id' => $chat_id,
+                        'text' => "Ты написал: $text"
+                    ]));
+            }
 
             return ['status' => 'ok'];
+        } catch (\Throwable $e) {
+            $errorFile = Yii::getAlias('@runtime/webhook_error.log');
+            file_put_contents($errorFile, date('Y-m-d H:i:s') . ' ERROR: ' . $e->getMessage() . PHP_EOL, FILE_APPEND);
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
-
-        $this->log("Missing chat_id or text in: " . print_r($update, true));
-        return ['status' => 'ignored'];
-    }
-
-    private function log($message)
-    {
-        $file = Yii::getAlias('@runtime') . '/webhook.log';
-        file_put_contents($file, date('Y-m-d H:i:s') . ' ' . $message . PHP_EOL, FILE_APPEND);
     }
 }

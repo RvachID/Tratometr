@@ -2,26 +2,39 @@
 
 namespace app\controllers;
 
+use Yii;
 use yii\web\Controller;
-use yii\web\Response;
+use yii\helpers\Html;
 
 class LogController extends Controller
 {
     public function actionWebhook()
     {
-        \Yii::$app->response->format = Response::FORMAT_HTML;
-
-        $logPath = \Yii::getAlias('@app/runtime/logs/webhook.log');
-
-        // ✅ Проверка и автосоздание файла
-        if (!file_exists($logPath)) {
-            if (!is_dir(dirname($logPath))) {
-                mkdir(dirname($logPath), 0777, true);
-            }
-            file_put_contents($logPath, ''); // создаём пустой файл
+        $logFile = Yii::getAlias('@runtime/webhook.log');
+        if (!file_exists($logFile)) {
+            return 'Файл логов не найден.';
         }
 
-        $content = file_get_contents($logPath);
-        return $content ?: 'Файл логов пуст.';
+        $contents = file_get_contents($logFile);
+        if (empty($contents)) {
+            return 'Файл логов пуст.';
+        }
+
+        return nl2br(Html::encode($contents));
+    }
+
+    public function actionWebhookError()
+    {
+        $logFile = Yii::getAlias('@runtime/webhook_error.log');
+        if (!file_exists($logFile)) {
+            return 'Файл ошибок не найден.';
+        }
+
+        $contents = file_get_contents($logFile);
+        if (empty($contents)) {
+            return 'Файл ошибок пуст.';
+        }
+
+        return nl2br(Html::encode($contents));
     }
 }
