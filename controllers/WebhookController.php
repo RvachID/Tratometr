@@ -14,9 +14,18 @@ class WebhookController extends Controller
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $update = json_decode(Yii::$app->request->rawBody, true);
+        $rawBody = Yii::$app->request->rawBody;
+
+        file_put_contents(
+            Yii::getAlias('@app/runtime/logs/webhook-error.log'),
+            date('c') . ' | ' . $rawBody . "\n",
+            FILE_APPEND
+        );
+
+        $update = json_decode($rawBody, true);
+
         if (!$update) {
-            return ['status' => 'empty', 'rawBody' => Yii::$app->request->rawBody];
+            return ['status' => 'empty', 'rawBody' => $rawBody];
         }
 
         $chat_id = $update['message']['chat']['id'] ?? null;
@@ -29,14 +38,9 @@ class WebhookController extends Controller
                 'text' => $text,
                 'env' => getenv('BOT_TOKEN') ? 'token_loaded' : 'token_missing'
             ];
-
-            // После проверки можно будет раскомментировать отправку:
-            /*
-            file_get_contents("https://api.telegram.org/bot" . getenv('BOT_TOKEN') .
-                "/sendMessage?chat_id=$chat_id&text=" . urlencode("Ты написал: $text"));
-            */
         }
 
         return ['status' => 'no message data'];
     }
+
 }
