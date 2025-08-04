@@ -1,10 +1,10 @@
 <?php
 
-
 namespace app\controllers;
 
 use Yii;
 use yii\web\Controller;
+use yii\web\Response;
 
 class WebhookController extends Controller
 {
@@ -12,8 +12,12 @@ class WebhookController extends Controller
 
     public function actionIndex()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $update = json_decode(Yii::$app->request->rawBody, true);
-        if (!$update) return 'empty';
+        if (!$update) {
+            return ['status' => 'empty'];
+        }
 
         $chat_id = $update['message']['chat']['id'] ?? null;
         $text = $update['message']['text'] ?? '';
@@ -23,6 +27,6 @@ class WebhookController extends Controller
                 "/sendMessage?chat_id=$chat_id&text=" . urlencode("Ты написал: $text"));
         }
 
-        return 'ok';
+        return ['status' => 'ok'];
     }
 }
