@@ -3,19 +3,25 @@
 namespace app\controllers;
 
 use yii\web\Controller;
+use yii\web\Response;
 
 class LogController extends Controller
 {
-    public $enableCsrfValidation = false;
-
     public function actionWebhook()
     {
-        $logPath = __DIR__ . '/../../runtime/webhook-debug.log';
+        \Yii::$app->response->format = Response::FORMAT_HTML;
 
+        $logPath = \Yii::getAlias('@app/runtime/logs/webhook.log');
+
+        // ✅ Проверка и автосоздание файла
         if (!file_exists($logPath)) {
-            return 'Файл логов не найден.';
+            if (!is_dir(dirname($logPath))) {
+                mkdir(dirname($logPath), 0777, true);
+            }
+            file_put_contents($logPath, ''); // создаём пустой файл
         }
 
-        return '<pre>' . htmlspecialchars(file_get_contents($logPath)) . '</pre>';
+        $content = file_get_contents($logPath);
+        return $content ?: 'Файл логов пуст.';
     }
 }
