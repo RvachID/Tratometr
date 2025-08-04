@@ -1,18 +1,5 @@
 {
   "build": {
-    "builder": "NIXPACKS",
-    "nixpacksConfig": {
-      "phases": {
-        "install": {
-          "cmds": ["composer install --no-dev --optimize-autoloader"]
-        },
-        "start": {
-          "cmds": ["php -S 0.0.0.0:8080 -t web"]
-        }
-      },
-      "languages": {
-        "php": "8.1"
-      }
-    }
+    "builder": "DOCKERFILE"
   }
-}
+пш}
