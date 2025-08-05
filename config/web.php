@@ -13,25 +13,42 @@ $config = [
     ],
     'components' => [
         'request' => [
-            // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
+            // !!! не забывай хранить секрет в окружении/секрете
             'cookieValidationKey' => 'JnrKGc4dsJmo_uU1hCj-k7W2Ettg3Y8A',
+            // чтобы Yii умел принимать JSON в $_POST (удобно для /auth/tg-login)
+            'parsers' => [
+                'application/json' => 'yii\web\JsonParser',
+            ],
         ],
+
+        // важно для Telegram webview: cookie сессии должны быть SameSite=None; Secure
+        'session' => [
+            'cookieParams' => [
+                'sameSite' => 'None',
+                'secure'   => true,
+            ],
+        ],
+
         'cache' => [
             'class' => 'yii\caching\FileCache',
         ],
+
         'user' => [
-            'identityClass' => 'app\models\User',
+            'identityClass' => \app\models\User::class,
             'enableAutoLogin' => true,
+            'loginUrl' => null, // не редиректим на форму логина — авторизация через Telegram
         ],
+
         'errorHandler' => [
             'errorAction' => 'site/error',
         ],
+
         'mailer' => [
             'class' => \yii\symfonymailer\Mailer::class,
             'viewPath' => '@app/mail',
-            // send all mails to a file by default.
             'useFileTransport' => true,
         ],
+
         'log' => [
             'traceLevel' => YII_DEBUG ? 3 : 0,
             'targets' => [
@@ -41,15 +58,22 @@ $config = [
                 ],
             ],
         ],
+
         'db' => $db,
+
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
             'rules' => [
-                'webhook' => 'webhook/index',
+                'webhook'         => 'webhook/index',
+                // мини‑апп и авторизация через Telegram
+                'site/app'        => 'site/app',
+                'auth/tg-login'   => 'auth/tg-login',
+                'auth/profile'    => 'auth/profile',
             ],
         ],
     ],
+    'defaultRoute' => 'site/app',
     'params' => $params,
 ];
 
