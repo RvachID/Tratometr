@@ -18,17 +18,16 @@ class User extends ActiveRecord implements IdentityInterface
     public function rules()
     {
         return [
-            // email теперь НЕ обязателен
             ['email', 'email'],
             ['email', 'unique'],
 
-            // telegram_id — строка и уникален (может быть null)
-            ['telegram_id', 'string', 'max' => 255],
+            [['telegram_id','tg_username','first_name','last_name','auth_key','password_hash'], 'string', 'max' => 255],
+            [['language_code'], 'string', 'max' => 16],
             ['telegram_id', 'unique'],
 
             [['password_hash', 'auth_key'], 'required'],
-            [['email', 'password_hash', 'auth_key'], 'string', 'max' => 255],
-            [['created_at', 'updated_at'], 'integer'],
+            [['is_premium'], 'boolean'],
+            [['created_at','updated_at'], 'integer'],
         ];
     }
 
@@ -55,5 +54,23 @@ class User extends ActiveRecord implements IdentityInterface
     public static function findByTelegramId(string $tgId): ?self
     {
         return static::findOne(['telegram_id' => $tgId]);
+    }
+
+    public function getUsername(): string
+    {
+        // если потом добавим tg_username/first_name — этот код тоже их учтёт
+        if (!empty($this->tg_username)) {
+            return '@' . ltrim($this->tg_username, '@');
+        }
+        if (!empty($this->first_name) || !empty($this->last_name)) {
+            return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        }
+        if (!empty($this->email)) {
+            return $this->email;
+        }
+        if (!empty($this->telegram_id)) {
+            return 'tg:' . $this->telegram_id;
+        }
+        return 'user#' . (string)$this->id;
     }
 }
