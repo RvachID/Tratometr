@@ -52,18 +52,18 @@ $config = [
         'log' => [
             'traceLevel' => YII_DEBUG ? 3 : 0,
             'targets' => [
-                // как было: в файл (можно оставить)
+                // всё как раньше в файл (можно оставить/убрать)
                 [
                     'class' => yii\log\FileTarget::class,
                     'levels' => ['error', 'warning'],
                 ],
-                // НОВОЕ: в stdout — видно в Railway Logs
+                // ВАЖНО: всё в stdout — видно в Railway → Logs
                 [
                     'class' => yii\log\FileTarget::class,
                     'logFile' => 'php://stdout',
                     'levels' => ['error', 'warning', 'info'],
-                    'categories' => ['tgLogin', 'webhook', 'app'], // наши категории
-                    'logVars' => [], // не засоряем окружением
+                    // без categories — ловим вообще все события
+                    'logVars' => [], // не спамим суперглобалами
                 ],
             ],
         ],
