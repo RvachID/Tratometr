@@ -28,5 +28,6 @@ RUN composer install --no-dev --optimize-autoloader
 EXPOSE 8080
 
 # Запускаем встроенный сервер
-CMD sh -c "php yii migrate --interactive=0 && php -S 0.0.0.0:8080 -t web"
+CMD ["sh", "-c", "php yii migrate --interactive=0 > /app/migrate.log 2>&1 && php -S 0.0.0.0:8080 -t web"]
+
 
