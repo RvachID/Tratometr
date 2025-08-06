@@ -73,15 +73,6 @@ $config = [
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
-            'rules' => [
-                'webhook'         => 'webhook/index',
-                // мини‑апп и авторизация через Telegram
-                'site/app'        => 'site/app',
-                'auth/tg-login'   => 'auth/tg-login',
-                'auth/profile'    => 'auth/profile',
-                'camera' => 'camera/index',
-                'price/upload-from-camera' => 'price/upload-from-camera',
-            ],
         ],
     ],
     'defaultRoute' => 'site/app',
