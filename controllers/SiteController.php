@@ -125,10 +125,5 @@ class SiteController extends Controller
     {
         return $this->render('about');
     }
-    public function actionApp()
-    {
-        // Гость тут тоже ок — он авторизуется через JS ниже
-        return $this->render('app');
-    }
 
 }
