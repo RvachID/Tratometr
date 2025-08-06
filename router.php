@@ -1,6 +1,10 @@
 <?php
-if (is_file(__DIR__ . '/web' . $_SERVER["REQUEST_URI"])) {
+$webRoot = __DIR__ . '/web';
+
+// Если запрашивается существующий файл — отдаём его напрямую
+if (is_file($webRoot . $_SERVER["REQUEST_URI"])) {
     return false;
 }
 
-require __DIR__ . '/web/index.php';
+// Запускаем index.php как entry script
+require $webRoot . '/index.php';

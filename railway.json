@@ -1,9 +1,12 @@
+
 {
   "build": {
     "builder": "DOCKERFILE"
   },
   "deploy": {
-    "startCommand": "php -S 0.0.0.0:8080 router.php",
+    "startCommand": "php -S 0.0.0.0:8080 -t web router.php",
     "restartPolicyType": "ON_FAILURE"
   }
 }
+
+
