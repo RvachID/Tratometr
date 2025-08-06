@@ -33,11 +33,6 @@ $config = [
             'class' => 'yii\caching\FileCache',
         ],
 
-        'user' => [
-            'identityClass' => 'app\models\User',
-            'enableAutoLogin' => true,
-        ],
-
         'errorHandler' => [
             'errorAction' => 'site/error',
         ],
@@ -69,17 +64,23 @@ $config = [
 
         'db' => $db,
 
-        'urlManager' => [
-            'enablePrettyUrl' => true,
-            'showScriptName' => false,
-            'rules' => [
-                '' => 'site/index',
-                'signup' => 'auth/signup',
-                'login'  => 'auth/login',
-                'logout' => 'auth/logout',
+            'urlManager' => [
+                'enablePrettyUrl' => true,
+                'showScriptName' => false,
+                'rules' => [
+                    '' => 'site/index',
+                    'signup' => 'auth/signup',
+                    'login'  => 'auth/login',
+                    'logout' => 'auth/logout',
+                ],
             ],
-        ],
+            'user' => [
+                'identityClass' => 'app\models\User',
+                'enableAutoLogin' => true,
+            ],
+
     ],
+    'defaultRoute' => 'site/index',
     'params' => $params,
 ];
 
