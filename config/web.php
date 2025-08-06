@@ -79,6 +79,8 @@ $config = [
                 'site/app'        => 'site/app',
                 'auth/tg-login'   => 'auth/tg-login',
                 'auth/profile'    => 'auth/profile',
+                'camera' => 'camera/index',
+                'price/upload-from-camera' => 'price/upload-from-camera',
             ],
         ],
     ],

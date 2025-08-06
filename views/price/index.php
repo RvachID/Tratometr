@@ -2,8 +2,10 @@
 $this->title = 'Сканер цен';
 $botUsername = 'tratometrN1_bot'; // без @
 ?>
-<button id="btnScan" class="btn btn-camera">📷 Сканировать</button>
-<div id="result"></div>
+<a href="https://tratometr-production.up.railway.app/camera" target="_blank" class="btn btn-primary">
+    📷 Сканировать (в браузере)
+</a>
+
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>

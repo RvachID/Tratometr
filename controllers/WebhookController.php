@@ -153,6 +153,50 @@ class WebhookController extends Controller
         return $data['result'] ?? [];
     }
 
+    public function actionUploadFromCamera()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        if (Yii::$app->user->isGuest) {
+            return ['error' => 'Not authorized'];
+        }
+
+        $base64 = Yii::$app->request->post('image');
+        if (!$base64) {
+            return ['error' => 'No image'];
+        }
+
+        // Извлекаем base64
+        $data = explode(',', $base64);
+        $imageData = base64_decode(end($data));
+
+        // Сохраняем оригинал во временный файл
+        $tempPath = Yii::getAlias('@runtime') . '/' . uniqid('camera_') . '.jpg';
+        file_put_contents($tempPath, $imageData);
+
+        // Обработка изображения (тот же Imagick, что в боте)
+        $processedPath = $this->processImage($tempPath);
+
+        // Распознаём OCR
+        $ocrResult = $this->processOcr($processedPath);
+
+        // Сохраняем в price_entry
+        Yii::$app->db->createCommand()->insert('price_entry', [
+            'user_id' => Yii::$app->user->id,
+            'recognized_amount' => $ocrResult['amount'],
+            'recognized_text' => $ocrResult['text'],
+            'photo_path' => null,
+            'source' => 'web_camera',
+            'created_at' => time(),
+            'updated_at' => time(),
+        ])->execute();
+
+        return ['status' => 'ok'];
+    }
+
+    /**
+     * Обработка изображения
+     */
     private function processImage($inputPath)
     {
         $outputPath = Yii::getAlias('@runtime') . '/' . uniqid('proc_') . '.jpg';
@@ -170,7 +214,6 @@ class WebhookController extends Controller
 
         $imagick->contrastImage(true);
         $imagick->modulateImage(100, 200, 100);
-
         $imagick->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
 
         $imagick->writeImage($outputPath);
@@ -180,6 +223,9 @@ class WebhookController extends Controller
         return $outputPath;
     }
 
+    /**
+     * Распознавание текста
+     */
     private function processOcr($imagePath)
     {
         $apikey = 'K82943706188957';
@@ -216,4 +262,5 @@ class WebhookController extends Controller
 
         return ['amount' => $amount, 'text' => $text];
     }
+
 }
