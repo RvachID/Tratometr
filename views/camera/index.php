@@ -7,7 +7,7 @@
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; }
         #openBtn {
-            display: inline-block;
+            display: none;
             padding: 15px 25px;
             background: #4CAF50;
             color: white;
@@ -23,8 +23,8 @@
 <body>
 <h1>Сканер ценника</h1>
 <input type="file" accept="image/*" capture="environment" id="cameraInput" style="display:none;">
-<button id="openBtn" style="display:none;">📷 Открыть камеру</button>
-<div id="status"></div>
+<button id="openBtn">📷 Открыть камеру</button>
+<div id="status">Загрузка...</div>
 
 <script>
     function isTelegramWebView() {
@@ -42,11 +42,11 @@
         };
 
         if (isTelegramWebView()) {
-            // Внутри Telegram WebView — нужен явный клик
+            statusDiv.textContent = 'Вы в Telegram WebView — нужен клик по кнопке';
             openBtn.style.display = 'inline-block';
             openBtn.addEventListener('click', launchCamera);
         } else {
-            // Системный браузер — сразу пробуем открыть камеру
+            statusDiv.textContent = 'Системный браузер — камера должна открыться сразу';
             launchCamera();
         }
 
@@ -63,18 +63,14 @@
             reader.onload = async function(e) {
                 const base64Image = e.target.result;
 
-                // Отправляем фото в mini app backend
                 const res = await fetch('/price/upload-from-camera', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: 'image=' + encodeURIComponent(base64Image)
                 }).then(r => r.json());
 
                 if (res.status === 'ok') {
                     statusDiv.textContent = 'Готово! Возвращаемся в приложение...';
-                    // Редирект в mini app
                     window.location.href = 'https://t.me/ТВОЙ_БОТ?startapp=scan_done';
                 } else {
                     statusDiv.textContent = 'Ошибка: ' + (res.error || 'Неизвестная ошибка');
