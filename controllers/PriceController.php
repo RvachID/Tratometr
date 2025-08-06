@@ -146,4 +146,28 @@ class PriceController extends Controller
 
         return ['listTotal' => number_format($listTotal, 2, '.', '')];
     }
+
+    public function actionGetLast()
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        if (Yii::$app->user->isGuest) {
+            return ['error' => 'Not authorized'];
+        }
+
+        $row = (new \yii\db\Query())
+            ->from('price_entry')
+            ->where(['user_id' => Yii::$app->user->id])
+            ->orderBy(['created_at' => SORT_DESC])
+            ->limit(1)
+            ->one();
+
+        if ($row) {
+            return [
+                'price' => $row['recognized_amount'] ?: $row['amount'],
+                'text' => $row['recognized_text']
+            ];
+        }
+        return ['price' => null];
+    }
+
 }
