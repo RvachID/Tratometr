@@ -64,6 +64,11 @@ $config = [
 
         'db' => $db,
 
+            'user' => [
+                'identityClass' => 'app\models\User',
+                'enableAutoLogin' => true,
+                'loginUrl' => ['auth/login'],
+            ],
             'urlManager' => [
                 'enablePrettyUrl' => true,
                 'showScriptName' => false,
@@ -73,10 +78,6 @@ $config = [
                     'login'  => 'auth/login',
                     'logout' => 'auth/logout',
                 ],
-            ],
-            'user' => [
-                'identityClass' => 'app\models\User',
-                'enableAutoLogin' => true,
             ],
 
     ],
