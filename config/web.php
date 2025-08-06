@@ -75,7 +75,6 @@ $config = [
             'showScriptName' => false,
         ],
     ],
-    'defaultRoute' => 'site/app',
     'params' => $params,
 ];
 
