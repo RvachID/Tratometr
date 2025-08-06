@@ -4,7 +4,6 @@ namespace app\models;
 use Yii;
 use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
-use yii\behaviors\TimestampBehavior;
 
 class User extends ActiveRecord implements IdentityInterface
 {
@@ -13,34 +12,17 @@ class User extends ActiveRecord implements IdentityInterface
         return '{{%user}}';
     }
 
-    public function behaviors()
-    {
-        return [TimestampBehavior::class];
-    }
-
     public function rules()
     {
         return [
-            [['email', 'password_hash', 'auth_key'], 'required'],
+            ['email', 'required'],
             ['email', 'email'],
             ['email', 'unique'],
-            [['email', 'password_hash', 'auth_key'], 'string', 'max' => 255],
-            [['created_at', 'updated_at'], 'integer'],
+            ['pin_code', 'required'],
+            ['pin_code', 'match', 'pattern' => '/^\d{4,6}$/', 'message' => 'PIN должен быть от 4 до 6 цифр'],
         ];
     }
 
-    public function beforeValidate()
-    {
-        if (empty($this->auth_key)) {
-            $this->auth_key = Yii::$app->security->generateRandomString();
-        }
-        if (!empty($this->password) && empty($this->password_hash)) {
-            $this->password_hash = Yii::$app->security->generatePasswordHash($this->password);
-        }
-        return parent::beforeValidate();
-    }
-
-    // IdentityInterface
     public static function findIdentity($id)
     {
         return static::findOne($id);
@@ -51,9 +33,14 @@ class User extends ActiveRecord implements IdentityInterface
         return null;
     }
 
+    public static function findByEmail($email)
+    {
+        return static::findOne(['email' => $email]);
+    }
+
     public function getId()
     {
-        return $this->getPrimaryKey();
+        return $this->id;
     }
 
     public function getAuthKey()
@@ -66,13 +53,19 @@ class User extends ActiveRecord implements IdentityInterface
         return $this->auth_key === $authKey;
     }
 
-    public static function findByEmail($email)
+    public function validatePin($pin)
     {
-        return static::findOne(['email' => $email]);
+        return $this->pin_code === $pin;
     }
 
-    public function validatePassword($password)
+    public function beforeSave($insert)
     {
-        return Yii::$app->security->validatePassword($password, $this->password_hash);
+        if ($insert) {
+            $this->auth_key = Yii::$app->security->generateRandomString();
+            $this->created_at = time();
+        }
+        $this->updated_at = time();
+        return parent::beforeSave($insert);
     }
 }
+

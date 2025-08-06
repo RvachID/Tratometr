@@ -34,9 +34,8 @@ $config = [
         ],
 
         'user' => [
-            'identityClass' => \app\models\User::class,
+            'identityClass' => 'app\models\User',
             'enableAutoLogin' => true,
-            'loginUrl' => null, // не редиректим на форму логина — авторизация через Telegram
         ],
 
         'errorHandler' => [
@@ -73,6 +72,12 @@ $config = [
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
+            'rules' => [
+                '' => 'site/index',
+                'signup' => 'auth/signup',
+                'login'  => 'auth/login',
+                'logout' => 'auth/logout',
+            ],
         ],
     ],
     'params' => $params,
