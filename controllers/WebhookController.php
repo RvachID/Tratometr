@@ -29,7 +29,7 @@ class WebhookController extends Controller
             $text         = trim($msg['text'] ?? '');
             $date         = $msg['date'] ?? null;
 
-            // 1) Логируем текстовые сообщения в telegram_message (как было)
+            // Логируем текстовые сообщения в telegram_message
             if ($chatId || $tgUserId || $text) {
                 Yii::$app->db->createCommand()->insert('telegram_message', [
                     'chat_id'    => $chatId,
@@ -46,32 +46,44 @@ class WebhookController extends Controller
                 throw new \RuntimeException('BOT_TOKEN is not set');
             }
 
-            // 2) Обработка команды /scan — запрос фото у пользователя
-            if ($text === '/scan' || $text === 'scan') {
-                $this->sendMessage($chatId, "Отправьте фото ценника 📷");
-                return ['status' => 'wait_photo'];
+            // === Обработка команд ===
+            if ($text) {
+                // /start scan
+                if (strpos($text, '/start') === 0) {
+                    $parts = explode(' ', $text, 2);
+                    $param = $parts[1] ?? '';
+                    if ($param === 'scan') {
+                        $this->sendMessage($chatId, "Отправьте фото ценника 📷");
+                        return ['status' => 'wait_photo_start_param'];
+                    }
+                }
+                // /scan
+                if ($text === '/scan' || $text === 'scan') {
+                    $this->sendMessage($chatId, "Отправьте фото ценника 📷");
+                    return ['status' => 'wait_photo_command'];
+                }
             }
 
-            // 3) Если пришло фото
+            // === Приём фото ===
             if (!empty($msg['photo'])) {
-                $largestPhoto = end($msg['photo']); // последнее — самое большое
+                $largestPhoto = end($msg['photo']);
                 $fileId = $largestPhoto['file_id'];
 
-                // 3.1 Получаем путь к файлу с серверов Telegram
+                // Получаем путь к файлу
                 $fileInfo = $this->getFile($fileId, $botToken);
                 $fileUrl = "https://api.telegram.org/file/bot{$botToken}/{$fileInfo['file_path']}";
 
-                // 3.2 Скачиваем во временный файл
+                // Скачиваем во временный файл
                 $tempPath = Yii::getAlias('@runtime') . '/' . basename($fileInfo['file_path']);
                 file_put_contents($tempPath, file_get_contents($fileUrl));
 
-                // 3.3 Обрабатываем изображение (контраст, обрезка, ч/б)
+                // Обработка изображения
                 $processedPath = $this->processImage($tempPath);
 
-                // 3.4 Распознаём через OCR
+                // OCR
                 $ocrResult = $this->processOcr($processedPath);
 
-                // 3.5 Ищем пользователя по telegram_id
+                // Сохраняем в price_entry
                 $user = User::findOne(['telegram_id' => $tgUserId]);
                 if ($user) {
                     Yii::$app->db->createCommand()->insert('price_entry', [
@@ -85,7 +97,7 @@ class WebhookController extends Controller
                     ])->execute();
                 }
 
-                // 3.6 Отправляем inline‑кнопку для открытия mini app
+                // Кнопка для открытия mini app
                 $this->sendMessage($chatId, "✅ Готово! Открываю приложение...", [
                     'inline_keyboard' => [
                         [[
@@ -98,12 +110,13 @@ class WebhookController extends Controller
                 return ['status' => 'photo_processed', 'amount' => $ocrResult['amount']];
             }
 
-            // 4) Эхо для остальных текстов (тест)
+            // Эхо для прочих текстов
             if ($chatId && $text !== '') {
                 $this->sendMessage($chatId, 'Ты написал: ' . $text);
             }
 
             return ['status' => 'ok'];
+
         } catch (\Throwable $e) {
             $this->log('@runtime/webhook_error.log',
                 sprintf("[%s] %s\n%s", date('Y-m-d H:i:s'), $e->getMessage(), $e->getTraceAsString())
@@ -112,18 +125,12 @@ class WebhookController extends Controller
         }
     }
 
-    /**
-     * Логирование в файл
-     */
     private function log(string $aliasPath, string $line): void
     {
         $file = Yii::getAlias($aliasPath);
         @file_put_contents($file, sprintf("[%s] %s\n", date('Y-m-d H:i:s'), $line), FILE_APPEND);
     }
 
-    /**
-     * Отправка сообщения в Telegram
-     */
     private function sendMessage($chatId, $text, $replyMarkup = null)
     {
         $botToken = getenv('BOT_TOKEN');
@@ -134,15 +141,11 @@ class WebhookController extends Controller
         if ($replyMarkup) {
             $data['reply_markup'] = json_encode($replyMarkup);
         }
-
         file_get_contents(
             'https://api.telegram.org/bot' . $botToken . '/sendMessage?' . http_build_query($data)
         );
     }
 
-    /**
-     * Получение информации о файле через API Telegram
-     */
     private function getFile($fileId, $botToken)
     {
         $resp = file_get_contents('https://api.telegram.org/bot' . $botToken . '/getFile?file_id=' . $fileId);
@@ -150,18 +153,13 @@ class WebhookController extends Controller
         return $data['result'] ?? [];
     }
 
-    /**
-     * Обработка изображения (обрезка центра, контраст, ч/б)
-     */
     private function processImage($inputPath)
     {
         $outputPath = Yii::getAlias('@runtime') . '/' . uniqid('proc_') . '.jpg';
         $imagick = new \Imagick($inputPath);
 
-        // Ресайз до макс 1024 px
         $imagick->resizeImage(1024, 1024, \Imagick::FILTER_LANCZOS, 1, true);
 
-        // Обрезка центральной области (90% ширины, 80% высоты)
         $width = $imagick->getImageWidth();
         $height = $imagick->getImageHeight();
         $cropWidth = (int)($width * 0.9);
@@ -170,11 +168,9 @@ class WebhookController extends Controller
         $startY = (int)(($height - $cropHeight) / 2);
         $imagick->cropImage($cropWidth, $cropHeight, $startX, $startY);
 
-        // Усиление контраста
         $imagick->contrastImage(true);
         $imagick->modulateImage(100, 200, 100);
 
-        // Ч/б
         $imagick->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
 
         $imagick->writeImage($outputPath);
@@ -184,9 +180,6 @@ class WebhookController extends Controller
         return $outputPath;
     }
 
-    /**
-     * Распознавание текста через OCR.Space
-     */
     private function processOcr($imagePath)
     {
         $apikey = 'K82943706188957';
@@ -209,7 +202,6 @@ class WebhookController extends Controller
         $text = $data['ParsedResults'][0]['ParsedText'] ?? '';
         $amount = null;
 
-        // Ищем наибольшую сумму по размеру шрифта
         if (!empty($data['ParsedResults'][0]['TextOverlay']['Lines'])) {
             foreach ($data['ParsedResults'][0]['TextOverlay']['Lines'] as $line) {
                 foreach ($line['Words'] as $word) {
