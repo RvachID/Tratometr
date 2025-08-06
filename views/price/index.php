@@ -17,6 +17,6 @@ $this->title = 'Мои траты';
 <script>
     document.getElementById('openCameraBtn').addEventListener('click', function() {
         // Откроет внешнюю ссылку — Telegram предложит выбрать Chrome/Safari
-        window.open('https://tratometr.yourdomain.com/camera', '_blank');
+        window.open('https://tratometr-production.up.railway.app/camera', '_blank');
     });
 </script>
