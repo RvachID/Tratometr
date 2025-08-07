@@ -12,14 +12,16 @@ use app\models\PriceEntry;
 
 class ScanController extends Controller
 {
-    public $enableCsrfValidation = false;
+    public $enableCsrfValidation = true;
 
     public function beforeAction($action)
     {
         if (Yii::$app->user->isGuest) {
             throw new \yii\web\UnauthorizedHttpException('Пользователь не авторизован');
         }
-
+        if ($action->id === 'upload') {
+            Yii::$app->request->enableCsrfValidation = false;
+        }
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON; // 💥 ВОТ ЭТО ОБЯЗАТЕЛЬНО
 
         return parent::beforeAction($action);
@@ -31,6 +33,11 @@ class ScanController extends Controller
     public function actionUpload()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
+
+        // ❗ Проверка авторизации
+        if (Yii::$app->user->isGuest) {
+            return ['success' => false, 'error' => 'Пользователь не авторизован'];
+        }
 
         try {
             $image = UploadedFile::getInstanceByName('image');

@@ -13,19 +13,13 @@ $config = [
     ],
     'components' => [
         'request' => [
-            // !!! не забывай хранить секрет в окружении/секрете
             'cookieValidationKey' => 'JnrKGc4dsJmo_uU1hCj-k7W2Ettg3Y8A',
-            // чтобы Yii умел принимать JSON в $_POST (удобно для /auth/tg-login)
-            'parsers' => [
-                'application/json' => 'yii\web\JsonParser',
-            ],
         ],
 
-        // важно для Telegram webview: cookie сессии должны быть SameSite=None; Secure
         'session' => [
             'cookieParams' => [
-                'sameSite' => 'None',
-                'secure'   => true,
+                'sameSite' => 'Lax',
+                'secure'   => YII_ENV_PROD,
             ],
         ],
 
