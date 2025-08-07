@@ -9,6 +9,9 @@ $this->title = 'Тратометр';
 <div class="container mt-3 text-center">
     <h2>Тратометр</h2>
 
+    <img id="preview-image" style="max-width: 100%; border: 1px solid #ccc; margin-top: 10px;" />
+
+
     <button id="start-scan" class="btn btn-primary mb-3">📷 Сканировать</button>
 
     <div id="camera-wrapper" style="display:none;">

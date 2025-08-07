@@ -67,6 +67,8 @@ captureBtn.onclick = () => {
             console.error('CSRF-токен отсутствует в <meta>');
             return;
         }
+        const preview = document.getElementById('preview-image');
+        preview.src = URL.createObjectURL(blob);
 
         fetch('/index.php?r=scan/upload', {
             method: 'POST',
