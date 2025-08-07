@@ -56,7 +56,8 @@ captureBtn.onclick = () => {
             headers: {
                 'X-CSRF-Token': csrfToken
             },
-            body: formData
+            body: formData,
+            credentials: 'include'
         })
             .then(async r => {
                 const contentType = r.headers.get('content-type') || '';

@@ -17,7 +17,9 @@ class ScanController extends Controller
     public function beforeAction($action)
     {
         if (Yii::$app->user->isGuest) {
-            throw new \yii\web\UnauthorizedHttpException('Пользователь не авторизован');
+            Yii::$app->response->format = Response::FORMAT_JSON;
+            Yii::$app->response->statusCode = 401;
+            Yii::$app->end(json_encode(['success' => false, 'error' => 'Не авторизован']));
         }
         if ($action->id === 'upload') {
             Yii::$app->request->enableCsrfValidation = false;
@@ -34,10 +36,6 @@ class ScanController extends Controller
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        // ❗ Проверка авторизации
-        if (Yii::$app->user->isGuest) {
-            return ['success' => false, 'error' => 'Пользователь не авторизован'];
-        }
 
         try {
             $image = UploadedFile::getInstanceByName('image');
