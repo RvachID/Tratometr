@@ -118,27 +118,42 @@ class ScanController extends Controller
      */
     private function recognizeText($filePath)
     {
-        // 💾 Проверка размера файла (до 1 МБ)
-        if (filesize($filePath) > 1024 * 1024) {
-            return ['ErrorMessage' => 'Размер файла превышает 1 МБ'];
-        }
-
         $apiKey = 'K84434625588957';
         $client = new \GuzzleHttp\Client();
 
-        $response = $client->request('POST', 'https://api.ocr.space/parse/image', [
-            'headers' => ['apikey' => $apiKey],
-            'multipart' => [
-                ['name' => 'file', 'contents' => fopen($filePath, 'r')],
-                ['name' => 'language', 'contents' => 'rus'],
-                ['name' => 'isOverlayRequired', 'contents' => 'true'],
-            ],
-        ]);
+        try {
+            $response = $client->request('POST', 'https://api.ocr.space/parse/image', [
+                'headers' => ['apikey' => $apiKey],
+                'multipart' => [
+                    ['name' => 'file', 'contents' => fopen($filePath, 'r')],
+                    ['name' => 'language', 'contents' => 'rus'],
+                    ['name' => 'isOverlayRequired', 'contents' => 'true'],
+                ],
+            ]);
 
-        $body = json_decode($response->getBody(), true);
-        return $body['ParsedResults'][0] ?? [];
+            $body = json_decode($response->getBody(), true);
+
+            // 💾 Сохраняем полный ответ в лог для анализа
+            $logPath = Yii::getAlias('@runtime/ocr_raw_response.json');
+            file_put_contents($logPath, json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+            // ✅ Проверяем есть ли ParsedResults
+            if (!isset($body['ParsedResults'][0])) {
+                return [
+                    'error' => 'Нет результата распознавания',
+                    'full_response' => $body,
+                ];
+            }
+
+            return $body['ParsedResults'][0];
+        } catch (\Throwable $e) {
+            // ⚠️ Логируем исключение
+            Yii::error($e->getMessage(), __METHOD__);
+            return [
+                'error' => 'Исключение при распознавании: ' . $e->getMessage(),
+            ];
+        }
     }
-
 
     /**
      * Вытаскиваем сумму из распознанного текста
