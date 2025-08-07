@@ -34,6 +34,24 @@ captureBtn.onclick = () => {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    // 🖤 ЧБ + Контраст
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        const avg = (r + g + b) / 3;
+        const bw = avg > 128 ? 255 : 0;
+
+        data[i] = data[i + 1] = data[i + 2] = bw;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    // 📤 Отправка
     canvas.toBlob(blob => {
         if (!blob) {
             alert('Не удалось получить изображение');
@@ -43,7 +61,6 @@ captureBtn.onclick = () => {
         const formData = new FormData();
         formData.append('image', blob, 'scan.jpg');
 
-        // 🔐 Получаем CSRF-токен из мета-тега
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         if (!csrfToken) {
             alert('CSRF-токен не найден');
@@ -51,7 +68,7 @@ captureBtn.onclick = () => {
             return;
         }
 
-        fetch('index.php?r=scan/upload', {
+        fetch('/index.php?r=scan/upload', {
             method: 'POST',
             headers: {
                 'X-CSRF-Token': csrfToken
@@ -83,6 +100,7 @@ captureBtn.onclick = () => {
             });
     }, 'image/jpeg');
 };
+
 
 // 💾 Сохранение изменений в записях
 document.querySelectorAll('.entry-form').forEach(form => {

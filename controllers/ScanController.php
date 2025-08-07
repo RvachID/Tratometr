@@ -146,12 +146,14 @@ class ScanController extends Controller
      */
     private function extractAmount($text)
     {
+        // Убираем всё, кроме чисел
         preg_match_all('/\d+[.,]?\d*/', $text, $matches);
+
         if (empty($matches[0])) {
             return 0;
         }
 
-// ищем наибольшую сумму
+        // Преобразуем в float и ищем максимум
         $nums = array_map(fn($s) => floatval(str_replace(',', '.', $s)), $matches[0]);
         return max($nums);
     }
