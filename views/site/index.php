@@ -1,12 +1,43 @@
 <?php
+
 use yii\helpers\Html;
+use yii\helpers\Url;
 
 $this->title = 'Тратометр';
 ?>
-<h1>Тратометр</h1>
 
-<p>
-    <a href="<?= \yii\helpers\Url::to(['auth/signup']) ?>">Регистрация</a> |
-    <a href="<?= \yii\helpers\Url::to(['auth/login']) ?>">Вход</a>
-</p>
+<div class="container mt-3 text-center">
+    <h2>Тратометр</h2>
 
+    <button id="start-scan" class="btn btn-primary mb-3">📷 Сканировать</button>
+
+    <div id="camera-wrapper" style="display:none;">
+        <video id="camera" autoplay playsinline width="100%" style="max-width:400px;"></video>
+        <br>
+        <button id="capture" class="btn btn-success mt-2">📸 Сфоткать</button>
+    </div>
+
+    <div class="mt-3">
+        <h5>Общая сумма: <strong><?= number_format($total, 2, '.', ' ') ?></strong> ₽</h5>
+    </div>
+
+    <div class="mt-3 text-start">
+        <?php foreach ($entries as $entry): ?>
+            <div class="border p-2 mb-2">
+                <form class="entry-form" data-id="<?= $entry->id ?>">
+                    Сумма: <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
+                                  class="form-control mb-1">
+                    Кол-во: <input type="number" step="0.001" name="qty" value="<?= $entry->qty ?>"
+                                   class="form-control mb-1">
+                    Категория: <input type="text" name="category" value="<?= Html::encode($entry->category) ?>"
+                                      class="form-control mb-1">
+                    <button class="btn btn-sm btn-outline-success save-entry">💾</button>
+                </form>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+
+<?php
+$this->registerJsFile(Url::to('@web/js/scanner.js'), ['depends' => [\yii\web\JqueryAsset::class]]);
+?>

@@ -2,6 +2,7 @@
 
 namespace app\controllers;
 
+use app\models\PriceEntry;
 use Yii;
 use yii\filters\AccessControl;
 use yii\web\Controller;
@@ -54,15 +55,6 @@ class SiteController extends Controller
         ];
     }
 
-    /**
-     * Displays homepage.
-     *
-     * @return string
-     */
-    public function actionIndex()
-    {
-        return $this->render('index');
-    }
 
     /**
      * Login action.
@@ -124,6 +116,26 @@ class SiteController extends Controller
     public function actionAbout()
     {
         return $this->render('about');
+    }
+
+    public function actionIndex()
+    {
+        if (Yii::$app->user->isGuest) {
+            return $this->redirect(['auth/login']);
+        }
+
+        $entries = PriceEntry::find()
+            ->where(['user_id' => Yii::$app->user->id])
+            ->orderBy(['created_at' => SORT_DESC])
+            ->limit(20)
+            ->all();
+
+        $total = array_reduce($entries, fn($sum, $e) => $sum + $e->amount * $e->qty, 0);
+
+        return $this->render('index', [
+            'entries' => $entries,
+            'total' => $total,
+        ]);
     }
 
 }

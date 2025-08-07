@@ -1,4 +1,5 @@
 <?php
+
 namespace app\controllers;
 
 use Yii;
@@ -26,7 +27,7 @@ class AuthController extends Controller
 
             $user = User::findByEmail($email);
             if ($user && $user->validatePin($pin)) {
-                Yii::$app->user->login($user, 3600*24*30);
+                Yii::$app->user->login($user, 3600 * 24 * 30);
                 return $this->goHome();
             }
             Yii::$app->session->setFlash('error', 'Неверный e‑mail или PIN.');
