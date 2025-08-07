@@ -156,31 +156,44 @@ class ScanController extends Controller
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
      */
-    private function preprocessImage($inputPath, $outputPath)
+    private function processImage($filePath)
     {
-        $imagick = new \Imagick($inputPath);
+        Yii::info('Обработка изображения прошла', __METHOD__);
+        try {
+            $image = new \Imagick($filePath);
 
-        // Изменяем размер по ширине до 1024px (пропорционально)
-        $imagick->resizeImage(1024, 0, \Imagick::FILTER_LANCZOS, 1);
+            // Преобразуем в ЧБ
+            $image->setImageColorspace(\Imagick::COLORSPACE_GRAY);
+            $image->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
 
-        // Переводим в чёрно-белое
-        $imagick->setImageColorspace(\Imagick::COLORSPACE_GRAY);
+            // Повышаем контраст
+            $image->sigmoidalContrastImage(true, 10, 0.5);
 
-        // Повышаем контраст и нормализуем уровни
-        $imagick->enhanceImage();
-        $imagick->contrastImage(true);
-        $imagick->contrastImage(true);
-        $imagick->normalizeImage();
+            // Повышаем яркость и резкость
+            $image->modulateImage(120, 100, 100); // яркость +20%
+            $image->sharpenImage(2, 1); // усиление чёткости
 
-        // Сохраняем как JPEG с хорошим качеством
-        $imagick->setImageFormat('jpeg');
-        $imagick->setImageCompression(\Imagick::COMPRESSION_JPEG);
-        $imagick->setImageCompressionQuality(70);
-        $imagick->writeImage($outputPath);
+            // Обрезаем 5% по краям
+            $width = $image->getImageWidth();
+            $height = $image->getImageHeight();
+            $cropX = intval($width * 0.05);
+            $cropY = intval($height * 0.05);
+            $cropW = $width - 2 * $cropX;
+            $cropH = $height - 2 * $cropY;
+            $image->cropImage($cropW, $cropH, $cropX, $cropY);
+            $image->setImagePage(0, 0, 0, 0); // сброс ограничений
 
-        $imagick->clear();
-        $imagick->destroy();
+            // Сохраняем поверх
+            $image->writeImage($filePath);
+            $image->destroy();
+
+            Yii::info('Обработка изображения завершена успешно', __METHOD__);
+
+        } catch (\Exception $e) {
+            Yii::error('Ошибка обработки изображения: ' . $e->getMessage(), __METHOD__);
+        }
     }
+
 
 // временный вывод
     private function recognizeTextWithRaw($filePath)
