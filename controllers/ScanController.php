@@ -36,7 +36,6 @@ class ScanController extends Controller
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-
         try {
             $image = UploadedFile::getInstanceByName('image');
             if (!$image) {
@@ -48,14 +47,24 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
             }
 
-            $recognizedText = $this->recognizeText($tmpPath);
+            $recognizedData = $this->recognizeText($tmpPath);
             unlink($tmpPath);
 
-            if (!$recognizedText) {
+            if (empty($recognizedData['ParsedText'])) {
                 return ['success' => false, 'error' => 'Текст не распознан'];
             }
 
-            $amount = $this->extractAmount($recognizedText);
+            // ВРЕМЕННО! Возвращаем все данные OCR для анализа, ничего не сохраняем в БД:
+            return [
+                'success' => true,
+                'parsedText' => $recognizedData['ParsedText'],
+                'overlay' => $recognizedData['TextOverlay'] ?? null,
+                'full' => $recognizedData, // можно смотреть в консоли или JSONViewer
+            ];
+
+            // === Остальной код ниже можно вернуть после отладки ===
+            /*
+            $amount = $this->extractAmount($recognizedData['ParsedText']);
             if (!$amount) {
                 return ['success' => false, 'error' => 'Не удалось извлечь сумму'];
             }
@@ -64,7 +73,7 @@ class ScanController extends Controller
                 'user_id' => Yii::$app->user->id,
                 'amount' => $amount,
                 'qty' => 1,
-                'recognized_text' => $recognizedText,
+                'recognized_text' => $recognizedData['ParsedText'],
                 'source' => 'price_tag',
                 'created_at' => time(),
                 'updated_at' => time(),
@@ -76,15 +85,17 @@ class ScanController extends Controller
 
             return [
                 'success' => true,
-                'text' => $recognizedText,
+                'text' => $recognizedData['ParsedText'],
                 'amount' => $amount,
                 'entry_id' => $entry->id,
             ];
+            */
         } catch (\Throwable $e) {
             Yii::error($e->getMessage(), __METHOD__);
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
+
 
 
     /**
@@ -120,12 +131,14 @@ class ScanController extends Controller
             'multipart' => [
                 ['name' => 'file', 'contents' => fopen($filePath, 'r')],
                 ['name' => 'language', 'contents' => 'rus'],
-                ['name' => 'isOverlayRequired', 'contents' => 'false'],
+                ['name' => 'isOverlayRequired', 'contents' => 'true'],
+
             ],
         ]);
 
         $body = json_decode($response->getBody(), true);
-        return $body['ParsedResults'][0]['ParsedText'] ?? '';
+        return $body['ParsedResults'][0] ?? [];
+
     }
 
     /**
@@ -142,4 +155,24 @@ class ScanController extends Controller
         $nums = array_map(fn($s) => floatval(str_replace(',', '.', $s)), $matches[0]);
         return max($nums);
     }
+// временный вывод
+    private function recognizeTextWithRaw($filePath)
+    {
+        $apiKey = 'K84434625588957';
+        $client = new \GuzzleHttp\Client();
+
+        $response = $client->request('POST', 'https://api.ocr.space/parse/image', [
+            'headers' => ['apikey' => $apiKey],
+            'multipart' => [
+                ['name' => 'file', 'contents' => fopen($filePath, 'r')],
+                ['name' => 'language', 'contents' => 'rus'],
+                ['name' => 'isOverlayRequired', 'contents' => 'true'],
+            ],
+        ]);
+
+        $body = json_decode($response->getBody(), true);
+
+        return $body; // 🔍 вернём весь ответ целиком
+    }
+
 }
