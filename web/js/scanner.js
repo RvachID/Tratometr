@@ -18,6 +18,7 @@ startBtn.onclick = async () => {
         cameraWrapper.style.display = 'block';
     } catch (err) {
         alert('Ошибка при доступе к камере: ' + err.message);
+        console.error('Ошибка открытия камеры:', err);
     }
 };
 
@@ -42,8 +43,13 @@ captureBtn.onclick = () => {
         const formData = new FormData();
         formData.append('image', blob, 'scan.jpg');
 
-        // 💡 Добавляем CSRF-токен из мета-тега
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        // 🔐 Получаем CSRF-токен из мета-тега
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!csrfToken) {
+            alert('CSRF-токен не найден');
+            console.error('CSRF-токен отсутствует в <meta>');
+            return;
+        }
 
         fetch('/index.php?r=scan/upload', {
             method: 'POST',
@@ -52,8 +58,17 @@ captureBtn.onclick = () => {
             },
             body: formData
         })
-            .then(r => r.json())
+            .then(async r => {
+                const contentType = r.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const text = await r.text();
+                    console.error('Ожидали JSON, получили:', text);
+                    throw new Error('Сервер вернул не JSON. См. консоль.');
+                }
+                return r.json();
+            })
             .then(res => {
+                console.log('Ответ от сервера:', res);
                 if (res.success) {
                     alert('Распознано: ' + res.text + '\nСумма: ' + res.amount);
                     location.reload();
@@ -61,7 +76,10 @@ captureBtn.onclick = () => {
                     alert('Ошибка: не удалось распознать сумму');
                 }
             })
-            .catch(err => alert('Ошибка при отправке: ' + err.message));
+            .catch(err => {
+                alert('Ошибка при отправке: ' + err.message);
+                console.error('Ошибка fetch:', err);
+            });
     }, 'image/jpeg');
 };
 
@@ -75,7 +93,12 @@ document.querySelectorAll('.entry-form').forEach(form => {
         const formData = new FormData(form);
         const id = form.dataset.id;
 
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!csrfToken) {
+            alert('CSRF-токен не найден');
+            console.error('CSRF-токен отсутствует в <meta>');
+            return;
+        }
 
         fetch(`/index.php?r=scan/update&id=${id}`, {
             method: 'POST',
@@ -85,6 +108,9 @@ document.querySelectorAll('.entry-form').forEach(form => {
             body: formData
         })
             .then(() => location.reload())
-            .catch(err => alert('Ошибка сохранения: ' + err.message));
+            .catch(err => {
+                alert('Ошибка сохранения: ' + err.message);
+                console.error('Ошибка при сохранении записи:', err);
+            });
     };
 });
