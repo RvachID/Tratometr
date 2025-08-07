@@ -101,8 +101,6 @@ class ScanController extends Controller
         }
     }
 
-
-
     /**
      * Обновление суммы / количества / категории
      */
@@ -185,7 +183,7 @@ class ScanController extends Controller
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
      */
-    private function processImage($filePath)
+    private function preprocessImage($filePath)
     {
         Yii::info('Обработка изображения прошла', __METHOD__);
         try {
