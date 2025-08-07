@@ -19,6 +19,9 @@ class ScanController extends Controller
         if (Yii::$app->user->isGuest) {
             throw new \yii\web\UnauthorizedHttpException('Пользователь не авторизован');
         }
+
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON; // 💥 ВОТ ЭТО ОБЯЗАТЕЛЬНО
+
         return parent::beforeAction($action);
     }
 

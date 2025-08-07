@@ -46,18 +46,16 @@ captureBtn.onclick = () => {
             method: 'POST',
             body: formData
         })
-            .then(r => r.json())
-            .then(res => {
-                if (res.success) {
-                    alert('Распознано: ' + res.text + '\nСумма: ' + res.amount);
-                    location.reload();
-                } else {
-                    alert('Ошибка: не удалось распознать сумму');
+            .then(r => r.text()) // 💥 читаем текст вместо .json()
+            .then(text => {
+                console.log('Raw response:', text); // покажет HTML или JSON
+                try {
+                    const json = JSON.parse(text);
+                    console.log('Parsed:', json);
+                } catch (e) {
+                    alert('Ошибка при парсинге: ' + e.message);
                 }
-            })
-            .catch(err => alert('Ошибка при отправке: ' + err.message));
-    }, 'image/jpeg');
-};
+            });
 
 // 💾 Сохранение изменений в записях
 document.querySelectorAll('.entry-form').forEach(form => {
