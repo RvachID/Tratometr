@@ -51,7 +51,7 @@ captureBtn.onclick = () => {
             return;
         }
 
-        fetch('/index.php?r=scan/upload', {
+        fetch('index.php?r=scan/upload', {
             method: 'POST',
             headers: {
                 'X-CSRF-Token': csrfToken
@@ -101,7 +101,7 @@ document.querySelectorAll('.entry-form').forEach(form => {
             return;
         }
 
-        fetch(`/index.php?r=scan/update&id=${id}`, {
+        fetch(`index.php?r=scan/update&id=${id}`, {
             method: 'POST',
             headers: {
                 'X-CSRF-Token': csrfToken

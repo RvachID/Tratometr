@@ -63,16 +63,10 @@ $config = [
                 'enableAutoLogin' => true,
                 'loginUrl' => ['auth/login'],
             ],
-            'urlManager' => [
-                'enablePrettyUrl' => true,
-                'showScriptName' => false,
-                'rules' => [
-                    '' => 'site/index',
-                    'signup' => 'auth/signup',
-                    'login'  => 'auth/login',
-                    'logout' => 'auth/logout',
-                ],
-            ],
+        'urlManager' => [
+            'enablePrettyUrl' => false,
+            'showScriptName' => true,
+        ],
 
     ],
     'defaultRoute' => 'site/index',
