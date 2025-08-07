@@ -118,6 +118,11 @@ class ScanController extends Controller
      */
     private function recognizeText($filePath)
     {
+        // 💾 Проверка размера файла (до 1 МБ)
+        if (filesize($filePath) > 1024 * 1024) {
+            return ['ErrorMessage' => 'Размер файла превышает 1 МБ'];
+        }
+
         $apiKey = 'K84434625588957';
         $client = new \GuzzleHttp\Client();
 
@@ -127,14 +132,13 @@ class ScanController extends Controller
                 ['name' => 'file', 'contents' => fopen($filePath, 'r')],
                 ['name' => 'language', 'contents' => 'rus'],
                 ['name' => 'isOverlayRequired', 'contents' => 'true'],
-
             ],
         ]);
 
         $body = json_decode($response->getBody(), true);
         return $body['ParsedResults'][0] ?? [];
-
     }
+
 
     /**
      * Вытаскиваем сумму из распознанного текста
@@ -161,7 +165,13 @@ class ScanController extends Controller
         Yii::info('Обработка изображения прошла', __METHOD__);
         try {
             $image = new \Imagick($filePath);
+            $image->setImageFormat('jpeg');
 
+        // 📏 Ограничение ширины до 1024 пикселей (если больше)
+            $width = $image->getImageWidth();
+            if ($width > 1024) {
+                $image->resizeImage(1024, 0, Imagick::FILTER_LANCZOS, 1);
+            }
             // Преобразуем в ЧБ
             $image->setImageColorspace(\Imagick::COLORSPACE_GRAY);
             $image->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
@@ -192,27 +202,6 @@ class ScanController extends Controller
         } catch (\Exception $e) {
             Yii::error('Ошибка обработки изображения: ' . $e->getMessage(), __METHOD__);
         }
-    }
-
-
-// временный вывод
-    private function recognizeTextWithRaw($filePath)
-    {
-        $apiKey = 'K84434625588957';
-        $client = new \GuzzleHttp\Client();
-
-        $response = $client->request('POST', 'https://api.ocr.space/parse/image', [
-            'headers' => ['apikey' => $apiKey],
-            'multipart' => [
-                ['name' => 'file', 'contents' => fopen($filePath, 'r')],
-                ['name' => 'language', 'contents' => 'rus'],
-                ['name' => 'isOverlayRequired', 'contents' => 'true'],
-            ],
-        ]);
-
-        $body = json_decode($response->getBody(), true);
-
-        return $body; // 🔍 вернём весь ответ целиком
     }
 
 }
