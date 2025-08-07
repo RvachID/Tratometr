@@ -32,35 +32,55 @@ class ScanController extends Controller
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $image = UploadedFile::getInstanceByName('image');
-        if (!$image) {
-            throw new BadRequestHttpException('Изображение не загружено');
+        try {
+            $image = UploadedFile::getInstanceByName('image');
+            if (!$image) {
+                return ['success' => false, 'error' => 'Изображение не загружено'];
+            }
+
+            $tmpPath = Yii::getAlias('@runtime/' . uniqid('scan_') . '.' . $image->extension);
+            if (!$image->saveAs($tmpPath)) {
+                return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
+            }
+
+            $recognizedText = $this->recognizeText($tmpPath);
+            unlink($tmpPath);
+
+            if (!$recognizedText) {
+                return ['success' => false, 'error' => 'Текст не распознан'];
+            }
+
+            $amount = $this->extractAmount($recognizedText);
+            if (!$amount) {
+                return ['success' => false, 'error' => 'Не удалось извлечь сумму'];
+            }
+
+            $entry = new PriceEntry([
+                'user_id' => Yii::$app->user->id,
+                'amount' => $amount,
+                'qty' => 1,
+                'recognized_text' => $recognizedText,
+                'source' => 'price_tag',
+                'created_at' => time(),
+                'updated_at' => time(),
+            ]);
+
+            if (!$entry->save()) {
+                return ['success' => false, 'error' => 'Ошибка сохранения', 'details' => $entry->errors];
+            }
+
+            return [
+                'success' => true,
+                'text' => $recognizedText,
+                'amount' => $amount,
+                'entry_id' => $entry->id,
+            ];
+        } catch (\Throwable $e) {
+            Yii::error($e->getMessage(), __METHOD__);
+            return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
-
-        $tmpPath = Yii::getAlias('@runtime/' . uniqid('scan_') . '.' . $image->extension);
-        $image->saveAs($tmpPath);
-
-        $recognizedText = $this->recognizeText($tmpPath);
-        unlink($tmpPath);
-
-        $amount = $this->extractAmount($recognizedText);
-
-        $entry = new PriceEntry([
-            'user_id' => Yii::$app->user->id,
-            'amount' => $amount,
-            'qty' => 1,
-            'recognized_text' => $recognizedText,
-        ]);
-
-        $entry->save();
-
-        return [
-            'success' => true,
-            'text' => $recognizedText,
-            'amount' => $amount,
-            'entry_id' => $entry->id,
-        ];
     }
+
 
     /**
      * Обновление суммы / количества / категории
