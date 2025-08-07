@@ -18,6 +18,7 @@ startBtn.onclick = async () => {
         cameraWrapper.style.display = 'block';
     } catch (err) {
         alert('Ошибка при доступе к камере: ' + err.message);
+        console.error('Ошибка открытия камеры:', err);
     }
 };
 
@@ -46,16 +47,30 @@ captureBtn.onclick = () => {
             method: 'POST',
             body: formData
         })
-            .then(r => r.text()) // 💥 читаем текст вместо .json()
-            .then(text => {
-                console.log('Raw response:', text); // покажет HTML или JSON
-                try {
-                    const json = JSON.parse(text);
-                    console.log('Parsed:', json);
-                } catch (e) {
-                    alert('Ошибка при парсинге: ' + e.message);
+            .then(async r => {
+                const contentType = r.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const text = await r.text();
+                    console.error('Ожидали JSON, получили:', text);
+                    throw new Error('Сервер вернул не JSON. См. консоль.');
                 }
+                return r.json();
+            })
+            .then(res => {
+                console.log('Ответ от сервера:', res);
+                if (res.success) {
+                    alert('Распознано: ' + res.text + '\nСумма: ' + res.amount);
+                    location.reload();
+                } else {
+                    alert('Ошибка: не удалось распознать сумму');
+                }
+            })
+            .catch(err => {
+                alert('Ошибка при отправке: ' + err.message);
+                console.error('Ошибка fetch:', err);
             });
+    }, 'image/jpeg');
+};
 
 // 💾 Сохранение изменений в записях
 document.querySelectorAll('.entry-form').forEach(form => {
@@ -72,6 +87,9 @@ document.querySelectorAll('.entry-form').forEach(form => {
             body: formData
         })
             .then(() => location.reload())
-            .catch(err => alert('Ошибка сохранения: ' + err.message));
+            .catch(err => {
+                alert('Ошибка сохранения: ' + err.message);
+                console.error('Ошибка при сохранении записи:', err);
+            });
     };
 });
