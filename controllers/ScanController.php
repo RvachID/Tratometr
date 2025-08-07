@@ -53,8 +53,17 @@ class ScanController extends Controller
             unlink($tmpPath);
 
             // Распознаём текст
-            $recognizedText = $this->recognizeText($preprocessedPath);
+            $recognizedData = $this->recognizeText($preprocessedPath);
             unlink($preprocessedPath);
+
+            // 🐞 Отладка — если API вернул ошибку, покажем её
+            if (isset($recognizedData['error'])) {
+                return [
+                    'success' => false,
+                    'error' => $recognizedData['error'],
+                    'debug' => $recognizedData['full_response'] ?? 'Нет подробностей'
+                ];
+            }
 
             if (empty($recognizedData['ParsedText'])) {
                 return ['success' => false, 'error' => 'Текст не распознан'];
@@ -88,9 +97,10 @@ class ScanController extends Controller
 
         } catch (\Throwable $e) {
             Yii::error($e->getMessage(), __METHOD__);
-            return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
+            return ['success' => false, 'error' => 'Внутренняя ошибка сервера', 'debug' => $e->getMessage()];
         }
     }
+
 
 
     /**
