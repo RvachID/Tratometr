@@ -47,23 +47,19 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
             }
 
-            $recognizedData = $this->recognizeText($tmpPath);
+            // Обрабатываем изображение
+            $preprocessedPath = Yii::getAlias('@runtime/' . uniqid('preprocessed_') . '.jpg');
+            $this->preprocessImage($tmpPath, $preprocessedPath);
             unlink($tmpPath);
+
+            // Распознаём текст
+            $recognizedText = $this->recognizeText($preprocessedPath);
+            unlink($preprocessedPath);
 
             if (empty($recognizedData['ParsedText'])) {
                 return ['success' => false, 'error' => 'Текст не распознан'];
             }
 
-            // ВРЕМЕННО! Возвращаем все данные OCR для анализа, ничего не сохраняем в БД:
-            return [
-                'success' => true,
-                'parsedText' => $recognizedData['ParsedText'],
-                'overlay' => $recognizedData['TextOverlay'] ?? null,
-                'full' => $recognizedData, // можно смотреть в консоли или JSONViewer
-            ];
-
-            // === Остальной код ниже можно вернуть после отладки ===
-            /*
             $amount = $this->extractAmount($recognizedData['ParsedText']);
             if (!$amount) {
                 return ['success' => false, 'error' => 'Не удалось извлечь сумму'];
@@ -89,13 +85,12 @@ class ScanController extends Controller
                 'amount' => $amount,
                 'entry_id' => $entry->id,
             ];
-            */
+
         } catch (\Throwable $e) {
             Yii::error($e->getMessage(), __METHOD__);
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
-
 
 
     /**
@@ -157,6 +152,36 @@ class ScanController extends Controller
         $nums = array_map(fn($s) => floatval(str_replace(',', '.', $s)), $matches[0]);
         return max($nums);
     }
+
+    /**
+     * Предобработка изображения: ресайз, ч/б, контраст
+     */
+    private function preprocessImage($inputPath, $outputPath)
+    {
+        $imagick = new \Imagick($inputPath);
+
+        // Изменяем размер по ширине до 1024px (пропорционально)
+        $imagick->resizeImage(1024, 0, \Imagick::FILTER_LANCZOS, 1);
+
+        // Переводим в чёрно-белое
+        $imagick->setImageColorspace(\Imagick::COLORSPACE_GRAY);
+
+        // Повышаем контраст и нормализуем уровни
+        $imagick->enhanceImage();
+        $imagick->contrastImage(true);
+        $imagick->contrastImage(true);
+        $imagick->normalizeImage();
+
+        // Сохраняем как JPEG с хорошим качеством
+        $imagick->setImageFormat('jpeg');
+        $imagick->setImageCompression(\Imagick::COMPRESSION_JPEG);
+        $imagick->setImageCompressionQuality(70);
+        $imagick->writeImage($outputPath);
+
+        $imagick->clear();
+        $imagick->destroy();
+    }
+
 // временный вывод
     private function recognizeTextWithRaw($filePath)
     {
