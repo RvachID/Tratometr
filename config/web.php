@@ -9,7 +9,7 @@ $config = [
     'bootstrap' => ['log'],
     'aliases' => [
         '@bower' => '@vendor/bower-asset',
-        '@npm'   => '@vendor/npm-asset',
+        '@npm' => '@vendor/npm-asset',
     ],
     'components' => [
         'request' => [
@@ -19,7 +19,7 @@ $config = [
         'session' => [
             'cookieParams' => [
                 'sameSite' => 'Lax',
-                'secure'   => YII_ENV_PROD,
+                'secure' => YII_ENV_PROD,
             ],
         ],
 
@@ -58,16 +58,19 @@ $config = [
 
         'db' => $db,
 
-            'user' => [
-                'identityClass' => 'app\models\User',
-                'enableAutoLogin' => true,
-                'loginUrl' => ['auth/login'],
-            ],
+        'user' => [
+            'identityClass' => 'app\models\User',
+            'enableAutoLogin' => true,
+            'loginUrl' => ['auth/login'],
+        ],
         'urlManager' => [
             'enablePrettyUrl' => false,
             'showScriptName' => true,
         ],
 
+        'ocr' => [
+            'class' => \app\components\OcrClient::class,
+        ],
     ],
     'defaultRoute' => 'site/index',
     'params' => $params,

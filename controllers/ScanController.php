@@ -135,44 +135,34 @@ class ScanController extends Controller
     /**
      * Распознавание текста через OCR API
      */
-    private function recognizeText($filePath)
+    private function recognizeText(string $filePath): array
     {
-        $apiKey = 'K84434625588957';
-        $client = new \GuzzleHttp\Client();
-
         try {
-            $response = $client->request('POST', 'https://api.ocr.space/parse/image', [
-                'headers' => ['apikey' => $apiKey],
-                'multipart' => [
-                    ['name' => 'file', 'contents' => fopen($filePath, 'r')],
-                    ['name' => 'language', 'contents' => 'rus'],
-                    ['name' => 'isOverlayRequired', 'contents' => 'true'],
-                ],
-            ]);
+            $apiResponse = \Yii::$app->ocr->parseImage($filePath, 'rus');
 
-            $body = json_decode($response->getBody(), true);
-
-            // 💾 Сохраняем полный ответ в лог для анализа
-            $logPath = Yii::getAlias('@runtime/ocr_raw_response.json');
-            file_put_contents($logPath, json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
-            // ✅ Проверяем есть ли ParsedResults
-            if (!isset($body['ParsedResults'][0])) {
-                return [
-                    'error' => 'Нет результата распознавания',
-                    'full_response' => $body,
-                ];
+            // Ошибка на стороне OCR.space
+            if (!empty($apiResponse['IsErroredOnProcessing'])) {
+                $msg = $apiResponse['ErrorMessage'] ?? $apiResponse['ErrorDetails'] ?? 'OCR: ошибка обработки';
+                return ['error' => $msg, 'full_response' => $apiResponse];
             }
 
-            return $body['ParsedResults'][0];
-        } catch (\Throwable $e) {
-            // ⚠️ Логируем исключение
-            Yii::error($e->getMessage(), __METHOD__);
+            $results = $apiResponse['ParsedResults'][0] ?? null;
+            if (!$results) {
+                return ['error' => 'Пустой ответ OCR', 'full_response' => $apiResponse];
+            }
+
+            // Плоская форма — как ждут твои extract-методы
             return [
-                'error' => 'Исключение при распознавании: ' . $e->getMessage(),
+                'ParsedText'  => $results['ParsedText']  ?? '',
+                'TextOverlay' => $results['TextOverlay'] ?? ['Lines' => []],
+                'full_response' => $apiResponse, // оставим для debug
             ];
+        } catch (\Throwable $e) {
+            \Yii::error($e->getMessage(), __METHOD__);
+            return ['error' => 'Сбой OCR: ' . $e->getMessage()];
         }
     }
+
 
     /**
      * Берём число из OCR Overlay по наибольшему "шрифту" (Height).
