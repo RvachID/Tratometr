@@ -75,7 +75,11 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Текст не распознан'];
             }
 
-            $amount = $this->extractAmount($recognizedData['ParsedText']);
+            $amount = $this->extractAmountByOverlay($recognizedData);
+            if ($amount === null) {
+                // fallback по тексту, если Overlay не помог
+                $amount = $this->extractAmount($recognizedData['ParsedText']);
+            }
             if (!$amount) {
                 return ['success' => false, 'error' => 'Не удалось извлечь сумму'];
             }
@@ -171,21 +175,155 @@ class ScanController extends Controller
     }
 
     /**
-     * Вытаскиваем сумму из распознанного текста
+     * Берём число из OCR Overlay по наибольшему "шрифту" (Height).
+     * Возвращает float или null, если в Overlay ничего подходящего.
      */
-    private function extractAmount($text)
+    private function extractAmountByOverlay(array $recognizedData): ?float
     {
-        // Убираем всё, кроме чисел
-        preg_match_all('/\d+[.,]?\d*/', $text, $matches);
-
-        if (empty($matches[0])) {
-            return 0;
+        $lines = $recognizedData['TextOverlay']['Lines'] ?? null;
+        if (!$lines || !is_array($lines)) {
+            return null;
         }
 
-        // Преобразуем в float и ищем максимум
-        $nums = array_map(fn($s) => floatval(str_replace(',', '.', $s)), $matches[0]);
-        return max($nums);
+        $bestScore = -1.0;
+        $bestValue = null;
+
+        foreach ($lines as $line) {
+            foreach (($line['Words'] ?? []) as $w) {
+                $token = (string)($w['WordText'] ?? '');
+                $height = isset($w['Height']) ? (float)abs($w['Height']) : 0.0;
+                if ($height <= 0) continue;
+
+                $val = $this->normalizeOcrNumber($token);
+                if ($val === null) continue;
+
+                // вес = высота шрифта; небольшой бонус за наличие разделителя копеек
+                $score = $height;
+                if (preg_match('/[.,]\d{2}\b/u', $token)) {
+                    $score += $height * 0.4;
+                }
+
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $bestValue = $val;
+                }
+            }
+        }
+
+        return $bestValue;
     }
+
+    /**
+     * Нормализуем «числовое» слово из OCR в float.
+     * Чиним: '449 99' / '449,99' / '449·99' / '1 299,90' / '44999' → 449.99.
+     * Отсекаем проценты/дроби, мусор и нереалистичные значения.
+     */
+    private function normalizeOcrNumber(string $s): ?float
+    {
+        $s = trim($s);
+        if ($s === '' || preg_match('/[%\/]/u', $s)) return null; // отсекаем проценты и дроби
+
+        // разные пробелы → обычный
+        $s = str_replace(["\xC2\xA0", ' ', ' '], ' ', $s);
+
+        // помечаем разделитель копеек между цифрами (перед ровно 2 цифрами в конце «слова»)
+        $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);
+
+        // убираем тысячные разделители (пробел/точка/цент.точка перед 3 цифрами)
+        $s = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $s);
+
+        // чистим любые оставшиеся пробелы между цифрами
+        $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);
+
+        // финальный разделитель копеек — точка
+        $s = str_replace('#', '.', $s);
+
+        // валидный формат: целое или с копейками
+        if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
+            $v = (float)$s;
+            return ($v > 0 && $v <= 99999) ? $v : null;
+        }
+
+        // если OCR «съел» точку: 4–6 цифр как копейки (44999 → 449.99)
+        if (preg_match('/^\d{4,6}$/', $s)) {
+            $n = (int)$s;
+            $v = $n / 100.0;
+            return ($v > 0 && $v <= 99999) ? $v : null;
+        }
+
+        // просто целое: допустим
+        if (preg_match('/^\d+$/', $s)) {
+            $v = (float)$s;
+            return ($v > 0 && $v <= 99999) ? $v : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Умный разбор суммы из распознанного текста.
+     * Правит '449 99' / '449,99' → '449.99', убирает тысячные разделители,
+     * пытается восстановить копейки из 4–6-значных целых (44999 → 449.99).
+     */
+    private function extractAmount(string $text): float
+    {
+        // 1) Приведём похожие символы к обычным
+        $text = str_replace(
+            ["\xC2\xA0", ' ', ' ', '﻿'], // NBSP, thin space, hair space, BOM
+            ' ',
+            $text
+        );
+
+        // 2) Помечаем возможный разделитель копеек (между цифрами перед ровно 2 цифрами в конце "слова")
+        // 449 99 / 449,99 / 449·99 / 449•99  -> 449#99
+        $tmp = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $text);
+
+        // 3) Убираем тысячные разделители внутри числа (пробелы/точки/тонкие пробелы перед 3 цифрами)
+        $tmp = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $tmp);
+
+        // 4) Удалим любые оставшиеся пробелы внутри числа
+        $tmp = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $tmp);
+
+        // 5) Возвращаем точку как разделитель копеек
+        $normalized = str_replace('#', '.', $tmp);
+
+        // --- Сначала пытаемся взять числа с копейками
+        if (preg_match_all('/\d+(?:\.\d{1,2})/', $normalized, $m1)) {
+            $candidates = array_map('floatval', $m1[0]);
+            // Отфильтруем разумные цены (1..99999), возьмём максимум
+            $candidates = array_filter($candidates, fn($v) => $v >= 0.01 && $v <= 99999);
+            if (!empty($candidates)) {
+                return max($candidates);
+            }
+        }
+
+        // --- Если копеек нигде нет, пробуем восстановить их из целых 4–6-значных чисел
+        if (preg_match_all('/\d{3,6}/', $normalized, $m2)) {
+            $best = 0.0;
+            foreach ($m2[0] as $raw) {
+                $n = (int)$raw;
+
+                // Кандидат как есть (цена может быть целой)
+                $asIs = (float)$n;
+
+                // Кандидат как цена с копейками (последние 2 цифры — копейки), только для 4–6 знаков
+                $asCents = ($n >= 1000 && $n <= 999999) ? $n / 100.0 : 0.0;
+
+                // Оба варианта должны быть в разумных пределах
+                foreach ([$asIs, $asCents] as $val) {
+                    if ($val >= 0.01 && $val <= 99999 && $val > $best) {
+                        $best = $val;
+                    }
+                }
+            }
+            if ($best > 0) {
+                return $best;
+            }
+        }
+
+        return 0.0;
+    }
+
 
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
