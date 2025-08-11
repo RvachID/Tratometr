@@ -34,10 +34,10 @@ class ScanController extends Controller
      */
     public function actionUpload()
     {
-        Yii::$app->response->format = Response::FORMAT_JSON;
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
         try {
-            $image = UploadedFile::getInstanceByName('image');
+            $image = \yii\web\UploadedFile::getInstanceByName('image');
             if (!$image) {
                 return ['success' => false, 'error' => 'Изображение не загружено'];
             }
@@ -47,21 +47,27 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
             }
 
-            // Обрабатываем изображение
-            $preprocessedPath = Yii::getAlias('@runtime/' . uniqid('preprocessed_') . '.jpg');
-            $this->preprocessImage($tmpPath, $preprocessedPath);
-            unlink($tmpPath);
+            // предобработка «на месте»
+            if (!$this->preprocessImage($tmpPath)) {
+                @unlink($tmpPath);
+                return ['success' => false, 'error' => 'Ошибка при обработке изображения'];
+            }
 
-            // Распознаём текст
-            $recognizedData = $this->recognizeText($preprocessedPath);
-            unlink($preprocessedPath);
+            // контроль размера до 1 МБ
+            if (filesize($tmpPath) > 1024*1024) {
+                @unlink($tmpPath);
+                return ['success' => false, 'error' => 'Размер файла превышает 1 МБ'];
+            }
 
-            // 🐞 Отладка — если API вернул ошибку, покажем её
+            // распознаём
+            $recognizedData = $this->recognizeText($tmpPath);
+            @unlink($tmpPath);
+
             if (isset($recognizedData['error'])) {
                 return [
                     'success' => false,
-                    'error' => $recognizedData['error'],
-                    'debug' => $recognizedData['full_response'] ?? 'Нет подробностей'
+                    'error'   => $recognizedData['error'],
+                    'debug'   => $recognizedData['full_response'] ?? 'Нет подробностей',
                 ];
             }
 
@@ -74,14 +80,14 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Не удалось извлечь сумму'];
             }
 
-            $entry = new PriceEntry([
-                'user_id' => Yii::$app->user->id,
-                'amount' => $amount,
-                'qty' => 1,
+            $entry = new \app\models\PriceEntry([
+                'user_id'         => Yii::$app->user->id,
+                'amount'          => $amount,
+                'qty'             => 1,
                 'recognized_text' => $recognizedData['ParsedText'],
-                'source' => 'price_tag',
-                'created_at' => time(),
-                'updated_at' => time(),
+                'source'          => 'price_tag',
+                'created_at'      => time(),
+                'updated_at'      => time(),
             ]);
 
             if (!$entry->save()) {
@@ -89,9 +95,9 @@ class ScanController extends Controller
             }
 
             return [
-                'success' => true,
-                'text' => $recognizedData['ParsedText'],
-                'amount' => $amount,
+                'success'  => true,
+                'text'     => $recognizedData['ParsedText'],
+                'amount'   => $amount,
                 'entry_id' => $entry->id,
             ];
 
@@ -100,6 +106,7 @@ class ScanController extends Controller
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера', 'debug' => $e->getMessage()];
         }
     }
+
 
     /**
      * Обновление суммы / количества / категории
@@ -183,48 +190,45 @@ class ScanController extends Controller
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
      */
-    private function preprocessImage($filePath)
+    private function preprocessImage(string $filePath): bool
     {
-        Yii::info('Обработка изображения прошла', __METHOD__);
+        Yii::info('Обработка изображения начата', __METHOD__);
         try {
             $image = new \Imagick($filePath);
             $image->setImageFormat('jpeg');
 
-        // 📏 Ограничение ширины до 1024 пикселей (если больше)
+            // ресайз по ширине до 1024
             $width = $image->getImageWidth();
             if ($width > 1024) {
-                $image->resizeImage(1024, 0, Imagick::FILTER_LANCZOS, 1);
+                $image->resizeImage(1024, 0, \Imagick::FILTER_LANCZOS, 1);
             }
-            // Преобразуем в ЧБ
+
+            // Ч/Б + контраст/яркость/резкость
             $image->setImageColorspace(\Imagick::COLORSPACE_GRAY);
             $image->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
-
-            // Повышаем контраст
             $image->sigmoidalContrastImage(true, 10, 0.5);
+            $image->modulateImage(120, 100, 100);
+            $image->sharpenImage(2, 1);
 
-            // Повышаем яркость и резкость
-            $image->modulateImage(120, 100, 100); // яркость +20%
-            $image->sharpenImage(2, 1); // усиление чёткости
+            // обрезка 5% по краям
+            $w = $image->getImageWidth();
+            $h = $image->getImageHeight();
+            $cropX = (int)($w * 0.05);
+            $cropY = (int)($h * 0.05);
+            $image->cropImage($w - 2*$cropX, $h - 2*$cropY, $cropX, $cropY);
+            $image->setImagePage(0, 0, 0, 0);
 
-            // Обрезаем 5% по краям
-            $width = $image->getImageWidth();
-            $height = $image->getImageHeight();
-            $cropX = intval($width * 0.05);
-            $cropY = intval($height * 0.05);
-            $cropW = $width - 2 * $cropX;
-            $cropH = $height - 2 * $cropY;
-            $image->cropImage($cropW, $cropH, $cropX, $cropY);
-            $image->setImagePage(0, 0, 0, 0); // сброс ограничений
-
-            // Сохраняем поверх
-            $image->writeImage($filePath);
+            $ok = $image->writeImage($filePath);
+            $image->clear();
             $image->destroy();
 
             Yii::info('Обработка изображения завершена успешно', __METHOD__);
-
-        } catch (\Exception $e) {
-            Yii::error('Ошибка обработки изображения: ' . $e->getMessage(), __METHOD__);
+            return $ok;
+        } catch (\Throwable $e) {
+            Yii::error('Ошибка обработки изображения: '.$e->getMessage(), __METHOD__);
+            return false;
         }
     }
+
 
 }
