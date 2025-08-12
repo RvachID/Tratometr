@@ -1,26 +1,26 @@
 // ===== DOM =====
-const startBtn    = document.getElementById('start-scan');
-const wrap        = document.getElementById('camera-wrapper');
-const video       = document.getElementById('camera');
-const captureBtn  = document.getElementById('capture');
-const previewImg  = document.getElementById('preview-image'); // превью на главной (не в модалке)
+const startBtn = document.getElementById('start-scan');
+const wrap = document.getElementById('camera-wrapper');
+const video = document.getElementById('camera');
+const captureBtn = document.getElementById('capture');
+const previewImg = document.getElementById('preview-image'); // превью на главной (не в модалке)
 
 // элементы внутри кнопки "Сфоткать" для спиннера
-const btnTextEl    = captureBtn.querySelector('.btn-text') || captureBtn; // fallback
+const btnTextEl = captureBtn.querySelector('.btn-text') || captureBtn; // fallback
 const btnSpinnerEl = captureBtn.querySelector('.spinner');
 
 // ===== Модалка предпросмотра =====
-const scanModalEl   = document.getElementById('scanModal');
-const mAmountEl     = document.getElementById('m-amount');
-const mQtyEl        = document.getElementById('m-qty');
-const mQtyMinusEl   = document.getElementById('m-qty-minus');
-const mQtyPlusEl    = document.getElementById('m-qty-plus');
-const mNoteEl       = document.getElementById('m-note');
+const scanModalEl = document.getElementById('scanModal');
+const mAmountEl = document.getElementById('m-amount');
+const mQtyEl = document.getElementById('m-qty');
+const mQtyMinusEl = document.getElementById('m-qty-minus');
+const mQtyPlusEl = document.getElementById('m-qty-plus');
+const mNoteEl = document.getElementById('m-note');
 const mShowPhotoBtn = document.getElementById('m-show-photo');
-const mPhotoWrap    = document.getElementById('m-photo-wrap');
-const mPhotoImg     = document.getElementById('m-photo');
-const mRetakeBtn    = document.getElementById('m-retake');
-const mSaveBtn      = document.getElementById('m-save');
+const mPhotoWrap = document.getElementById('m-photo-wrap');
+const mPhotoImg = document.getElementById('m-photo');
+const mRetakeBtn = document.getElementById('m-retake');
+const mSaveBtn = document.getElementById('m-save');
 
 // Bootstrap modal (должен быть подключён Bootstrap 5)
 let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
@@ -34,7 +34,7 @@ let lastParsedText = '';        // ParsedText от OCR (опц. для сохр�
 // ===== Утилиты =====
 function debounce(fn, ms) {
     let t;
-    return function(...args) {
+    return function (...args) {
         clearTimeout(t);
         t = setTimeout(() => fn.apply(this, args), ms);
     };
@@ -60,13 +60,13 @@ async function initCamera() {
     await stopStream();
 
     // пробуем тыльную камеру
-    const primary = { video: { facingMode: { ideal: 'environment' } }, audio: false };
+    const primary = {video: {facingMode: {ideal: 'environment'}}, audio: false};
 
     try {
         currentStream = await getStream(primary);
     } catch (e) {
         console.warn('environment camera failed, fallback to any camera:', e?.name, e?.message);
-        currentStream = await getStream({ video: true, audio: false });
+        currentStream = await getStream({video: true, audio: false});
     }
 
     video.setAttribute('playsinline', 'true'); // iOS/Safari
@@ -74,11 +74,18 @@ async function initCamera() {
 
     // ждём метаданные и play()
     await new Promise((res) => {
-        const h = () => { video.removeEventListener('loadedmetadata', h); res(); };
+        const h = () => {
+            video.removeEventListener('loadedmetadata', h);
+            res();
+        };
         if (video.readyState >= 1) res(); else video.addEventListener('loadedmetadata', h);
     });
 
-    try { await video.play(); } catch (e) { console.warn('video.play blocked', e); }
+    try {
+        await video.play();
+    } catch (e) {
+        console.warn('video.play blocked', e);
+    }
 }
 
 // ===== Снимок + OCR (recognize) =====
@@ -109,80 +116,86 @@ async function captureAndRecognize() {
         const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = img.data;
         for (let i = 0; i < data.length; i += 4) {
-            const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
             const bw = avg > 128 ? 255 : 0;
-            data[i] = data[i+1] = data[i+2] = bw;
+            data[i] = data[i + 1] = data[i + 2] = bw;
         }
         ctx.putImageData(img, 0, 0);
 
         // превью на странице (как раньше), но фото в модалке показываем по кнопке
         await new Promise((resolve) => {
             canvas.toBlob((blob) => {
-                if (!blob) {
-                    alert('Не удалось получить изображение');
-                    resolve(null);
-                    return;
-                }
+                try {
+                    if (!blob) {
+                        alert('Не удалось получить изображение');
+                        return resolve(false);
+                    }
 
-                // обновим превью на главной
-                const url = URL.createObjectURL(blob);
-                previewImg.src = url;
+                    const url = URL.createObjectURL(blob);
 
-                // сохраним URL для модалки (покажем по кнопке)
-                if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
-                lastPhotoURL = url;
+                    // ✅ безопасно обновляем превью на странице
+                    if (previewImg) {
+                        previewImg.src = url;
+                    } else {
+                        console.warn('preview-image не найден в DOM');
+                    }
 
-                const formData = new FormData();
-                formData.append('image', blob, 'scan.jpg');
+                    // запомним URL для модалки (покажем по кнопке)
+                    if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
+                    lastPhotoURL = url;
 
-                const csrf = getCsrf();
-                if (!csrf) {
-                    alert('CSRF-токен не найден');
-                    console.error('CSRF-токен отсутствует в <meta>');
-                    resolve(null);
-                    return;
-                }
+                    const formData = new FormData();
+                    formData.append('image', blob, 'scan.jpg');
 
-                // новый эндпоинт: только распознаёт (без записи)
-                fetch('/index.php?r=scan/recognize', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': csrf },
-                    body: formData,
-                    credentials: 'include'
-                })
-                    .then(async r => {
-                        if (r.status === 429) {
-                            throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
-                        }
-                        const ct = r.headers.get('content-type') || '';
-                        if (!ct.includes('application/json')) {
-                            const text = await r.text();
-                            console.error('Ожидали JSON, получили:', text);
-                            throw new Error('Сервер вернул не JSON. См. консоль.');
-                        }
-                        return r.json();
+                    const csrf = getCsrf();
+                    if (!csrf) {
+                        alert('CSRF-токен не найден');
+                        console.error('CSRF-токен отсутствует в <meta>');
+                        return resolve(false);
+                    }
+
+                    fetch('/index.php?r=scan/recognize', {
+                        method: 'POST',
+                        headers: { 'X-CSRF-Token': csrf },
+                        body: formData,
+                        credentials: 'include'
                     })
-                    .then(res => {
-                        if (!res.success) {
-                            throw new Error(res.error || 'Не удалось распознать сумму');
-                        }
+                        .then(async r => {
+                            if (r.status === 429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
+                            const ct = r.headers.get('content-type') || '';
+                            if (!ct.includes('application/json')) {
+                                const text = await r.text();
+                                console.error('Ожидали JSON, получили:', text);
+                                throw new Error('Сервер вернул не JSON. См. консоль.');
+                            }
+                            return r.json();
+                        })
+                        .then(res => {
+                            if (!res.success) throw new Error(res.error || 'Не удалось распознать сумму');
 
-                        // Заполняем модалку
-                        mAmountEl.value = res.recognized_amount;
-                        mQtyEl.value = 1;
-                        mNoteEl.value = '';
-                        mPhotoWrap.style.display = 'none';
-                        lastParsedText = res.parsed_text || '';
+                            mAmountEl.value = res.recognized_amount;
+                            mQtyEl.value = 1;
+                            mNoteEl.value = '';
+                            mPhotoWrap.style.display = 'none';
+                            lastParsedText = res.parsed_text || '';
 
-                        // Открываем модалку
-                        if (bootstrapModal) bootstrapModal.show();
-                        resolve(true);
-                    })
-                    .catch(err => {
-                        alert(err.message);
-                        console.error('recognize error:', err);
-                        resolve(false);
-                    });
+                            if (bootstrapModal) {
+                                bootstrapModal.show();
+                            } else {
+                                console.warn('bootstrapModal не инициализирован');
+                            }
+                            resolve(true);
+                        })
+                        .catch(err => {
+                            alert(err.message);
+                            console.error('recognize error:', err);
+                            resolve(false);
+                        });
+
+                } catch (e) {
+                    console.error('toBlob block error:', e);
+                    resolve(false); // ✅ чтобы не зависала кнопка
+                }
             }, 'image/jpeg', 0.9);
         });
 
@@ -194,6 +207,8 @@ async function captureAndRecognize() {
         else captureBtn.textContent = '📸 Сфоткать';
     }
 }
+if (!previewImg) console.warn('⚠️ #preview-image не найден при загрузке скрипта');
+if (!scanModalEl) console.warn('⚠️ #scanModal не найден при загрузке скрипта');
 
 // ===== Модалка: кнопки и логика =====
 if (mQtyMinusEl && mQtyPlusEl && mQtyEl) {
@@ -242,7 +257,7 @@ if (mSaveBtn) {
         try {
             const r = await fetch('/index.php?r=scan/store', {
                 method: 'POST',
-                headers: { 'X-CSRF-Token': csrf },
+                headers: {'X-CSRF-Token': csrf},
                 body: fd,
                 credentials: 'include',
             });
@@ -272,17 +287,17 @@ function bindEntryRow(container) {
     const form = container.querySelector('form.entry-form');
     if (!form) return;
 
-    const id       = form.dataset.id;
+    const id = form.dataset.id;
     const amountEl = form.querySelector('input[name="amount"]');
-    const qtyEl    = form.querySelector('input[name="qty"]');
-    const delBtn   = form.querySelector('.delete-entry');
+    const qtyEl = form.querySelector('input[name="qty"]');
+    const delBtn = form.querySelector('.delete-entry');
 
     // Обернём qty в input-group с +/- если ещё нет
     let minusBtn = form.querySelector('.qty-minus');
-    let plusBtn  = form.querySelector('.qty-plus');
+    let plusBtn = form.querySelector('.qty-plus');
     if (!minusBtn || !plusBtn) {
         const parent = qtyEl.parentElement;
-        const group  = document.createElement('div');
+        const group = document.createElement('div');
         group.className = 'input-group mb-1';
 
         minusBtn = document.createElement('button');
@@ -313,7 +328,7 @@ function bindEntryRow(container) {
         try {
             const r = await fetch(`index.php?r=scan/update&id=${id}`, {
                 method: 'POST',
-                headers: { 'X-CSRF-Token': csrf },
+                headers: {'X-CSRF-Token': csrf},
                 body: fd,
                 credentials: 'include',
             });
@@ -353,7 +368,7 @@ function bindEntryRow(container) {
             try {
                 const r = await fetch(`index.php?r=scan/delete&id=${id}`, {
                     method: 'POST',
-                    headers: { 'X-CSRF-Token': csrf },
+                    headers: {'X-CSRF-Token': csrf},
                     credentials: 'include',
                 });
                 const res = await r.json();
@@ -404,7 +419,10 @@ function addEntryToTop(entry) {
 
 function updateTotal(total) {
     const el = document.querySelector('.mt-3 h5 strong');
-    if (el) el.textContent = Number(total).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (el) el.textContent = Number(total).toLocaleString('ru-RU', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
 }
 
 
