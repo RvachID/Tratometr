@@ -81,85 +81,105 @@ class ScanController extends Controller
      */
     private function extractAmountByOverlay(array $recognized): ?float
     {
-        $lines = $recognized['TextOverlay']['Lines'] ?? null;
-        if (!$lines || !is_array($lines) || !count($lines)) {
+        if (empty($recognized['TextOverlay']['Lines'])) {
             return null;
         }
 
-        $bestValue = null;
-        $bestScore = -INF;
-
-        // локальная обёртка на твою нормализацию
-        $norm = function (string $raw): ?float {
-            return $this->normalizeOcrNumber($raw);
+        $isNumToken = static function(string $t): bool {
+            // только цифры + возможные разделители и пробелы
+            return (bool)preg_match('/^[\d\s.,·•]+$/u', $t);
         };
 
-        foreach ($lines as $line) {
+        $candidates = []; // [value, area, hasCents]
+
+        foreach ($recognized['TextOverlay']['Lines'] as $line) {
             $words = $line['Words'] ?? [];
-            if (!is_array($words) || !count($words)) {
-                continue;
-            }
+            if (!$words) continue;
 
-            // приведение типов и очистка текста
-            foreach ($words as &$w) {
-                $w['WordText'] = (string)($w['WordText'] ?? '');
-                // уберём валюты/мусор внутри слова (₽, р, руб и т.п.)
-                $w['WordText'] = preg_replace('~[^\d.,\s]~u', '', $w['WordText']);
-                $w['Height']   = isset($w['Height']) ? (int)$w['Height'] : 0;
-                $w['Left']     = isset($w['Left'])   ? (int)$w['Left']   : 0;
-                $w['Top']      = isset($w['Top'])    ? (int)$w['Top']    : 0;
-            }
-            unset($w);
+            // предварительно посчитаем среднюю высоту в строке — пригодится для порога склейки
+            $heights = array_map(fn($w)=> (int)($w['Height'] ?? 0), $words);
+            $avgH = $heights ? array_sum($heights)/max(1,count($heights)) : 0;
+            $joinDx = max(6, (int)round($avgH * 0.8)); // порог по X между токенами, чтобы склеить в одно число
 
-            // собираем подряд идущие «числовые» токены в группы
-            $group = [];
-            $flush = function () use (&$group, $norm, &$bestValue, &$bestScore) {
-                if (!count($group)) return;
+            // пройдём по словам и соберём числовые кластеры
+            $bufText   = '';
+            $bufBoxes  = [];
+            $lastRight = null;
 
-                // склейка без пробелов: "1", "299", ",", "90" => "1299,90"
-                $raw = implode('', array_column($group, 'WordText'));
-                $val = $norm($raw);
-                $groupHeights = array_map(fn($g) => (int)$g['Height'], $group);
-                $maxH = $groupHeights ? max($groupHeights) : 0;
+            $flush = function() use (&$bufText,&$bufBoxes,&$candidates) {
+                if ($bufText === '' || !$bufBoxes) { $bufText=''; $bufBoxes=[]; return; }
 
+                // нормализуем в цену
+                $val = $this->normalizeOcrNumber($bufText);
                 if ($val !== null) {
-                    // признаки «похоже на цену»
-                    $rawStr = $raw;
-                    $hasSep   = (bool)preg_match('~[.,]~', $rawStr);      // есть разделитель
-                    $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $rawStr); // ровно 2 цифры после разделителя
-
-                    // счёт: высота — главный фактор, бонусы за разделитель/копейки
-                    // маленькие значения (<1) слегка штрафуем, чтобы не брать «.50» и т.п.
-                    $penaltySmall = ($val < 1.0) ? 20 : 0;
-
-                    $score = $maxH * 10
-                        + ($hasCents ? 50 : 0)
-                        + ($hasSep   ? 20 : 0)
-                        - $penaltySmall;
-
-                    if ($score > $bestScore) {
-                        $bestScore = $score;
-                        $bestValue = $val;
+                    // площадь и наличие копеек
+                    $sumArea = 0;
+                    $hasCents = (bool)preg_match('/[.,]\d{2}\b/u', $bufText);
+                    foreach ($bufBoxes as $b) {
+                        $w = (int)($b['Width'] ?? 0);
+                        $h = (int)($b['Height'] ?? 0);
+                        $sumArea += $w * $h;
                     }
-                }
+                    // маленький бонус за копейки — помогает 599.99 выйти вперед
+                    if ($hasCents) $sumArea = (int)round($sumArea * 1.15);
 
-                $group = [];
+                    $candidates[] = ['value'=>$val,'area'=>$sumArea,'hasCents'=>$hasCents];
+                }
+                $bufText=''; $bufBoxes=[];
             };
 
             foreach ($words as $w) {
-                $t = preg_replace('~\s+~u', '', $w['WordText']); // внутри слова
-                if ($t !== '' && preg_match('~^[\d.,]+$~u', $t)) {
-                    $group[] = $w;
+                $t = trim((string)($w['WordText'] ?? ''));
+                if ($t === '') { $flush(); $lastRight = null; continue; }
+
+                if ($isNumToken($t)) {
+                    // решаем: это продолжение текущего числа или новый кластер
+                    $left  = (int)($w['Left'] ?? 0);
+                    $width = (int)($w['Width'] ?? 0);
+                    $right = $left + $width;
+
+                    $continue = ($lastRight !== null) ? ($left - $lastRight) <= $joinDx : false;
+
+                    if ($bufText === '' || $continue) {
+                        // продолжаем число
+                        $bufText  .= ($bufText === '' ? '' : ' ') . $t;
+                        $bufBoxes[] = $w;
+                    } else {
+                        // новый кластер — сброс предыдущего
+                        $flush();
+                        $bufText   = $t;
+                        $bufBoxes  = [$w];
+                    }
+                    $lastRight = $right;
                 } else {
                     $flush();
+                    $lastRight = null;
                 }
             }
             $flush();
         }
 
-        return $bestValue;
-    }
+        if (!$candidates) return null;
 
+        // выбираем по максимальной площади (визуальный размер)
+        usort($candidates, function($a,$b){
+            // если площади очень близки — предпочитаем с копейками
+            if (abs($b['area'] - $a['area']) <= 200) {
+                if ($a['hasCents'] !== $b['hasCents']) return $b['hasCents'] <=> $a['hasCents'];
+            }
+            return $b['area'] <=> $a['area'];
+        });
+
+        // можно добавить «разумные рамки», если надо:
+        foreach ($candidates as $c) {
+            $v = (float)$c['value'];
+            if ($v > 0 && $v <= 99999) {
+                return $v;
+            }
+        }
+
+        return null;
+    }
 
     /**
      * Нормализуем «числовое» слово из OCR в float.
@@ -271,7 +291,6 @@ class ScanController extends Controller
 
         return 0.0;
     }
-
 
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
