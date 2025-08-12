@@ -108,6 +108,8 @@ manualBtn.onclick = async () => {
     mNoteEl.value = '';
     lastParsedText = '';
     mPhotoWrap.style.display = 'none';
+    if (mShowPhotoBtn) mShowPhotoBtn.style.display = 'none';
+    resetPhotoPreview();
     bootstrapModal?.show();
 };
 
@@ -159,6 +161,7 @@ async function initCamera() {
 
 // Закрытие модалки: если запись сохранена — прячем камеру и останавливаем стрим
 scanModalEl?.addEventListener('hidden.bs.modal', async () => {
+    if (mShowPhotoBtn) mShowPhotoBtn.style.display = '';
     resetPhotoPreview();
     if (wasSaved) {
         wrap.style.display = 'none';
@@ -243,7 +246,7 @@ async function captureAndRecognize() {
                                 }
                                 throw new Error(res.error || 'Не удалось распознать цену');
                             }
-
+                            if (mShowPhotoBtn) mShowPhotoBtn.style.display = '';
                             // заполняем модалку
                             mAmountEl.value = fmt2(res.recognized_amount);
                             mQtyEl.value = 1;
