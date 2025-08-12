@@ -67,25 +67,28 @@ startBtn.onclick = async () => {
         wrap.style.display = 'block';
         wrap.classList.add('open');
 
-        // посчитаем минимальную высоту блока: экран минус отступ от верха до начала обёртки
-        const top = wrap.getBoundingClientRect().top + window.scrollY;
-        const minH = Math.max(320, window.innerHeight - (top - window.scrollY) - 0); // 0 можно заменить на нижний запас
-        wrap.style.minHeight = minH + 'px';
-
         try {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Доступ к камере не поддерживается в этом браузере');
                 return;
             }
             await initCamera();
+
             cameraActive = true;
             startBtn.textContent = '✖ Закрыть камеру';
 
-            // плавно прокрутим к началу блока (кнопка окажется у низа экрана)
-            window.scrollTo({ top, behavior: 'smooth' });
+            // прокрутим к началу блока и подгоним высоту, чтобы кнопка оказалась у низа
+            window.scrollTo({ top: wrap.offsetTop, behavior: 'smooth' });
+            // сразу и ещё раз после анимации скролла
+            adjustCameraLayout();
+            setTimeout(adjustCameraLayout, 350);
+
+            // на всякий случай реагируем на изменения окна/клавы/поворота
+            window.addEventListener('resize', adjustCameraLayout, { passive: true });
+            window.visualViewport && window.visualViewport.addEventListener('resize', adjustCameraLayout, { passive: true });
+
         } catch (e) {
             alert('Не удалось открыть камеру: ' + (e?.message || e));
-            // откат
             wrap.style.display = 'none';
             wrap.classList.remove('open');
             wrap.style.minHeight = '';
@@ -100,9 +103,22 @@ startBtn.onclick = async () => {
         wrap.style.minHeight = '';
         cameraActive = false;
         startBtn.textContent = '📷 Открыть камеру';
+
+        window.removeEventListener('resize', adjustCameraLayout);
+        window.visualViewport && window.visualViewport.removeEventListener('resize', adjustCameraLayout);
     }
 };
 
+// Считает min-height для обёртки камеры так, чтобы кнопка была у низа экрана
+function adjustCameraLayout() {
+    if (!wrap || wrap.style.display === 'none') return;
+    // Берём реальную высоту видимой области (на iOS учитывает нижнюю панель)
+    const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    const top = wrap.getBoundingClientRect().top; // расстояние от верха вьюпорта до начала блока
+    const safeBottom = 12;                         // небольшой запас снизу (px)
+    const minH = Math.max(360, vh - top - safeBottom);
+    wrap.style.minHeight = minH + 'px';
+}
 
 // Ручной ввод (без камеры)
 manualBtn.onclick = async () => {
