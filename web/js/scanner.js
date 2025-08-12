@@ -108,8 +108,6 @@ manualBtn.onclick = async () => {
     mNoteEl.value = '';
     lastParsedText = '';
     mPhotoWrap.style.display = 'none';
-    if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Скан';
-    resetPhotoPreview();
     bootstrapModal?.show();
 };
 
@@ -303,10 +301,10 @@ if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
         if (isHidden) {
             mPhotoWrap.style.display = 'block';
             mPhotoImg.src = lastPhotoURL || '';
-            mShowPhotoBtn.textContent = 'Скрыть фото';
+            mShowPhotoBtn.textContent = 'Скрыть скан';
         } else {
             mPhotoWrap.style.display = 'none';
-            mShowPhotoBtn.textContent = 'Показать фото';
+            mShowPhotoBtn.textContent = 'Показать скан';
              mPhotoImg.src = '';
         }
     };
@@ -497,6 +495,6 @@ captureBtn.onclick = captureAndRecognize;
 
 function resetPhotoPreview() {
     if (mPhotoWrap) mPhotoWrap.style.display = 'none';
-    if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Показать фото';
+    if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Показать скан';
     if (mPhotoImg) mPhotoImg.src = ''; // не держим старый кадр
 }
