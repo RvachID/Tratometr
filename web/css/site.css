@@ -110,11 +110,7 @@ a.desc:after {
     align-self: stretch;     /* кнопка на всю ширину блока */
 }
 
-/* тонкий отступ снизу, чтобы кнопка не прилипала к краю */
-#camera-wrapper.open .capture-row {
-    margin-top: auto;        /* магия: кнопка упадёт в самый низ обёртки */
-    width: 100%;
-}
+
 
 .spinner {
     border: 2px solid #f3f3f3;
