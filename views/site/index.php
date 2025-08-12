@@ -26,16 +26,16 @@ CSS);
 
 <div class="container mt-3 text-center">
     <h2>Тратометр</h2>
-    <button id="start-scan" class="btn btn-primary mb-3" type="button">📷 Открыть камеру</button>
+    <button id="start-scan" class="btn btn-outline-secondary mb-3" type="button">📷 Открыть камеру</button>
+    <button id="manual-add" class="btn btn-outline-secondary mb-3 ms-2" type="button">✍️ Ввести вручную</button>
 
     <div id="camera-wrapper" style="display:none;">
         <video id="camera" autoplay playsinline width="100%" style="max-width:400px;"></video>
         <br>
-        <button id="capture" class="btn btn-success mt-2" type="button">
+        <button id="capture" class="btn btn-outline-secondary mt-2" type="button">
             <span class="btn-text">📸 Сканировать</span>
             <span class="spinner" style="display:none;"></span>
         </button>
-        <button id="manual-add" class="btn btn-outline-secondary mb-3 ms-2" type="button">✍️ Ввести вручную</button>
     </div>
 
     <!-- Модалка предпросмотра -->
@@ -74,9 +74,9 @@ CSS);
 
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-link" id="m-show-photo" type="button">Скан</button>
+                    <button class="btn btn-outline-secondary" id="m-show-photo" type="button">Скан</button>
                     <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>
-                    <button class="btn btn-primary" id="m-save" type="button">Сохранить</button>
+                    <button class="btn btn-outline-secondary" id="m-save" type="button">Сохранить</button>
                 </div>
             </div>
         </div>
