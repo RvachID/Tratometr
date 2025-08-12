@@ -115,7 +115,7 @@ function adjustCameraLayout() {
     // Берём реальную высоту видимой области (на iOS учитывает нижнюю панель)
     const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
     const top = wrap.getBoundingClientRect().top; // расстояние от верха вьюпорта до начала блока
-    const safeBottom = 12;                         // небольшой запас снизу (px)
+    const safeBottom = 3;                         // небольшой запас снизу (px)
     const minH = Math.max(360, vh - top - safeBottom);
     wrap.style.minHeight = minH + 'px';
 }
