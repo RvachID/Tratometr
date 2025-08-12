@@ -78,7 +78,7 @@ startBtn.onclick = async () => {
             startBtn.textContent = '✖ Закрыть камеру';
 
             // прокрутим к началу блока и подгоним высоту, чтобы кнопка оказалась у низа
-            window.scrollTo({ top: wrap.offsetTop, behavior: 'smooth' });
+            window.scrollTo({ top: Math.max(0, wrap.offsetTop - 8), behavior: 'smooth' });
             // сразу и ещё раз после анимации скролла
             adjustCameraLayout();
             setTimeout(adjustCameraLayout, 350);
