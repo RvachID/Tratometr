@@ -9,6 +9,7 @@ use yii\web\UploadedFile;
 use yii\web\NotFoundHttpException;
 use yii\web\BadRequestHttpException;
 use app\models\PriceEntry;
+use yii\filters\RateLimiter;
 
 class ScanController extends Controller
 {
@@ -28,7 +29,24 @@ class ScanController extends Controller
 
         return parent::beforeAction($action);
     }
+    public function behaviors()
+    {
+        $b = parent::behaviors();
 
+        $b['rateLimiter'] = [
+            'class' => RateLimiter::class,
+            'enableRateLimitHeaders' => true,
+            'only' => ['upload'], // только этот экшен
+            // опционально: кастомный обработчик 429 JSON
+            'errorCallback' => function ($action) {
+                \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+                \Yii::$app->response->statusCode = 429;
+                return ['success' => false, 'error' => 'Превышен лимит OCR-запросов. Попробуйте позже.'];
+            },
+        ];
+
+        return $b;
+    }
     /**
      * Получение изображения → распознавание → сохранение → ответ
      */
