@@ -81,6 +81,7 @@ $config = [
             'class' => \app\components\OcrClient::class,
         ],
     ],
+    'name' => 'Тратометр',
     'defaultRoute' => 'site/index',
     'params' => $params,
 ];
