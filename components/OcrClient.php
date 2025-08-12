@@ -34,28 +34,52 @@ class OcrClient
         ]);
     }
 
-    public function parseImage(string $filePath, string $lang = 'rus'): array
+    public function parseImage(string $filePath, string $lang = 'rus', array $options = []): array
     {
+        // Значения по умолчанию, как в старом фронте + улучшения точности
+        $defaults = [
+            'isOverlayRequired' => true,
+            'scale'             => true,
+            'detectOrientation' => true,
+            'OCREngine'         => 2,   // у OCR.space обычно даёт лучший Overlay
+            // при необходимости добавишь сюда другие поля OCR.space:
+            // 'isTable' => false, 'isCreateSearchablePdf' => false, и т.п.
+        ];
+        $opts = array_merge($defaults, $options);
+
+        // нормализуем значения под multipart (bool -> 'true'/'false')
+        $toString = static function ($v): string {
+            if (is_bool($v)) return $v ? 'true' : 'false';
+            return (string)$v;
+        };
+
         $multipart = [
-            ['name' => 'language',          'contents' => $lang],
-            ['name' => 'isOverlayRequired', 'contents' => 'true'],
+            ['name' => 'language', 'contents' => $lang],
+            // опции OCR
+            ...array_map(
+                fn($k) => ['name' => $k, 'contents' => $toString($opts[$k])],
+                array_keys($opts)
+            ),
+            // сам файл
             ['name' => 'file', 'contents' => fopen($filePath, 'r'), 'filename' => basename($filePath)],
         ];
+
         if ($this->apiKey) {
             $multipart[] = ['name' => 'apikey', 'contents' => $this->apiKey];
         }
 
         $lastEx = null;
-        // 3 попытки с бэкоффом: 0.5с, 1с, 2с
+        // 3 попытки с экспоненциальным бэкоффом: 0.5с, 1с, 2с
         for ($i = 0; $i < 3; $i++) {
             try {
                 $res = $this->http->post($this->endpoint, ['multipart' => $multipart]);
                 return json_decode((string)$res->getBody(), true) ?: [];
-            } catch (ConnectException|RequestException $e) {
+            } catch (\GuzzleHttp\Exception\ConnectException|\GuzzleHttp\Exception\RequestException $e) {
                 $lastEx = $e;
-                usleep([500000, 1000000, 2000000][$i]); // бэкофф
+                usleep([500000, 1000000, 2000000][$i]);
             }
         }
         throw $lastEx ?: new \RuntimeException('OCR: неизвестная ошибка сети');
     }
+
 }

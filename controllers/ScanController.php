@@ -46,12 +46,20 @@ class ScanController extends Controller
     /**
      * Распознавание текста через OCR API
      */
+    /**
+     * Распознавание OCR.space с нужными флагами.
+     * ВАЖНО: компонент \Yii::$app->ocr->parseImage должен уметь принимать 3-й аргумент (массив опций POST).
+     */
     private function recognizeText(string $filePath): array
     {
         try {
-            $apiResponse = \Yii::$app->ocr->parseImage($filePath, 'rus');
+            $apiResponse = \Yii::$app->ocr->parseImage($filePath, 'rus', [
+                'isOverlayRequired' => true,
+                'scale'             => true,   // апскейл для мелкого текста
+                'detectOrientation' => true,
+                'OCREngine'         => 2,      // у OCR.space обычно точнее Overlay
+            ]);
 
-            // Ошибка на стороне OCR.space
             if (!empty($apiResponse['IsErroredOnProcessing'])) {
                 $msg = $apiResponse['ErrorMessage'] ?? $apiResponse['ErrorDetails'] ?? 'OCR: ошибка обработки';
                 return ['error' => $msg, 'full_response' => $apiResponse];
@@ -62,18 +70,16 @@ class ScanController extends Controller
                 return ['error' => 'Пустой ответ OCR', 'full_response' => $apiResponse];
             }
 
-            // Плоская форма — как ждут твои extract-методы
             return [
-                'ParsedText'  => $results['ParsedText']  ?? '',
-                'TextOverlay' => $results['TextOverlay'] ?? ['Lines' => []],
-                'full_response' => $apiResponse, // оставим для debug
+                'ParsedText'    => $results['ParsedText']  ?? '',
+                'TextOverlay'   => $results['TextOverlay'] ?? ['Lines' => []],
+                'full_response' => $apiResponse,
             ];
         } catch (\Throwable $e) {
             \Yii::error($e->getMessage(), __METHOD__);
             return ['error' => 'Сбой OCR: ' . $e->getMessage()];
         }
     }
-
 
     /**
      * Берём число из OCR Overlay по наибольшей площади.
@@ -82,6 +88,10 @@ class ScanController extends Controller
     /**
      * Берём цену из OCR Overlay по максимальной ПЛОЩАДИ bbox группы числовых токенов.
      * Учитываем бонусы за копейки, штрафуем короткие/«копеечные» значения.
+     */
+    /**
+     * Достаём цену из Overlay по ПЛОЩАДИ bbox ГРУППЫ числовых токенов.
+     * Фильтруем перечёркнутые и проценты. Бонусы за копейки.
      */
     private function extractAmountByOverlay(array $recognized): ?float
     {
@@ -101,15 +111,17 @@ class ScanController extends Controller
             $words = $line['Words'] ?? [];
             if (!is_array($words) || !count($words)) continue;
 
-            // Приведение типов + чистка
+            // приведение типов + чистка
             foreach ($words as &$w) {
-                $w['WordText'] = (string)($w['WordText'] ?? '');
-                // оставляем цифры и , . (убираем валюты/буквы)
-                $w['WordText'] = preg_replace('~[^\d.,\s]~u', '', $w['WordText']);
-                $w['Height']   = isset($w['Height']) ? (int)$w['Height'] : 0;
-                $w['Left']     = isset($w['Left'])   ? (int)$w['Left']   : 0;
-                $w['Top']      = isset($w['Top'])    ? (int)$w['Top']    : 0;
-                $w['Width']    = isset($w['Width'])  ? (int)$w['Width']  : 0; // ВАЖНО: ширина для площади
+                $w['WordText']       = (string)($w['WordText'] ?? '');
+                $w['IsStrikethrough']= !empty($w['IsStrikethrough']);
+                $w['Height']         = isset($w['Height']) ? (int)$w['Height'] : 0;
+                $w['Left']           = isset($w['Left'])   ? (int)$w['Left']   : 0;
+                $w['Top']            = isset($w['Top'])    ? (int)$w['Top']    : 0;
+                $w['Width']          = isset($w['Width'])  ? (int)$w['Width']  : 0;
+
+                // убираем валюты/буквы внутри слова, оставляем цифры и , .
+                $w['WordText'] = preg_replace('~[^\d.,\s%]~u', '', $w['WordText']);
             }
             unset($w);
 
@@ -117,6 +129,7 @@ class ScanController extends Controller
             $flush = function () use (&$group, $norm, &$bestValue, &$bestScore) {
                 if (!count($group)) return;
 
+                // объединяем в одну строку без пробелов
                 $raw = implode('', array_map(fn($g) => preg_replace('~\s+~u', '', $g['WordText']), $group));
                 $val = $norm($raw);
 
@@ -135,15 +148,15 @@ class ScanController extends Controller
                     $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
                     $digits   = preg_match_all('~\d~', $raw);
 
-                    // Базовый счёт — площадь bbox (а не высота одного токена)
-                    $score = $area;
+                    // базовый скор: площадь bbox
+                    $score = (float)$area;
 
-                    // Бонусы: копейки и достаточное кол-во цифр (чтобы «480» в тексте не обыгрывало «599.99»)
+                    // бонусы
                     if ($hasCents) $score *= 1.40;
                     if ($digits >= 3) $score *= 1.15;
 
-                    // Штраф слишком мелким/подозрительным значениям
-                    if ($val < 1.0)  $score *= 0.2;   // отрезаем «.50» и т.п.
+                    // штрафы
+                    if ($val < 1.0)  $score *= 0.2;           // .50 и т.п.
                     if ($digits <= 2 && !$hasCents) $score *= 0.6;
 
                     if ($score > $bestScore) {
@@ -156,7 +169,11 @@ class ScanController extends Controller
             };
 
             foreach ($words as $w) {
-                $t = preg_replace('~\s+~u', '', $w['WordText']);
+                // отбрасываем перечеркнутые (старые цены) и проценты
+                if ($w['IsStrikethrough']) { $flush(); continue; }
+                if (strpos($w['WordText'], '%') !== false) { $flush(); continue; }
+
+                $t = preg_replace('~\s+~u', '', $w['WordText']); // внутри слова
                 if ($t !== '' && preg_match('~^[\d.,]+$~u', $t)) {
                     $group[] = $w;
                 } else {
@@ -168,7 +185,6 @@ class ScanController extends Controller
 
         return $bestValue;
     }
-
 
 
     /**
@@ -285,39 +301,37 @@ class ScanController extends Controller
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
      */
+    /**
+     * Мягкая и стабильная предобработка:
+     * - сохраняем цвет;
+     * - только resize + лёгкая резкость;
+     * - без контраста, без GRAY, без кропа.
+     */
     private function preprocessImage(string $filePath): bool
     {
-        Yii::info('Обработка изображения начата', __METHOD__);
+        Yii::info('Обработка изображения (safe, keep-color) начата', __METHOD__);
         try {
-            $image = new \Imagick($filePath);
-            $image->setImageFormat('jpeg');
+            $im = new \Imagick($filePath);
+            $im->autoOrient(); // если есть EXIF
 
-            // ресайз по ширине до 1024
-            $width = $image->getImageWidth();
-            if ($width > 1024) {
-                $image->resizeImage(1024, 0, \Imagick::FILTER_LANCZOS, 1);
+            // OCR обычно лучше на 1000–1600 px по ширине
+            $w = $im->getImageWidth();
+            if ($w > 1280) {
+                $im->resizeImage(1280, 0, \Imagick::FILTER_LANCZOS, 1);
             }
 
-            // Ч/Б + контраст/яркость/резкость
-            $image->setImageColorspace(\Imagick::COLORSPACE_GRAY);
-            $image->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
-            $image->sigmoidalContrastImage(true, 10, 0.5);
-            $image->modulateImage(120, 100, 100);
-            $image->sharpenImage(2, 1);
+            // Очень мягкая резкость без «перешарпа»
+            $im->unsharpMaskImage(0.5, 0.5, 0.8, 0.01);
 
-            // обрезка 5% по краям
-            $w = $image->getImageWidth();
-            $h = $image->getImageHeight();
-            $cropX = (int)($w * 0.05);
-            $cropY = (int)($h * 0.05);
-            $image->cropImage($w - 2*$cropX, $h - 2*$cropY, $cropX, $cropY);
-            $image->setImagePage(0, 0, 0, 0);
+            // JPEG качество
+            $im->setImageFormat('jpeg');
+            $im->setImageCompressionQuality(85);
 
-            $ok = $image->writeImage($filePath);
-            $image->clear();
-            $image->destroy();
+            $ok = $im->writeImage($filePath);
+            $im->clear();
+            $im->destroy();
 
-            Yii::info('Обработка изображения завершена успешно', __METHOD__);
+            Yii::info('Safe-обработка завершена', __METHOD__);
             return $ok;
         } catch (\Throwable $e) {
             Yii::error('Ошибка обработки изображения: '.$e->getMessage(), __METHOD__);
@@ -327,7 +341,7 @@ class ScanController extends Controller
 
     public function actionRecognize()
     {
-        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
         try {
             $image = \yii\web\UploadedFile::getInstanceByName('image');
@@ -335,49 +349,98 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Изображение не загружено'];
             }
 
-            $tmpPath = Yii::getAlias('@runtime/' . uniqid('scan_') . '.' . $image->extension);
-            if (!$image->saveAs($tmpPath)) {
+            $ext = strtolower($image->extension ?: 'jpg');
+            $sizeLimit = 1024 * 1024; // лимит OCR.space
+
+            // сохраняем сырой
+            $rawPath = \Yii::getAlias('@runtime/' . uniqid('scan_raw_') . '.' . $ext);
+            if (!$image->saveAs($rawPath)) {
                 return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
             }
 
-            if (!$this->preprocessImage($tmpPath)) {
-                @unlink($tmpPath);
-                return ['success' => false, 'error' => 'Ошибка при обработке изображения'];
+            // копия под soft-предобработку
+            $procPath = \Yii::getAlias('@runtime/' . uniqid('scan_proc_') . '.' . $ext);
+            @copy($rawPath, $procPath);
+            if (!$this->preprocessImage($procPath)) {
+                @unlink($procPath);
+                $procPath = null;
             }
 
-            if (filesize($tmpPath) > 1024*1024) {
-                @unlink($tmpPath);
+            // контроль размера
+            if ($procPath && @filesize($procPath) > $sizeLimit) {
+                @unlink($procPath);
+                $procPath = null;
+            }
+            if (!$procPath && @filesize($rawPath) > $sizeLimit) {
+                @unlink($rawPath);
                 return ['success' => false, 'error' => 'Размер файла превышает 1 МБ'];
             }
 
-            $recognizedData = $this->recognizeText($tmpPath);
-            @unlink($tmpPath);
+            $run = function (string $path) {
+                $recognized = $this->recognizeText($path);
+                if (isset($recognized['error'])) {
+                    return ['error' => $recognized['error'], 'reason' => 'ocr', 'recognized' => $recognized];
+                }
 
-            if (isset($recognizedData['error'])) {
-                // 429 от rate limiter словится раньше, но на всякий случай
-                return ['success' => false, 'error' => $recognizedData['error'], 'reason' => 'ocr'];
+                $amount = $this->extractAmountByOverlay($recognized);
+                if ($amount === null || $amount === 0.0) {
+                    $amount = $this->extractAmount($recognized['ParsedText'] ?? '');
+                }
+                if (!$amount) {
+                    return ['error' => 'no_amount', 'reason' => 'no_amount', 'recognized' => $recognized];
+                }
+
+                return ['amount' => $amount, 'recognized' => $recognized];
+            };
+
+            // проход 1: обработанное
+            $usedPass = 'processed';
+            $r1 = $procPath ? $run($procPath) : ['error' => 'preprocess_failed', 'reason' => 'preprocess'];
+
+            // если не нашли — проход 2: сырое
+            if (empty($r1['amount'])) {
+                $usedPass = 'raw';
+                if (@filesize($rawPath) > $sizeLimit) {
+                    @unlink($rawPath);
+                    if ($procPath) @unlink($procPath);
+                    return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
+                }
+
+                $r2 = $run($rawPath);
+                if (empty($r2['amount'])) {
+                    @unlink($rawPath);
+                    if ($procPath) @unlink($procPath);
+
+                    if (($r1['reason'] ?? '') === 'ocr' || ($r2['reason'] ?? '') === 'ocr') {
+                        return ['success' => false, 'error' => 'Ошибка OCR', 'reason' => 'ocr'];
+                    }
+                    if (($r1['reason'] ?? '') === 'no_amount' || ($r2['reason'] ?? '') === 'no_amount') {
+                        return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
+                    }
+                    return ['success' => false, 'error' => 'Текст не распознан', 'reason' => 'empty'];
+                }
+
+                @unlink($rawPath);
+                if ($procPath) @unlink($procPath);
+                return [
+                    'success'           => true,
+                    'recognized_amount' => $r2['amount'],
+                    'parsed_text'       => $r2['recognized']['ParsedText'] ?? '',
+                    'pass'              => $usedPass, // 'raw'
+                ];
             }
 
-            if (empty($recognizedData['ParsedText'])) {
-                return ['success' => false, 'error' => 'Текст не распознан', 'reason' => 'empty'];
-            }
-
-            $amount = $this->extractAmountByOverlay($recognizedData);
-            if ($amount === null) {
-                $amount = $this->extractAmount($recognizedData['ParsedText']);
-            }
-            if (!$amount) {
-                return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
-            }
-
+            @unlink($rawPath);
+            if ($procPath) @unlink($procPath);
             return [
                 'success'           => true,
-                'recognized_amount' => $amount,
-                'parsed_text'       => $recognizedData['ParsedText'],
+                'recognized_amount' => $r1['amount'],
+                'parsed_text'       => $r1['recognized']['ParsedText'] ?? '',
+                'pass'              => $usedPass, // 'processed'
             ];
 
         } catch (\Throwable $e) {
-            Yii::error($e->getMessage(), __METHOD__);
+            \Yii::error($e->getMessage(), __METHOD__);
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
@@ -441,6 +504,7 @@ class ScanController extends Controller
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
+
     public function actionUpdate($id)
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
@@ -474,6 +538,7 @@ class ScanController extends Controller
             'total'   => $total,
         ];
     }
+
     public function actionDelete($id)
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
