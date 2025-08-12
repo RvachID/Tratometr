@@ -74,7 +74,7 @@ class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface, R
     {
         // Лимит только для OCR-аплоада: иначе — «без лимита»
         if ($request->get('r') === 'scan/upload') {
-            return [1, 60]; // [макс-токенов, окно(сек)] тест
+            return [50, 60]; // [макс-токенов, окно(сек)] тест
            /* return [10, 60];*/ // [макс-токенов, окно(сек)] боевой
         }
         return [PHP_INT_MAX, 1]; // по сути, без ограничений
