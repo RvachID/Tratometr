@@ -4,6 +4,7 @@ const wrap        = document.getElementById('camera-wrapper');
 const video       = document.getElementById('camera');
 const captureBtn  = document.getElementById('capture');
 const previewImg  = document.getElementById('preview-image'); // показываем ТОЛЬКО при ошибке
+const manualBtn   = document.getElementById('manual-add');
 
 // элементы внутри кнопки "Сфоткать" для спиннера
 const btnTextEl    = captureBtn.querySelector('.btn-text') || captureBtn;
@@ -364,3 +365,13 @@ startBtn.onclick = async () => {
 };
 
 captureBtn.onclick = captureAndRecognize;
+manualBtn.onclick = () => {
+    // просто открываем модалку, без камеры и OCR
+    mAmountEl.value = fmt2(0);
+    mQtyEl.value = 1;
+    mNoteEl.value = '';
+    lastParsedText = '';          // нет OCR-текста
+    mPhotoWrap.style.display = 'none';
+    if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Скан'; // у тебя так называется
+    bootstrapModal?.show();
+};

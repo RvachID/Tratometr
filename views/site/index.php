@@ -35,6 +35,7 @@ CSS);
             <span class="btn-text">📸 Сканировать</span>
             <span class="spinner" style="display:none;"></span>
         </button>
+        <button id="manual-add" class="btn btn-outline-secondary mb-3 ms-2" type="button">✍️ Ввести вручную</button>
     </div>
 
     <!-- Модалка предпросмотра -->
