@@ -61,16 +61,50 @@ function stopCamera() {
 }
 
 // Переключатель кнопки камеры
-startScanBtn.onclick = () => {
+startBtn.onclick = async () => {
     if (!cameraActive) {
-        startCamera();
-        startScanBtn.textContent = '✖ Закрыть камеру';
-        cameraActive = true;
+        // открыть камеру
+        wrap.style.display = 'block';
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Доступ к камере не поддерживается в этом браузере');
+                return;
+            }
+            await initCamera(); // используем существующую функцию
+            cameraActive = true;
+            startBtn.textContent = '✖ Закрыть камеру';
+        } catch (e) {
+            alert('Не удалось открыть камеру: ' + (e?.message || e));
+            wrap.style.display = 'none';
+            cameraActive = false;
+            startBtn.textContent = '📷 Открыть камеру';
+        }
     } else {
-        stopCamera();
-        startScanBtn.textContent = '📷 Открыть камеру';
+        // закрыть камеру
+        await stopStream();             // гасим стрим
+        wrap.style.display = 'none';    // прячем блок
         cameraActive = false;
+        startBtn.textContent = '📷 Открыть камеру';
     }
+};
+
+// Ручной ввод (без камеры)
+manualBtn.onclick = async () => {
+    // если камера открыта — закрываем
+    if (cameraActive) {
+        await stopStream();
+        wrap.style.display = 'none';
+        cameraActive = false;
+        startBtn.textContent = '📷 Открыть камеру';
+    }
+    // открываем модалку с пустыми полями
+    mAmountEl.value = fmt2(0);
+    mQtyEl.value = 1;
+    mNoteEl.value = '';
+    lastParsedText = '';
+    mPhotoWrap.style.display = 'none';
+    if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Скан';
+    bootstrapModal?.show();
 };
 
 // ===== Утилсы =====
@@ -391,19 +425,6 @@ function updateTotal(total) {
 
 // ===== Инициализация =====
 document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));
-
-startBtn.onclick = async () => {
-    wrap.style.display = 'block';
-    try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            alert('Доступ к камере не поддерживается в этом браузере');
-            return;
-        }
-        await initCamera();
-    } catch (e) {
-        alert('Не удалось открыть камеру: ' + (e?.message || e));
-    }
-};
 
 captureBtn.onclick = captureAndRecognize;
 manualBtn.onclick = () => {
