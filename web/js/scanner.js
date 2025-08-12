@@ -225,8 +225,8 @@ async function captureAndRecognize() {
         scanBusy = false;
         captureBtn.disabled = false;
         if (btnSpinnerEl) btnSpinnerEl.style.display = 'none';
-        if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сфоткать';
-        else captureBtn.textContent = '📸 Сфоткать';
+        if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сканировать';
+        else captureBtn.textContent = '📸 Сканировать';
     }
 }
 
