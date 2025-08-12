@@ -1,44 +1,12 @@
 <?php
+
 use yii\helpers\Html;
 use yii\helpers\Url;
 
-// ❗ Если Bootstrap 5 не подключён глобально в layout, раскомментируй строки ниже:
-    yii\bootstrap5\BootstrapAsset::register($this);
-    yii\bootstrap5\BootstrapPluginAsset::register($this);
+yii\bootstrap5\BootstrapAsset::register($this);
+yii\bootstrap5\BootstrapPluginAsset::register($this);
 
 $this->title = 'Тратометр';
-
-// CSS для спиннера в кнопке
-$this->registerCss(<<<CSS
-.spinner {
-  border: 2px solid #f3f3f3;
-  border-top: 2px solid #3498db;
-  border-radius: 50%;
-  width: 14px; height: 14px;
-  animation: spin 0.8s linear infinite;
-  margin-left: 6px;
-  display: inline-block;
-  vertical-align: middle;
-}
-@keyframes spin { 0% {transform: rotate(0)} 100% {transform: rotate(360deg)} }
-
-/* оставляем место под фиксированную кнопку, когда камера открыта */
-body.camera-active { padding-bottom: 84px; }
-
-/* фиксируем кнопку у низа экрана */
-#capture.fixed-bottom{
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 12px;
-  width: min(420px, calc(100% - 24px));
-  z-index: 1000;
-}
-
-/* видеоцентр и правильные пропорции */
-#camera-wrapper { margin: 0 auto; max-width: 420px; }
-#camera { width: 100%; height: auto; background: #000; display:block;}
-CSS);
 ?>
 
 <div class="container mt-3 text-center">
@@ -48,12 +16,14 @@ CSS);
 
     <div id="camera-wrapper" style="display:none;">
         <video id="camera" autoplay playsinline width="100%" style="max-width:400px;"></video>
-        <br>
-        <button id="capture" class="btn btn-outline-secondary mt-2" type="button">
-            <span class="btn-text">📸 Сканировать</span>
-            <span class="spinner" style="display:none;"></span>
-        </button>
+        <div class="capture-row">
+            <button id="capture" class="btn btn-outline-secondary mt-2" type="button">
+                <span class="btn-text">📸 Сканировать</span>
+                <span class="spinner" style="display:none;"></span>
+            </button>
+        </div>
     </div>
+
 
     <!-- Модалка предпросмотра -->
     <div class="modal fade" id="scanModal" tabindex="-1" aria-hidden="true">
@@ -77,7 +47,8 @@ CSS);
                             <input type="number" step="0.001" class="form-control text-center" id="m-qty" value="1">
                             <button class="btn btn-outline-secondary" type="button" id="m-qty-plus">+</button>
                         </div>
-                        <small class="text-muted">Штуки добавляем через +/-; килограммы (дробные) можно вводить вручную.</small>
+                        <small class="text-muted">Штуки добавляем через +/-; килограммы (дробные) можно вводить
+                            вручную.</small>
                     </div>
 
                     <div class="mb-2 text-start">
@@ -86,7 +57,7 @@ CSS);
                     </div>
 
                     <div class="mb-2" id="m-photo-wrap" style="display:none;">
-                        <img id="m-photo" class="img-fluid" alt="Фото скана" />
+                        <img id="m-photo" class="img-fluid" alt="Фото скана"/>
                     </div>
 
                 </div>
@@ -108,7 +79,8 @@ CSS);
             <div class="border p-2 mb-2">
                 <form class="entry-form" data-id="<?= $entry->id ?>">
                     Сумма:
-                    <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>" class="form-control mb-1">
+                    <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
+                           class="form-control mb-1">
 
                     <input type="hidden" name="category" value="<?= Html::encode($entry->category) ?>">
 

@@ -63,41 +63,46 @@ function stopCamera() {
 // Переключатель кнопки камеры
 startBtn.onclick = async () => {
     if (!cameraActive) {
-        // открыть камеру
+        // открыть
         wrap.style.display = 'block';
+        wrap.classList.add('open');
+
+        // посчитаем минимальную высоту блока: экран минус отступ от верха до начала обёртки
+        const top = wrap.getBoundingClientRect().top + window.scrollY;
+        const minH = Math.max(320, window.innerHeight - (top - window.scrollY) - 0); // 0 можно заменить на нижний запас
+        wrap.style.minHeight = minH + 'px';
+
         try {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Доступ к камере не поддерживается в этом браузере');
                 return;
             }
-            await initCamera(); // используем существующую функцию
-            // Прокручиваем к кнопке "Сфоткать"
-            setTimeout(() => {
-                captureBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 100);
+            await initCamera();
             cameraActive = true;
             startBtn.textContent = '✖ Закрыть камеру';
-            // кнопка у низа экрана + отступ снизу
-            captureBtn.classList.add('fixed-bottom');
-            document.body.classList.add('camera-active');
+
+            // плавно прокрутим к началу блока (кнопка окажется у низа экрана)
+            window.scrollTo({ top, behavior: 'smooth' });
         } catch (e) {
             alert('Не удалось открыть камеру: ' + (e?.message || e));
+            // откат
             wrap.style.display = 'none';
+            wrap.classList.remove('open');
+            wrap.style.minHeight = '';
             cameraActive = false;
             startBtn.textContent = '📷 Открыть камеру';
-            captureBtn.classList.remove('fixed-bottom');
-            document.body.classList.remove('camera-active');
         }
     } else {
-        // закрыть камеру
-        await stopStream();             // гасим стрим
-        wrap.style.display = 'none';    // прячем блок
+        // закрыть
+        await stopStream();
+        wrap.style.display = 'none';
+        wrap.classList.remove('open');
+        wrap.style.minHeight = '';
         cameraActive = false;
         startBtn.textContent = '📷 Открыть камеру';
-        captureBtn.classList.remove('fixed-bottom');
-        document.body.classList.remove('camera-active');
     }
 };
+
 
 // Ручной ввод (без камеры)
 manualBtn.onclick = async () => {
@@ -236,8 +241,8 @@ async function captureAndRecognize() {
         scanBusy = false;
         captureBtn.disabled = false;
         if (btnSpinnerEl) btnSpinnerEl.style.display = 'none';
-        if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сфоткать';
-        else captureBtn.textContent = '📸 Сфоткать';
+        if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сканировать';
+        else captureBtn.textContent = '📸 Сканировать';
     }
 }
 
