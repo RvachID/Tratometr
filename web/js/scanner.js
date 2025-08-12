@@ -63,62 +63,30 @@ function stopCamera() {
 // Переключатель кнопки камеры
 startBtn.onclick = async () => {
     if (!cameraActive) {
-        // открыть
+        // открыть камеру
         wrap.style.display = 'block';
-        wrap.classList.add('open');
-
         try {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Доступ к камере не поддерживается в этом браузере');
                 return;
             }
-            await initCamera();
-
+            await initCamera(); // используем существующую функцию
             cameraActive = true;
             startBtn.textContent = '✖ Закрыть камеру';
-
-            // прокрутим к началу блока и подгоним высоту, чтобы кнопка оказалась у низа
-            window.scrollTo({ top: Math.max(0, wrap.offsetTop - 1), behavior: 'smooth' });
-            // сразу и ещё раз после анимации скролла
-            adjustCameraLayout();
-            setTimeout(adjustCameraLayout, 350);
-
-            // на всякий случай реагируем на изменения окна/клавы/поворота
-            window.addEventListener('resize', adjustCameraLayout, { passive: true });
-            window.visualViewport && window.visualViewport.addEventListener('resize', adjustCameraLayout, { passive: true });
-
         } catch (e) {
             alert('Не удалось открыть камеру: ' + (e?.message || e));
             wrap.style.display = 'none';
-            wrap.classList.remove('open');
-            wrap.style.minHeight = '';
             cameraActive = false;
             startBtn.textContent = '📷 Открыть камеру';
         }
     } else {
-        // закрыть
-        await stopStream();
-        wrap.style.display = 'none';
-        wrap.classList.remove('open');
-        wrap.style.minHeight = '';
+        // закрыть камеру
+        await stopStream();             // гасим стрим
+        wrap.style.display = 'none';    // прячем блок
         cameraActive = false;
         startBtn.textContent = '📷 Открыть камеру';
-
-        window.removeEventListener('resize', adjustCameraLayout);
-        window.visualViewport && window.visualViewport.removeEventListener('resize', adjustCameraLayout);
     }
 };
-
-// Считает min-height для обёртки камеры так, чтобы кнопка была у низа экрана
-function adjustCameraLayout() {
-    if (!wrap || wrap.style.display === 'none') return;
-    // Берём реальную высоту видимой области (на iOS учитывает нижнюю панель)
-    const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-    const top = wrap.getBoundingClientRect().top; // расстояние от верха вьюпорта до начала блока
-    const safeBottom = 3;                         // небольшой запас снизу (px)
-    const minH = Math.max(360, vh - top - safeBottom);
-    wrap.style.minHeight = minH + 'px';
-}
 
 // Ручной ввод (без камеры)
 manualBtn.onclick = async () => {
@@ -257,8 +225,8 @@ async function captureAndRecognize() {
         scanBusy = false;
         captureBtn.disabled = false;
         if (btnSpinnerEl) btnSpinnerEl.style.display = 'none';
-        if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сканировать';
-        else captureBtn.textContent = '📸 Сканировать';
+        if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сфоткать';
+        else captureBtn.textContent = '📸 Сфоткать';
     }
 }
 
@@ -469,76 +437,3 @@ manualBtn.onclick = () => {
     if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Скан'; // у тебя так называется
     bootstrapModal?.show();
 };
-function openCamera() {
-    const cameraWrapper = document.createElement('div');
-    cameraWrapper.id = 'camera-wrapper';
-    cameraWrapper.style.display = 'flex';
-    cameraWrapper.style.flexDirection = 'column';
-    cameraWrapper.style.height = '100vh';
-    cameraWrapper.style.padding = '0';
-    cameraWrapper.style.margin = '0';
-    cameraWrapper.style.boxSizing = 'border-box';
-
-    // Верхние кнопки
-    const topControls = document.createElement('div');
-    topControls.style.padding = '10px';
-    topControls.style.flexShrink = '0';
-
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✖ Закрыть камеру';
-    closeBtn.className = 'btn btn-outline-secondary w-100 mb-2';
-    closeBtn.onclick = closeCamera;
-    topControls.appendChild(closeBtn);
-
-    const manualBtn = document.createElement('button');
-    manualBtn.textContent = '✍ Ввести вручную';
-    manualBtn.className = 'btn btn-outline-secondary w-100';
-    manualBtn.onclick = openManualInput;
-    topControls.appendChild(manualBtn);
-
-    cameraWrapper.appendChild(topControls);
-
-    // Видоискатель
-    const cameraView = document.createElement('div');
-    cameraView.id = 'camera-view';
-    cameraView.style.flex = '1';
-    cameraView.style.background = 'black';
-    cameraView.style.width = '100%';
-    cameraView.style.display = 'flex';
-    cameraView.style.justifyContent = 'center';
-    cameraView.style.alignItems = 'center';
-    cameraWrapper.appendChild(cameraView);
-
-    // Нижняя кнопка (фиксирована)
-    const bottomControls = document.createElement('div');
-    bottomControls.style.flexShrink = '0';
-    bottomControls.style.padding = '10px';
-    bottomControls.style.background = 'white';
-
-    const scanBtn = document.createElement('button');
-    scanBtn.id = 'scan-btn';
-    scanBtn.className = 'btn btn-outline-secondary w-100';
-    scanBtn.innerHTML = '📷 Сканировать';
-    scanBtn.onclick = takeSnapshot;
-    bottomControls.appendChild(scanBtn);
-
-    cameraWrapper.appendChild(bottomControls);
-
-    // Заменяем контент на камеру
-    const mainContainer = document.getElementById('main-content');
-    mainContainer.innerHTML = '';
-    mainContainer.appendChild(cameraWrapper);
-
-    startCamera();
-
-    // Прокрутка вниз к кнопке, но камера останется полностью видимой
-    setTimeout(() => {
-        document.getElementById('scan-btn').scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, 200);
-}
-
-function closeCamera() {
-    const mainContainer = document.getElementById('main-content');
-    mainContainer.innerHTML = '';
-    renderMainPage();
-}
