@@ -71,6 +71,10 @@ startBtn.onclick = async () => {
                 return;
             }
             await initCamera(); // используем существующую функцию
+            // Прокручиваем к кнопке "Сфоткать"
+            setTimeout(() => {
+                captureBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
             cameraActive = true;
             startBtn.textContent = '✖ Закрыть камеру';
         } catch (e) {
