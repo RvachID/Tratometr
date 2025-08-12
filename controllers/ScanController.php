@@ -17,23 +17,20 @@ class ScanController extends Controller
 
     public function beforeAction($action)
     {
-        // Всегда JSON (важно, чтобы 429 от RateLimiter тоже пришёл JSON'ом)
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        // Точечно отключаем CSRF на upload
-        if ($action->id === 'upload') {
-            $this->enableCsrfValidation = false; // ✅ именно свойство контроллера
+        if ($action->id === 'recognize') {
+            $this->enableCsrfValidation = false; // только для upload/recognize
         }
 
-        // Гостям — 401 и выходим корректно
         if (Yii::$app->user->isGuest) {
             Yii::$app->response->statusCode = 401;
             Yii::$app->response->data = ['success' => false, 'error' => 'Не авторизован'];
-            return false; // ⬅️ прерываем выполнение экшена/фильтров
+            return false;
         }
-
         return parent::beforeAction($action);
     }
+
 
     public function behaviors()
     {
@@ -41,7 +38,7 @@ class ScanController extends Controller
         $b['rateLimiter'] = [
             'class' => RateLimiter::class,
             'enableRateLimitHeaders' => true,
-            'only' => ['upload'], // ограничиваем только upload
+            'only' => ['recognize'], // ограничиваем только upload
         ];
         return $b;
     }
@@ -421,5 +418,107 @@ class ScanController extends Controller
         }
     }
 
+    public function actionRecognize()
+    {
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        try {
+            $image = \yii\web\UploadedFile::getInstanceByName('image');
+            if (!$image) {
+                return ['success' => false, 'error' => 'Изображение не загружено'];
+            }
+
+            $tmpPath = Yii::getAlias('@runtime/' . uniqid('scan_') . '.' . $image->extension);
+            if (!$image->saveAs($tmpPath)) {
+                return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
+            }
+
+            if (!$this->preprocessImage($tmpPath)) {
+                @unlink($tmpPath);
+                return ['success' => false, 'error' => 'Ошибка при обработке изображения'];
+            }
+
+            if (filesize($tmpPath) > 1024*1024) {
+                @unlink($tmpPath);
+                return ['success' => false, 'error' => 'Размер файла превышает 1 МБ'];
+            }
+
+            $recognizedData = $this->recognizeText($tmpPath);
+            @unlink($tmpPath);
+
+            if (isset($recognizedData['error'])) {
+                // 429 от rate limiter словится раньше, но на всякий случай
+                return ['success' => false, 'error' => $recognizedData['error'], 'reason' => 'ocr'];
+            }
+
+            if (empty($recognizedData['ParsedText'])) {
+                return ['success' => false, 'error' => 'Текст не распознан', 'reason' => 'empty'];
+            }
+
+            $amount = $this->extractAmountByOverlay($recognizedData);
+            if ($amount === null) {
+                $amount = $this->extractAmount($recognizedData['ParsedText']);
+            }
+            if (!$amount) {
+                return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
+            }
+
+            return [
+                'success'           => true,
+                'recognized_amount' => $amount,
+                'parsed_text'       => $recognizedData['ParsedText'],
+            ];
+
+        } catch (\Throwable $e) {
+            Yii::error($e->getMessage(), __METHOD__);
+            return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
+        }
+    }
+
+    public function actionStore()
+    {
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        $amount   = Yii::$app->request->post('amount');
+        $qty      = Yii::$app->request->post('qty', 1);
+        $note     = Yii::$app->request->post('note', '');
+        $text     = Yii::$app->request->post('parsed_text', '');
+        $category = Yii::$app->request->post('category', null);
+
+        if (!$amount || !is_numeric($amount) || $amount <= 0) {
+            return ['success' => false, 'error' => 'Неверная сумма'];
+        }
+        if (!$qty || !is_numeric($qty) || $qty <= 0) {
+            $qty = 1;
+        }
+
+        $entry = new \app\models\PriceEntry([
+            'user_id'           => Yii::$app->user->id,
+            'amount'            => (float)$amount,
+            'qty'               => (float)$qty,
+            'category'          => $category,
+            'recognized_text'   => $text,
+            'recognized_amount' => (float)$amount,
+            'source'            => 'price_tag',
+            'created_at'        => time(),
+            'updated_at'        => time(),
+        ]);
+
+        if (!$entry->save()) {
+            return ['success' => false, 'error' => 'Ошибка сохранения', 'details' => $entry->errors];
+        }
+
+        // Можно вернуть HTML-вёрстку карточки или только данные
+        return [
+            'success' => true,
+            'entry' => [
+                'id'      => $entry->id,
+                'amount'  => number_format($entry->amount, 2, '.', ' '),
+                'qty'     => $entry->qty,
+                'category'=> $entry->category,
+            ],
+            'total' => $this->calcTotalForUser(Yii::$app->user->id), // если есть хелпер
+        ];
+    }
 
 }

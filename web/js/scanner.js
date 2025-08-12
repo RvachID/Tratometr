@@ -1,17 +1,48 @@
 // ===== DOM =====
-const startBtn   = document.getElementById('start-scan');
-const wrap       = document.getElementById('camera-wrapper');
-const video      = document.getElementById('camera');
-const captureBtn = document.getElementById('capture');
-const previewImg = document.getElementById('preview-image');
+const startBtn    = document.getElementById('start-scan');
+const wrap        = document.getElementById('camera-wrapper');
+const video       = document.getElementById('camera');
+const captureBtn  = document.getElementById('capture');
+const previewImg  = document.getElementById('preview-image'); // превью на главной (не в модалке)
 
 // элементы внутри кнопки "Сфоткать" для спиннера
-const btnTextEl    = captureBtn.querySelector('.btn-text') || captureBtn; // на случай, если .btn-text не добавили
+const btnTextEl    = captureBtn.querySelector('.btn-text') || captureBtn; // fallback
 const btnSpinnerEl = captureBtn.querySelector('.spinner');
+
+// ===== Модалка предпросмотра =====
+const scanModalEl   = document.getElementById('scanModal');
+const mAmountEl     = document.getElementById('m-amount');
+const mQtyEl        = document.getElementById('m-qty');
+const mQtyMinusEl   = document.getElementById('m-qty-minus');
+const mQtyPlusEl    = document.getElementById('m-qty-plus');
+const mNoteEl       = document.getElementById('m-note');
+const mShowPhotoBtn = document.getElementById('m-show-photo');
+const mPhotoWrap    = document.getElementById('m-photo-wrap');
+const mPhotoImg     = document.getElementById('m-photo');
+const mRetakeBtn    = document.getElementById('m-retake');
+const mSaveBtn      = document.getElementById('m-save');
+
+// Bootstrap modal (должен быть подключён Bootstrap 5)
+let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
 
 // ===== Состояние =====
 let currentStream = null;
 let scanBusy = false;
+let lastPhotoURL = null;        // blob URL для фото (показываем по запросу в модалке)
+let lastParsedText = '';        // ParsedText от OCR (опц. для сохранения)
+
+// ===== Утилиты =====
+function debounce(fn, ms) {
+    let t;
+    return function(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), ms);
+    };
+}
+
+function getCsrf() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
 
 // ===== Камера =====
 async function stopStream() {
@@ -38,7 +69,7 @@ async function initCamera() {
         currentStream = await getStream({ video: true, audio: false });
     }
 
-    video.setAttribute('playsinline', 'true'); // для iOS/Safari
+    video.setAttribute('playsinline', 'true'); // iOS/Safari
     video.srcObject = currentStream;
 
     // ждём метаданные и play()
@@ -50,13 +81,13 @@ async function initCamera() {
     try { await video.play(); } catch (e) { console.warn('video.play blocked', e); }
 }
 
-// ===== Снимок + отправка =====
-async function captureAndSend() {
+// ===== Снимок + OCR (recognize) =====
+async function captureAndRecognize() {
     if (scanBusy) return;
     scanBusy = true;
     captureBtn.disabled = true;
 
-    // показать спиннер/текст если есть разметка
+    // показать спиннер/текст
     if (btnSpinnerEl) btnSpinnerEl.style.display = 'inline-block';
     if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = 'Сканируем…';
     else captureBtn.textContent = 'Сканируем…';
@@ -67,7 +98,7 @@ async function captureAndSend() {
             return;
         }
 
-        // рисуем в канвас (создаём динамически)
+        // рисуем в канвас (динамический)
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -84,7 +115,7 @@ async function captureAndSend() {
         }
         ctx.putImageData(img, 0, 0);
 
-        // превью
+        // превью на странице (как раньше), но фото в модалке показываем по кнопке
         await new Promise((resolve) => {
             canvas.toBlob((blob) => {
                 if (!blob) {
@@ -92,27 +123,37 @@ async function captureAndSend() {
                     resolve(null);
                     return;
                 }
+
+                // обновим превью на главной
                 const url = URL.createObjectURL(blob);
                 previewImg.src = url;
+
+                // сохраним URL для модалки (покажем по кнопке)
+                if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
+                lastPhotoURL = url;
 
                 const formData = new FormData();
                 formData.append('image', blob, 'scan.jpg');
 
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-                if (!csrfToken) {
+                const csrf = getCsrf();
+                if (!csrf) {
                     alert('CSRF-токен не найден');
                     console.error('CSRF-токен отсутствует в <meta>');
                     resolve(null);
                     return;
                 }
 
-                fetch('/index.php?r=scan/upload', {
+                // новый эндпоинт: только распознаёт (без записи)
+                fetch('/index.php?r=scan/recognize', {
                     method: 'POST',
-                    headers: { 'X-CSRF-Token': csrfToken },
+                    headers: { 'X-CSRF-Token': csrf },
                     body: formData,
                     credentials: 'include'
                 })
                     .then(async r => {
+                        if (r.status === 429) {
+                            throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
+                        }
                         const ct = r.headers.get('content-type') || '';
                         if (!ct.includes('application/json')) {
                             const text = await r.text();
@@ -122,18 +163,24 @@ async function captureAndSend() {
                         return r.json();
                     })
                     .then(res => {
-                        console.log('Ответ от сервера:', res);
-                        if (res.success) {
-                            alert('Распознано: ' + res.text + '\nСумма: ' + res.amount);
-                            location.reload();
-                        } else {
-                            alert(res.error || 'Ошибка: не удалось распознать сумму');
+                        if (!res.success) {
+                            throw new Error(res.error || 'Не удалось распознать сумму');
                         }
+
+                        // Заполняем модалку
+                        mAmountEl.value = res.recognized_amount;
+                        mQtyEl.value = 1;
+                        mNoteEl.value = '';
+                        mPhotoWrap.style.display = 'none';
+                        lastParsedText = res.parsed_text || '';
+
+                        // Открываем модалку
+                        if (bootstrapModal) bootstrapModal.show();
                         resolve(true);
                     })
                     .catch(err => {
-                        alert('Ошибка при отправке: ' + err.message);
-                        console.error('Ошибка fetch:', err);
+                        alert(err.message);
+                        console.error('recognize error:', err);
                         resolve(false);
                     });
             }, 'image/jpeg', 0.9);
@@ -148,37 +195,180 @@ async function captureAndSend() {
     }
 }
 
-// ===== Сохранение записей =====
-function bindEntrySaves() {
-    document.querySelectorAll('.entry-form').forEach(form => {
-        const saveBtn = form.querySelector('.save-entry');
-        if (!saveBtn) return;
-
-        saveBtn.onclick = (e) => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            const id = form.dataset.id;
-
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            if (!csrfToken) {
-                alert('CSRF-токен не найден');
-                console.error('CSRF-токен отсутствует в <meta>');
-                return;
-            }
-
-            fetch(`index.php?r=scan/update&id=${id}`, {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': csrfToken },
-                body: formData
-            })
-                .then(() => location.reload())
-                .catch(err => {
-                    alert('Ошибка сохранения: ' + err.message);
-                    console.error('Ошибка при сохранении записи:', err);
-                });
-        };
-    });
+// ===== Модалка: кнопки и логика =====
+if (mQtyMinusEl && mQtyPlusEl && mQtyEl) {
+    mQtyMinusEl.onclick = () => {
+        let v = parseFloat(mQtyEl.value || '1');
+        v = Math.max(0, v - 1);
+        mQtyEl.value = (v % 1 === 0) ? v.toFixed(0) : v.toFixed(3);
+    };
+    mQtyPlusEl.onclick = () => {
+        let v = parseFloat(mQtyEl.value || '1');
+        v = v + 1;
+        mQtyEl.value = v.toFixed(0);
+    };
 }
+
+if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
+    mShowPhotoBtn.onclick = (e) => {
+        e.preventDefault();
+        if (mPhotoWrap.style.display === 'none') {
+            mPhotoWrap.style.display = 'block';
+            mPhotoImg.src = lastPhotoURL || '';
+            mShowPhotoBtn.textContent = 'Скрыть фото';
+        } else {
+            mPhotoWrap.style.display = 'none';
+            mShowPhotoBtn.textContent = 'Показать фото';
+        }
+    };
+}
+
+if (mRetakeBtn) {
+    mRetakeBtn.onclick = () => {
+        // Закрыть модалку и остаться в режиме камеры (ничего не сохраняем)
+        if (bootstrapModal) bootstrapModal.hide();
+    };
+}
+
+if (mSaveBtn) {
+    mSaveBtn.onclick = async () => {
+        const csrf = getCsrf();
+        const fd = new FormData();
+        fd.append('amount', mAmountEl.value);
+        fd.append('qty', mQtyEl.value);
+        fd.append('note', mNoteEl.value);
+        fd.append('parsed_text', lastParsedText);
+
+        try {
+            const r = await fetch('/index.php?r=scan/store', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrf },
+                body: fd,
+                credentials: 'include',
+            });
+            const ct = r.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) {
+                const text = await r.text();
+                console.error('Ожидали JSON, получили:', text);
+                throw new Error('Сервер вернул не JSON. См. консоль.');
+            }
+            const res = await r.json();
+            if (!res.success) throw new Error(res.error || 'Ошибка сохранения');
+
+            // Обновляем UI без перезагрузки
+            if (res.entry) addEntryToTop(res.entry);
+            if (typeof res.total !== 'undefined') updateTotal(res.total);
+
+            if (bootstrapModal) bootstrapModal.hide();
+        } catch (e) {
+            alert(e.message);
+            console.error('store error:', e);
+        }
+    };
+}
+
+// ===== Главная: автосохранение и +/- для qty =====
+function bindEntryRow(container) {
+    const form = container.querySelector('form.entry-form');
+    if (!form) return;
+    const id = form.dataset.id;
+    const amountEl = form.querySelector('input[name="amount"]');
+    const qtyEl    = form.querySelector('input[name="qty"]');
+
+    // Вставим +/- если их нет (как в модалке)
+    let minusBtn = form.querySelector('.qty-minus');
+    let plusBtn  = form.querySelector('.qty-plus');
+
+    if (!minusBtn || !plusBtn) {
+        // оборачиваем qty в input-group
+        const parent = qtyEl.parentElement;
+        const group = document.createElement('div');
+        group.className = 'input-group mb-1';
+        minusBtn = document.createElement('button');
+        minusBtn.type = 'button';
+        minusBtn.className = 'btn btn-outline-secondary qty-minus';
+        minusBtn.textContent = '–';
+        plusBtn = document.createElement('button');
+        plusBtn.type = 'button';
+        plusBtn.className = 'btn btn-outline-secondary qty-plus';
+        plusBtn.textContent = '+';
+
+        // переносим qty внутрь группы
+        qtyEl.classList.add('form-control', 'text-center');
+        parent.insertBefore(group, qtyEl);
+        group.appendChild(minusBtn);
+        group.appendChild(qtyEl);
+        group.appendChild(plusBtn);
+    }
+
+    const csrf = getCsrf();
+
+    const doSave = async () => {
+        const fd = new FormData();
+        fd.append('amount', amountEl.value);
+        fd.append('qty', qtyEl.value);
+        try {
+            const r = await fetch(`index.php?r=scan/update&id=${id}`, {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrf },
+                body: fd,
+            });
+            // можно вернуть новый total — если сервер это делает; иначе игнорируем
+            // const res = await r.json();
+            // if (res.total) updateTotal(res.total);
+        } catch (e) {
+            console.error('autosave error', e);
+        }
+    };
+
+    const debouncedSave = debounce(doSave, 500);
+    amountEl.addEventListener('input', debouncedSave);
+    qtyEl.addEventListener('input', debouncedSave);
+
+    minusBtn.addEventListener('click', () => {
+        let v = parseFloat(qtyEl.value || '1');
+        v = Math.max(0, v - 1);
+        qtyEl.value = (v % 1 === 0) ? v.toFixed(0) : v.toFixed(3);
+        debouncedSave();
+    });
+
+    plusBtn.addEventListener('click', () => {
+        let v = parseFloat(qtyEl.value || '1');
+        v = v + 1;
+        qtyEl.value = v.toFixed(0);
+        debouncedSave();
+    });
+
+    // скрыть старую кнопку ручного сохранения, если есть
+    const saveBtn = form.querySelector('.save-entry');
+    if (saveBtn) saveBtn.classList.add('d-none');
+}
+
+function addEntryToTop(entry) {
+    const wrap = document.querySelector('.mt-3.text-start'); // контейнер списка
+    if (!wrap) return;
+
+    const div = document.createElement('div');
+    div.className = 'border p-2 mb-2';
+    div.innerHTML = `
+    <form class="entry-form" data-id="${entry.id}">
+      Сумма: <input type="number" step="0.01" name="amount" value="${entry.amount}" class="form-control mb-1">
+      Кол-во:
+      <input type="number" step="0.001" name="qty" value="${entry.qty}" class="form-control mb-1">
+      <button class="btn btn-sm btn-outline-success save-entry d-none">💾</button>
+    </form>
+  `;
+    wrap.prepend(div);
+    bindEntryRow(div);
+}
+
+function updateTotal(total) {
+    const el = document.querySelector('.mt-3 h5 strong');
+    if (el) el.textContent = Number(total).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ===== Инициализация для уже существующих записей =====
+document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));
 
 // ===== События =====
 startBtn.onclick = async () => {
@@ -195,7 +385,4 @@ startBtn.onclick = async () => {
     }
 };
 
-captureBtn.onclick = captureAndSend;
-
-// Инициализация обработчиков сохранения
-bindEntrySaves();
+captureBtn.onclick = captureAndRecognize;
