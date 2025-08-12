@@ -1,48 +1,40 @@
 // ===== DOM =====
-const startBtn = document.getElementById('start-scan');
-const wrap = document.getElementById('camera-wrapper');
-const video = document.getElementById('camera');
-const captureBtn = document.getElementById('capture');
-const previewImg = document.getElementById('preview-image'); // превью на главной (не в модалке)
+const startBtn    = document.getElementById('start-scan');
+const wrap        = document.getElementById('camera-wrapper');
+const video       = document.getElementById('camera');
+const captureBtn  = document.getElementById('capture');
+const previewImg  = document.getElementById('preview-image'); // показываем ТОЛЬКО при ошибке
 
 // элементы внутри кнопки "Сфоткать" для спиннера
-const btnTextEl = captureBtn.querySelector('.btn-text') || captureBtn; // fallback
+const btnTextEl    = captureBtn.querySelector('.btn-text') || captureBtn;
 const btnSpinnerEl = captureBtn.querySelector('.spinner');
 
 // ===== Модалка предпросмотра =====
-const scanModalEl = document.getElementById('scanModal');
-const mAmountEl = document.getElementById('m-amount');
-const mQtyEl = document.getElementById('m-qty');
-const mQtyMinusEl = document.getElementById('m-qty-minus');
-const mQtyPlusEl = document.getElementById('m-qty-plus');
-const mNoteEl = document.getElementById('m-note');
+const scanModalEl   = document.getElementById('scanModal');
+const mAmountEl     = document.getElementById('m-amount');
+const mQtyEl        = document.getElementById('m-qty');
+const mQtyMinusEl   = document.getElementById('m-qty-minus');
+const mQtyPlusEl    = document.getElementById('m-qty-plus');
+const mNoteEl       = document.getElementById('m-note');
 const mShowPhotoBtn = document.getElementById('m-show-photo');
-const mPhotoWrap = document.getElementById('m-photo-wrap');
-const mPhotoImg = document.getElementById('m-photo');
-const mRetakeBtn = document.getElementById('m-retake');
-const mSaveBtn = document.getElementById('m-save');
+const mPhotoWrap    = document.getElementById('m-photo-wrap');
+const mPhotoImg     = document.getElementById('m-photo');
+const mRetakeBtn    = document.getElementById('m-retake');
+const mSaveBtn      = document.getElementById('m-save');
 
-// Bootstrap modal (должен быть подключён Bootstrap 5)
 let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
 
 // ===== Состояние =====
 let currentStream = null;
 let scanBusy = false;
-let lastPhotoURL = null;        // blob URL для фото (показываем по запросу в модалке)
-let lastParsedText = '';        // ParsedText от OCR (опц. для сохранения)
+let lastPhotoURL = null;
+let lastParsedText = '';
+let wasSaved = false; // чтобы по закрытию модалки знать, скрывать ли камеру
 
-// ===== Утилиты =====
-function debounce(fn, ms) {
-    let t;
-    return function (...args) {
-        clearTimeout(t);
-        t = setTimeout(() => fn.apply(this, args), ms);
-    };
-}
-
-function getCsrf() {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-}
+// ===== Утилсы =====
+const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+const debounce = (fn, ms) => { let t; return (...a)=>{clearTimeout(t); t=setTimeout(()=>fn(...a),ms);} };
+const fmt2 = (x) => Number(x || 0).toFixed(2);
 
 // ===== Камера =====
 async function stopStream() {
@@ -51,151 +43,105 @@ async function stopStream() {
         currentStream = null;
     }
 }
-
-async function getStream(constraints) {
-    return await navigator.mediaDevices.getUserMedia(constraints);
-}
-
+async function getStream(c) { return await navigator.mediaDevices.getUserMedia(c); }
 async function initCamera() {
     await stopStream();
-
-    // пробуем тыльную камеру
-    const primary = {video: {facingMode: {ideal: 'environment'}}, audio: false};
-
-    try {
-        currentStream = await getStream(primary);
-    } catch (e) {
-        console.warn('environment camera failed, fallback to any camera:', e?.name, e?.message);
-        currentStream = await getStream({video: true, audio: false});
-    }
-
-    video.setAttribute('playsinline', 'true'); // iOS/Safari
+    const primary = { video: { facingMode: { ideal: 'environment' } }, audio: false };
+    try { currentStream = await getStream(primary); }
+    catch { currentStream = await getStream({ video: true, audio: false }); }
+    video.setAttribute('playsinline','true');
     video.srcObject = currentStream;
-
-    // ждём метаданные и play()
-    await new Promise((res) => {
-        const h = () => {
-            video.removeEventListener('loadedmetadata', h);
-            res();
-        };
-        if (video.readyState >= 1) res(); else video.addEventListener('loadedmetadata', h);
+    await new Promise(res=>{
+        const h=()=>{video.removeEventListener('loadedmetadata',h);res();};
+        if (video.readyState>=1) res(); else video.addEventListener('loadedmetadata',h);
     });
-
-    try {
-        await video.play();
-    } catch (e) {
-        console.warn('video.play blocked', e);
-    }
+    try { await video.play(); } catch {}
 }
 
-// ===== Снимок + OCR (recognize) =====
+// Закрытие модалки: если запись сохранена — прячем камеру и останавливаем стрим
+scanModalEl?.addEventListener('hidden.bs.modal', () => {
+    if (wasSaved) {
+        wrap.style.display = 'none';
+        stopStream();
+        wasSaved = false;
+    }
+});
+
+// ===== Снимок + OCR =====
 async function captureAndRecognize() {
     if (scanBusy) return;
     scanBusy = true;
     captureBtn.disabled = true;
-
-    // показать спиннер/текст
     if (btnSpinnerEl) btnSpinnerEl.style.display = 'inline-block';
     if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = 'Сканируем…';
     else captureBtn.textContent = 'Сканируем…';
 
     try {
-        if (!video.videoWidth || !video.videoHeight) {
-            alert('Камера ещё не готова');
-            return;
-        }
+        if (!video.videoWidth || !video.videoHeight) { alert('Камера ещё не готова'); return; }
 
-        // рисуем в канвас (динамический)
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Ч/Б бинаризация (простая)
+        // простая бинаризация
         const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = img.data;
-        for (let i = 0; i < data.length; i += 4) {
-            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            const bw = avg > 128 ? 255 : 0;
-            data[i] = data[i + 1] = data[i + 2] = bw;
+        for (let i=0;i<data.length;i+=4){
+            const avg=(data[i]+data[i+1]+data[i+2])/3;
+            const bw=avg>128?255:0;
+            data[i]=data[i+1]=data[i+2]=bw;
         }
-        ctx.putImageData(img, 0, 0);
+        ctx.putImageData(img,0,0);
 
-        // превью на странице (как раньше), но фото в модалке показываем по кнопке
-        await new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                try {
-                    if (!blob) {
-                        alert('Не удалось получить изображение');
-                        return resolve(false);
-                    }
+        await new Promise((resolve)=>{
+            canvas.toBlob((blob)=>{
+                try{
+                    if(!blob){ alert('Не удалось получить изображение'); return resolve(false); }
 
-                    const url = URL.createObjectURL(blob);
-
-                    // ✅ безопасно обновляем превью на странице
-                    if (previewImg) {
-                        previewImg.src = url;
-                    } else {
-                        console.warn('preview-image не найден в DOM');
-                    }
-
-                    // запомним URL для модалки (покажем по кнопке)
+                    // создаём blob-url, но НЕ показываем его на странице (покажем по кнопке/при ошибке)
                     if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
-                    lastPhotoURL = url;
+                    lastPhotoURL = URL.createObjectURL(blob);
 
                     const formData = new FormData();
                     formData.append('image', blob, 'scan.jpg');
 
                     const csrf = getCsrf();
-                    if (!csrf) {
-                        alert('CSRF-токен не найден');
-                        console.error('CSRF-токен отсутствует в <meta>');
-                        return resolve(false);
-                    }
+                    if (!csrf){ alert('CSRF-токен не найден'); return resolve(false); }
 
                     fetch('/index.php?r=scan/recognize', {
-                        method: 'POST',
-                        headers: { 'X-CSRF-Token': csrf },
-                        body: formData,
-                        credentials: 'include'
+                        method:'POST', headers:{'X-CSRF-Token':csrf}, body:formData, credentials:'include'
                     })
-                        .then(async r => {
-                            if (r.status === 429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
-                            const ct = r.headers.get('content-type') || '';
-                            if (!ct.includes('application/json')) {
-                                const text = await r.text();
-                                console.error('Ожидали JSON, получили:', text);
-                                throw new Error('Сервер вернул не JSON. См. консоль.');
-                            }
+                        .then(async r=>{
+                            if (r.status===429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
+                            const ct=r.headers.get('content-type')||'';
+                            if (!ct.includes('application/json')) { throw new Error('Сервер вернул не JSON.'); }
                             return r.json();
                         })
-                        .then(res => {
-                            if (!res.success) throw new Error(res.error || 'Не удалось распознать сумму');
+                        .then(res=>{
+                            if (!res.success) {
+                                // если именно сумма не распознана — покажем фото на странице
+                                const msg = (res.error||'').toLowerCase();
+                                if (previewImg && (msg.includes('не удалось извлечь сумму') || msg.includes('сумма не распознана') || res.reason==='no_amount')) {
+                                    previewImg.src = lastPhotoURL;
+                                }
+                                throw new Error(res.error || 'Не удалось распознать сумму');
+                            }
 
-                            mAmountEl.value = res.recognized_amount;
+                            // заполняем модалку
+                            mAmountEl.value = fmt2(res.recognized_amount);
                             mQtyEl.value = 1;
                             mNoteEl.value = '';
                             mPhotoWrap.style.display = 'none';
                             lastParsedText = res.parsed_text || '';
 
-                            if (bootstrapModal) {
-                                bootstrapModal.show();
-                            } else {
-                                console.warn('bootstrapModal не инициализирован');
-                            }
+                            bootstrapModal?.show();
                             resolve(true);
                         })
-                        .catch(err => {
-                            alert(err.message);
-                            console.error('recognize error:', err);
-                            resolve(false);
-                        });
+                        .catch(err=>{ alert(err.message); resolve(false); });
 
-                } catch (e) {
-                    console.error('toBlob block error:', e);
-                    resolve(false); // ✅ чтобы не зависала кнопка
-                }
+                }catch(e){ resolve(false); }
             }, 'image/jpeg', 0.9);
         });
 
@@ -207,10 +153,8 @@ async function captureAndRecognize() {
         else captureBtn.textContent = '📸 Сфоткать';
     }
 }
-if (!previewImg) console.warn('⚠️ #preview-image не найден при загрузке скрипта');
-if (!scanModalEl) console.warn('⚠️ #scanModal не найден при загрузке скрипта');
 
-// ===== Модалка: кнопки и логика =====
+// ===== Модалка: кнопки =====
 if (mQtyMinusEl && mQtyPlusEl && mQtyEl) {
     mQtyMinusEl.onclick = () => {
         let v = parseFloat(mQtyEl.value || '1');
@@ -222,6 +166,10 @@ if (mQtyMinusEl && mQtyPlusEl && mQtyEl) {
         v = v + 1;
         mQtyEl.value = v.toFixed(0);
     };
+}
+if (mAmountEl) {
+    // чтобы всегда было вида 12.00
+    mAmountEl.addEventListener('blur', () => { mAmountEl.value = fmt2(mAmountEl.value); });
 }
 
 if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
@@ -237,14 +185,9 @@ if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
         }
     };
 }
-
 if (mRetakeBtn) {
-    mRetakeBtn.onclick = () => {
-        // Закрыть модалку и остаться в режиме камеры (ничего не сохраняем)
-        if (bootstrapModal) bootstrapModal.hide();
-    };
+    mRetakeBtn.onclick = () => { bootstrapModal?.hide(); /* камера остаётся открытой */ };
 }
-
 if (mSaveBtn) {
     mSaveBtn.onclick = async () => {
         const csrf = getCsrf();
@@ -256,28 +199,24 @@ if (mSaveBtn) {
 
         try {
             const r = await fetch('/index.php?r=scan/store', {
-                method: 'POST',
-                headers: {'X-CSRF-Token': csrf},
-                body: fd,
-                credentials: 'include',
+                method:'POST', headers:{'X-CSRF-Token':csrf}, body:fd, credentials:'include'
             });
-            const ct = r.headers.get('content-type') || '';
-            if (!ct.includes('application/json')) {
-                const text = await r.text();
-                console.error('Ожидали JSON, получили:', text);
-                throw new Error('Сервер вернул не JSON. См. консоль.');
-            }
+            const ct = r.headers.get('content-type')||'';
+            if (!ct.includes('application/json')) throw new Error('Сервер вернул не JSON.');
             const res = await r.json();
             if (!res.success) throw new Error(res.error || 'Ошибка сохранения');
 
-            // Обновляем UI без перезагрузки
             if (res.entry) addEntryToTop(res.entry);
-            if (typeof res.total !== 'undefined') updateTotal(res.total);
+            if (typeof res.total!=='undefined') updateTotal(res.total);
 
-            if (bootstrapModal) bootstrapModal.hide();
+            wasSaved = true;             // флаг: после закрытия модалки скрыть камеру
+            bootstrapModal?.hide();
+
+            // очистим последний blob-url (не обяз., но чтобы не копить)
+            if (lastPhotoURL) { URL.revokeObjectURL(lastPhotoURL); lastPhotoURL = null; }
+
         } catch (e) {
             alert(e.message);
-            console.error('store error:', e);
         }
     };
 }
@@ -287,17 +226,21 @@ function bindEntryRow(container) {
     const form = container.querySelector('form.entry-form');
     if (!form) return;
 
-    const id = form.dataset.id;
+    const id       = form.dataset.id;
     const amountEl = form.querySelector('input[name="amount"]');
-    const qtyEl = form.querySelector('input[name="qty"]');
-    const delBtn = form.querySelector('.delete-entry');
+    const qtyEl    = form.querySelector('input[name="qty"]');
+    const delBtn   = form.querySelector('.delete-entry');
 
-    // Обернём qty в input-group с +/- если ещё нет
+    // привести сумму к 2 знакам на загрузке
+    if (amountEl) amountEl.value = fmt2(amountEl.value);
+    amountEl?.addEventListener('blur', () => { amountEl.value = fmt2(amountEl.value); });
+
+    // Вставим +/- для qty если нет
     let minusBtn = form.querySelector('.qty-minus');
-    let plusBtn = form.querySelector('.qty-plus');
+    let plusBtn  = form.querySelector('.qty-plus');
     if (!minusBtn || !plusBtn) {
         const parent = qtyEl.parentElement;
-        const group = document.createElement('div');
+        const group  = document.createElement('div');
         group.className = 'input-group mb-1';
 
         minusBtn = document.createElement('button');
@@ -310,7 +253,7 @@ function bindEntryRow(container) {
         plusBtn.className = 'btn btn-outline-secondary qty-plus';
         plusBtn.textContent = '+';
 
-        qtyEl.classList.add('form-control', 'text-center');
+        qtyEl.classList.add('form-control','text-center');
 
         parent.insertBefore(group, qtyEl);
         group.appendChild(minusBtn);
@@ -324,23 +267,15 @@ function bindEntryRow(container) {
         const fd = new FormData();
         fd.append('amount', amountEl.value);
         fd.append('qty', qtyEl.value);
-
         try {
             const r = await fetch(`index.php?r=scan/update&id=${id}`, {
-                method: 'POST',
-                headers: {'X-CSRF-Token': csrf},
-                body: fd,
-                credentials: 'include',
+                method:'POST', headers:{'X-CSRF-Token':csrf}, body:fd, credentials:'include'
             });
-            const ct = r.headers.get('content-type') || '';
+            const ct=r.headers.get('content-type')||'';
             if (!ct.includes('application/json')) return;
             const res = await r.json();
-            if (res && res.success && typeof res.total !== 'undefined') {
-                updateTotal(res.total);
-            }
-        } catch (e) {
-            console.error('autosave error', e);
-        }
+            if (res?.success && typeof res.total!=='undefined') updateTotal(res.total);
+        } catch(e){ console.error('autosave error', e); }
     };
     const debouncedSave = debounce(doSave, 400);
 
@@ -348,15 +283,12 @@ function bindEntryRow(container) {
     qtyEl.addEventListener('input', debouncedSave);
 
     minusBtn.addEventListener('click', () => {
-        let v = parseFloat(qtyEl.value || '1');
-        v = Math.max(0, v - 1);
+        let v = parseFloat(qtyEl.value || '1'); v = Math.max(0, v - 1);
         qtyEl.value = (v % 1 === 0) ? v.toFixed(0) : v.toFixed(3);
         debouncedSave();
     });
-
     plusBtn.addEventListener('click', () => {
-        let v = parseFloat(qtyEl.value || '1');
-        v = v + 1;
+        let v = parseFloat(qtyEl.value || '1'); v = v + 1;
         qtyEl.value = v.toFixed(0);
         debouncedSave();
     });
@@ -367,28 +299,22 @@ function bindEntryRow(container) {
             if (!confirm('Удалить запись?')) return;
             try {
                 const r = await fetch(`index.php?r=scan/delete&id=${id}`, {
-                    method: 'POST',
-                    headers: {'X-CSRF-Token': csrf},
-                    credentials: 'include',
+                    method:'POST', headers:{'X-CSRF-Token':csrf}, credentials:'include'
                 });
                 const res = await r.json();
                 if (res.success) {
                     container.remove();
-                    if (typeof res.total !== 'undefined') updateTotal(res.total);
+                    if (typeof res.total!=='undefined') updateTotal(res.total);
                 } else {
                     alert(res.error || 'Не удалось удалить');
                 }
-            } catch (e) {
-                alert('Ошибка удаления: ' + e.message);
-            }
+            } catch(e){ alert('Ошибка удаления: '+e.message); }
         };
     }
 
-    // скрыть старую кнопку ручного сохранения, если вдруг есть
-    const saveBtn = form.querySelector('.save-entry');
-    if (saveBtn) saveBtn.classList.add('d-none');
+    // скрываем старую кнопку ручного сохранения
+    form.querySelector('.save-entry')?.classList.add('d-none');
 }
-
 
 function addEntryToTop(entry) {
     const listWrap = document.querySelector('.mt-3.text-start');
@@ -399,7 +325,7 @@ function addEntryToTop(entry) {
     div.innerHTML = `
     <form class="entry-form" data-id="${entry.id}">
       Сумма:
-      <input type="number" step="0.01" name="amount" value="${entry.amount}" class="form-control mb-1">
+      <input type="number" step="0.01" name="amount" value="${fmt2(entry.amount)}" class="form-control mb-1">
 
       <input type="hidden" name="category" value="${entry.category ?? ''}">
 
@@ -416,20 +342,14 @@ function addEntryToTop(entry) {
     bindEntryRow(div);
 }
 
-
 function updateTotal(total) {
     const el = document.querySelector('.mt-3 h5 strong');
-    if (el) el.textContent = Number(total).toLocaleString('ru-RU', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
+    if (el) el.textContent = Number(total).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-
-// ===== Инициализация для уже существующих записей =====
+// ===== Инициализация =====
 document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));
 
-// ===== События =====
 startBtn.onclick = async () => {
     wrap.style.display = 'block';
     try {
@@ -439,7 +359,6 @@ startBtn.onclick = async () => {
         }
         await initCamera();
     } catch (e) {
-        console.error('initCamera error:', e);
         alert('Не удалось открыть камеру: ' + (e?.message || e));
     }
 };
