@@ -73,11 +73,14 @@ startBtn.onclick = async () => {
             await initCamera(); // используем существующую функцию
             cameraActive = true;
             startBtn.textContent = '✖ Закрыть камеру';
+            manualBtn?.classList.add('d-none'); // скрыть "Ввести вручную"
+
         } catch (e) {
             alert('Не удалось открыть камеру: ' + (e?.message || e));
             wrap.style.display = 'none';
             cameraActive = false;
             startBtn.textContent = '📷 Открыть камеру';
+            manualBtn?.classList.remove('d-none'); // показать "Ввести вручную" обратно
         }
     } else {
         // закрыть камеру
@@ -85,6 +88,7 @@ startBtn.onclick = async () => {
         wrap.style.display = 'none';    // прячем блок
         cameraActive = false;
         startBtn.textContent = '📷 Открыть камеру';
+        manualBtn?.classList.remove('d-none'); // показать обратно при фейле
     }
 };
 
@@ -140,6 +144,7 @@ scanModalEl?.addEventListener('hidden.bs.modal', () => {
         wrap.style.display = 'none';
         stopStream();
         wasSaved = false;
+        manualBtn?.classList.remove('d-none'); // камера закрылась → вернули кнопку
     }
 });
 
