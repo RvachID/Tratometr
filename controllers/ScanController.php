@@ -285,70 +285,45 @@ class ScanController extends Controller
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
      */
-    /**
-     * Мягкая предобработка без «черных заливов».
-     * - Сохраняем цвет (на тёплом фоне).
-     * - Минимально чистим шум и чуть повышаем резкость.
-     * - Без агрессивного контраста и бинаризации.
-     */
     private function preprocessImage(string $filePath): bool
     {
-        Yii::info('Обработка изображения (soft) начата', __METHOD__);
+        Yii::info('Обработка изображения начата', __METHOD__);
         try {
-            $im = new \Imagick($filePath);
-            $im->setImageFormat('jpeg');
-            $im->autoOrient(); // если EXIF есть
+            $image = new \Imagick($filePath);
+            $image->setImageFormat('jpeg');
 
-            // 1) Resize (чуть больше, чем 1024 — OCR любит 1200–1600 по ширине)
-            $w = $im->getImageWidth();
-            if ($w > 1280) {
-                $im->resizeImage(1280, 0, \Imagick::FILTER_LANCZOS, 1);
+            // ресайз по ширине до 1024
+            $width = $image->getImageWidth();
+            if ($width > 1024) {
+                $image->resizeImage(1024, 0, \Imagick::FILTER_LANCZOS, 1);
             }
 
-            // 2) Определим "тёплый фон" грубо по средней насыщенности/оттенку (очень дешёвая эвристика)
-            $thumb = clone $im;
-            $thumb->resizeImage(64, 64, \Imagick::FILTER_BOX, 1);
-            $thumb->setImageColorspace(\Imagick::COLORSPACE_HSL);
-            $stats = $thumb->getImageChannelMean(\Imagick::CHANNEL_SATURATION);
-            $avgSat = $stats['mean'] / \Imagick::getQuantum(); // 0..1
-            $thumb->destroy();
+            // Ч/Б + контраст/яркость/резкость
+            $image->setImageColorspace(\Imagick::COLORSPACE_GRAY);
+            $image->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
+            $image->sigmoidalContrastImage(true, 10, 0.5);
+            $image->modulateImage(120, 100, 100);
+            $image->sharpenImage(2, 1);
 
-            $isWarmBg = $avgSat > 0.20; // «насыщенный фон» -> считаем, что цвет лучше не ломать
+            // обрезка 5% по краям
+            $w = $image->getImageWidth();
+            $h = $image->getImageHeight();
+            $cropX = (int)($w * 0.05);
+            $cropY = (int)($h * 0.05);
+            $image->cropImage($w - 2*$cropX, $h - 2*$cropY, $cropX, $cropY);
+            $image->setImagePage(0, 0, 0, 0);
 
-            // 3) Минимальная чистка
-            if (!$isWarmBg) {
-                // На «холодном» фоне можно аккуратно в Ч/Б (без сильного контраста)
-                $im->setImageColorspace(\Imagick::COLORSPACE_GRAY);
-                $im->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
+            $ok = $image->writeImage($filePath);
+            $image->clear();
+            $image->destroy();
 
-                // Чуть повысим микроконтраст, но мягко
-                $im->contrastImage(true);              // +1 шаг
-                $im->brightnessContrastImage(0, 5);    // +5 контраст (Imagick 7+; игнор, если нет)
-            } else {
-                // На жёлтом/красном фоне оставляем цвет и слегка уменьшаем насыщенность,
-                // чтобы OCR лучше видел контуры текста
-                $im->modulateImage(100, 90, 100);      // яркость 100%, сатурация -10%, тон 0
-            }
-
-            // 4) Небольшая резкость, без «перешарпа»
-            $im->unsharpMaskImage(0.5, 0.5, 1.0, 0.02);
-
-            // 5) Больше не режем 5% по краям — можно срезать цену. Если очень нужно:
-            // $crop = 0.02; ... но я бы сейчас отключил
-            // (оставляем как есть)
-
-            $ok = $im->writeImage($filePath);
-            $im->clear();
-            $im->destroy();
-
-            Yii::info('Soft-обработка завершена', __METHOD__);
+            Yii::info('Обработка изображения завершена успешно', __METHOD__);
             return $ok;
         } catch (\Throwable $e) {
             Yii::error('Ошибка обработки изображения: '.$e->getMessage(), __METHOD__);
             return false;
         }
     }
-
 
     public function actionRecognize()
     {
