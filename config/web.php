@@ -62,6 +62,15 @@ $config = [
             'identityClass' => 'app\models\User',
             'enableAutoLogin' => true,
             'loginUrl' => ['auth/login'],
+            'on ' . \yii\web\User::EVENT_AFTER_LOGIN => function ($e) {
+                /** @var app\models\User $u */
+                $u = $e->identity;
+                $u->updateAttributes([
+                    'ocr_allowance' => 50,
+                    'ocr_allowance_updated_at' => time(),
+                ]);
+            },
+
         ],
         'urlManager' => [
             'enablePrettyUrl' => false,

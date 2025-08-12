@@ -69,15 +69,21 @@ class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface, R
         $this->updated_at = time();
         return parent::beforeSave($insert);
     }
-    // 10 запросов за 60 сек
-    public function getRateLimit($request, $action)
-    {
-        // Лимит только для OCR-аплоада: иначе — «без лимита»
-        if ($request->get('r') === 'scan/upload') {
+
+    public function getRateLimit($request, $action) {
+        if ($action && $action->uniqueId === 'scan/recognize') {
             return [50, 60]; // [макс-токенов, окно(сек)] тест
-           /* return [10, 60];*/ // [макс-токенов, окно(сек)] боевой
+            /* return [10, 60];*/ // [макс-токенов, окно(сек)] боевой
         }
-        return [PHP_INT_MAX, 1]; // по сути, без ограничений
+        return [PHP_INT_MAX, 1];
+    }
+    public function loadAllowance($request, $action) {
+        return [(int)$this->ocr_allowance, (int)$this->ocr_allowance_updated_at];
+    }
+    public function saveAllowance($request, $action, $allowance, $timestamp) {
+        $this->ocr_allowance = (int)$allowance;
+        $this->ocr_allowance_updated_at = (int)$timestamp;
+        $this->update(false, ['ocr_allowance','ocr_allowance_updated_at']);
     }
 
     public function loadAllowance($request, $action)
