@@ -17,34 +17,32 @@ class ScanController extends Controller
 
     public function beforeAction($action)
     {
-        if (Yii::$app->user->isGuest) {
-            Yii::$app->response->format = Response::FORMAT_JSON;
-            Yii::$app->response->statusCode = 401;
-            Yii::$app->end(json_encode(['success' => false, 'error' => 'Не авторизован']));
-        }
+        // Всегда JSON (важно, чтобы 429 от RateLimiter тоже пришёл JSON'ом)
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        // Точечно отключаем CSRF на upload
         if ($action->id === 'upload') {
-            Yii::$app->request->enableCsrfValidation = false;
+            $this->enableCsrfValidation = false; // ✅ именно свойство контроллера
         }
-        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON; // 💥 ВОТ ЭТО ОБЯЗАТЕЛЬНО
+
+        // Гостям — 401 и выходим корректно
+        if (Yii::$app->user->isGuest) {
+            Yii::$app->response->statusCode = 401;
+            Yii::$app->response->data = ['success' => false, 'error' => 'Не авторизован'];
+            return false; // ⬅️ прерываем выполнение экшена/фильтров
+        }
 
         return parent::beforeAction($action);
     }
+
     public function behaviors()
     {
         $b = parent::behaviors();
-
         $b['rateLimiter'] = [
             'class' => RateLimiter::class,
             'enableRateLimitHeaders' => true,
-            'only' => ['upload'], // только этот экшен
-            // опционально: кастомный обработчик 429 JSON
-            'errorCallback' => function ($action) {
-                \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
-                \Yii::$app->response->statusCode = 429;
-                return ['success' => false, 'error' => 'Превышен лимит OCR-запросов. Попробуйте позже.'];
-            },
+            'only' => ['upload'], // ограничиваем только upload
         ];
-
         return $b;
     }
     /**
