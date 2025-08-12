@@ -458,46 +458,60 @@ class ScanController extends Controller
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-        $amount   = Yii::$app->request->post('amount');
-        $qty      = Yii::$app->request->post('qty', 1);
-        $note     = Yii::$app->request->post('note', '');
-        $text     = Yii::$app->request->post('parsed_text', '');
-        $category = Yii::$app->request->post('category', null);
+        try {
+            $amount   = Yii::$app->request->post('amount');
+            $qty      = Yii::$app->request->post('qty', 1);
+            $note     = Yii::$app->request->post('note', '');
+            $text     = Yii::$app->request->post('parsed_text', '');
+            $category = Yii::$app->request->post('category', null);
 
-        if (!$amount || !is_numeric($amount) || $amount <= 0) {
-            return ['success' => false, 'error' => 'Неверная сумма'];
+            // валидация входа
+            if (!is_numeric($amount) || (float)$amount <= 0) {
+                return ['success' => false, 'error' => 'Неверная сумма'];
+            }
+            if (!is_numeric($qty) || (float)$qty <= 0) {
+                $qty = 1;
+            }
+
+            $entry = new \app\models\PriceEntry();
+            $entry->user_id           = Yii::$app->user->id;
+            $entry->amount            = (float)$amount;
+            $entry->qty               = (float)$qty;
+            $entry->category          = $category ?: null;
+            $entry->note              = (string)$note;
+            $entry->recognized_text   = (string)$text;
+            $entry->recognized_amount = (float)$amount;
+            $entry->source            = 'price_tag';
+            $entry->created_at        = time();
+            $entry->updated_at        = time();
+
+            if (!$entry->save()) {
+                // вернём детали, чтобы видеть, что не понравилось валидации
+                return ['success' => false, 'error' => 'Ошибка сохранения', 'details' => $entry->errors];
+            }
+
+            // считаем total для пользователя прямо тут
+            $db = Yii::$app->db;
+            $total = (float)$db->createCommand(
+                'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
+                [':u' => Yii::$app->user->id]
+            )->queryScalar();
+
+            return [
+                'success' => true,
+                'entry' => [
+                    'id'      => $entry->id,
+                    'amount'  => $entry->amount,
+                    'qty'     => $entry->qty,
+                    'category'=> $entry->category,
+                ],
+                'total' => $total,
+            ];
+
+        } catch (\Throwable $e) {
+            Yii::error($e->getMessage() . "\n" . $e->getTraceAsString(), __METHOD__);
+            return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
-        if (!$qty || !is_numeric($qty) || $qty <= 0) {
-            $qty = 1;
-        }
-
-        $entry = new \app\models\PriceEntry([
-            'user_id'           => Yii::$app->user->id,
-            'amount'            => (float)$amount,
-            'qty'               => (float)$qty,
-            'category'          => $category,
-            'recognized_text'   => $text,
-            'recognized_amount' => (float)$amount,
-            'source'            => 'price_tag',
-            'created_at'        => time(),
-            'updated_at'        => time(),
-        ]);
-
-        if (!$entry->save()) {
-            return ['success' => false, 'error' => 'Ошибка сохранения', 'details' => $entry->errors];
-        }
-
-        // Можно вернуть HTML-вёрстку карточки или только данные
-        return [
-            'success' => true,
-            'entry' => [
-                'id'      => $entry->id,
-                'amount'  => number_format($entry->amount, 2, '.', ' '),
-                'qty'     => $entry->qty,
-                'category'=> $entry->category,
-            ],
-            'total' => $this->calcTotalForUser(Yii::$app->user->id), // если есть хелпер
-        ];
     }
 
 }
