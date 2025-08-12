@@ -3,8 +3,8 @@ use yii\helpers\Html;
 use yii\helpers\Url;
 
 // ❗ Если Bootstrap 5 не подключён глобально в layout, раскомментируй строки ниже:
-// \yii\bootstrap5\BootstrapAsset::register($this);
-// \yii\bootstrap5\BootstrapPluginAsset::register($this);
+    yii\bootstrap5\BootstrapAsset::register($this);
+    yii\bootstrap5\BootstrapPluginAsset::register($this);
 
 $this->title = 'Тратометр';
 
