@@ -184,40 +184,87 @@ class ScanController extends Controller
      * Берём число из OCR Overlay по наибольшему "шрифту" (Height).
      * Возвращает float или null, если в Overlay ничего подходящего.
      */
-    private function extractAmountByOverlay(array $recognizedData): ?float
+    private function extractAmountByOverlay(array $recognized): ?float
     {
-        $lines = $recognizedData['TextOverlay']['Lines'] ?? null;
-        if (!$lines || !is_array($lines)) {
+        $lines = $recognized['TextOverlay']['Lines'] ?? null;
+        if (!$lines || !is_array($lines) || !count($lines)) {
             return null;
         }
 
-        $bestScore = -1.0;
         $bestValue = null;
+        $bestScore = -INF;
+
+        // локальная обёртка на твою нормализацию
+        $norm = function (string $raw): ?float {
+            return $this->normalizeOcrNumber($raw);
+        };
 
         foreach ($lines as $line) {
-            foreach (($line['Words'] ?? []) as $w) {
-                $token = (string)($w['WordText'] ?? '');
-                $height = isset($w['Height']) ? (float)abs($w['Height']) : 0.0;
-                if ($height <= 0) continue;
+            $words = $line['Words'] ?? [];
+            if (!is_array($words) || !count($words)) {
+                continue;
+            }
 
-                $val = $this->normalizeOcrNumber($token);
-                if ($val === null) continue;
+            // приведение типов и очистка текста
+            foreach ($words as &$w) {
+                $w['WordText'] = (string)($w['WordText'] ?? '');
+                // уберём валюты/мусор внутри слова (₽, р, руб и т.п.)
+                $w['WordText'] = preg_replace('~[^\d.,\s]~u', '', $w['WordText']);
+                $w['Height']   = isset($w['Height']) ? (int)$w['Height'] : 0;
+                $w['Left']     = isset($w['Left'])   ? (int)$w['Left']   : 0;
+                $w['Top']      = isset($w['Top'])    ? (int)$w['Top']    : 0;
+            }
+            unset($w);
 
-                // вес = высота шрифта; небольшой бонус за наличие разделителя копеек
-                $score = $height;
-                if (preg_match('/[.,]\d{2}\b/u', $token)) {
-                    $score += $height * 0.4;
+            // собираем подряд идущие «числовые» токены в группы
+            $group = [];
+            $flush = function () use (&$group, $norm, &$bestValue, &$bestScore) {
+                if (!count($group)) return;
+
+                // склейка без пробелов: "1", "299", ",", "90" => "1299,90"
+                $raw = implode('', array_column($group, 'WordText'));
+                $val = $norm($raw);
+                $groupHeights = array_map(fn($g) => (int)$g['Height'], $group);
+                $maxH = $groupHeights ? max($groupHeights) : 0;
+
+                if ($val !== null) {
+                    // признаки «похоже на цену»
+                    $rawStr = $raw;
+                    $hasSep   = (bool)preg_match('~[.,]~', $rawStr);      // есть разделитель
+                    $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $rawStr); // ровно 2 цифры после разделителя
+
+                    // счёт: высота — главный фактор, бонусы за разделитель/копейки
+                    // маленькие значения (<1) слегка штрафуем, чтобы не брать «.50» и т.п.
+                    $penaltySmall = ($val < 1.0) ? 20 : 0;
+
+                    $score = $maxH * 10
+                        + ($hasCents ? 50 : 0)
+                        + ($hasSep   ? 20 : 0)
+                        - $penaltySmall;
+
+                    if ($score > $bestScore) {
+                        $bestScore = $score;
+                        $bestValue = $val;
+                    }
                 }
 
-                if ($score > $bestScore) {
-                    $bestScore = $score;
-                    $bestValue = $val;
+                $group = [];
+            };
+
+            foreach ($words as $w) {
+                $t = preg_replace('~\s+~u', '', $w['WordText']); // внутри слова
+                if ($t !== '' && preg_match('~^[\d.,]+$~u', $t)) {
+                    $group[] = $w;
+                } else {
+                    $flush();
                 }
             }
+            $flush();
         }
 
         return $bestValue;
     }
+
 
     /**
      * Нормализуем «числовое» слово из OCR в float.
