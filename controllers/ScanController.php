@@ -293,61 +293,43 @@ class ScanController extends Controller
      */
     private function preprocessImage(string $filePath): bool
     {
-        Yii::info('Обработка изображения (soft) начата', __METHOD__);
+        Yii::info('Обработка изображения (safe, no-contrast, keep-color) начата', __METHOD__);
         try {
             $im = new \Imagick($filePath);
-            $im->setImageFormat('jpeg');
-            $im->autoOrient(); // если EXIF есть
 
-            // 1) Resize (чуть больше, чем 1024 — OCR любит 1200–1600 по ширине)
+            // Всегда оставляем цвет. Не трогаем colorspace/type вовсе.
+            $im->autoOrient();
+
+            // OCR лучше работает на 1000–1600px по ширине, держим 1280.
             $w = $im->getImageWidth();
             if ($w > 1280) {
                 $im->resizeImage(1280, 0, \Imagick::FILTER_LANCZOS, 1);
             }
 
-            // 2) Определим "тёплый фон" грубо по средней насыщенности/оттенку (очень дешёвая эвристика)
-            $thumb = clone $im;
-            $thumb->resizeImage(64, 64, \Imagick::FILTER_BOX, 1);
-            $thumb->setImageColorspace(\Imagick::COLORSPACE_HSL);
-            $stats = $thumb->getImageChannelMean(\Imagick::CHANNEL_SATURATION);
-            $avgSat = $stats['mean'] / \Imagick::getQuantum(); // 0..1
-            $thumb->destroy();
+            // Очень мягкая резкость без перешарпа
+            // (radius=0.5, sigma=0.5, amount=0.8, threshold=0.01)
+            $im->unsharpMaskImage(0.5, 0.5, 0.8, 0.01);
 
-            $isWarmBg = $avgSat > 0.20; // «насыщенный фон» -> считаем, что цвет лучше не ломать
-
-            // 3) Минимальная чистка
-            if (!$isWarmBg) {
-                // На «холодном» фоне можно аккуратно в Ч/Б (без сильного контраста)
-                $im->setImageColorspace(\Imagick::COLORSPACE_GRAY);
-                $im->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
-
-                // Чуть повысим микроконтраст, но мягко
-                $im->contrastImage(true);              // +1 шаг
-                $im->brightnessContrastImage(0, 5);    // +5 контраст (Imagick 7+; игнор, если нет)
+            // Без contrast/modulate/GRAY. Ничего больше не трогаем.
+            // Сохраним с нормальным качеством
+            if (strtolower($im->getImageFormat()) === 'jpeg') {
+                $im->setImageCompressionQuality(85);
             } else {
-                // На жёлтом/красном фоне оставляем цвет и слегка уменьшаем насыщенность,
-                // чтобы OCR лучше видел контуры текста
-                $im->modulateImage(100, 90, 100);      // яркость 100%, сатурация -10%, тон 0
+                // если был PNG — оставим как есть
             }
-
-            // 4) Небольшая резкость, без «перешарпа»
-            $im->unsharpMaskImage(0.5, 0.5, 1.0, 0.02);
-
-            // 5) Больше не режем 5% по краям — можно срезать цену. Если очень нужно:
-            // $crop = 0.02; ... но я бы сейчас отключил
-            // (оставляем как есть)
 
             $ok = $im->writeImage($filePath);
             $im->clear();
             $im->destroy();
 
-            Yii::info('Soft-обработка завершена', __METHOD__);
+            Yii::info('Safe-обработка завершена', __METHOD__);
             return $ok;
         } catch (\Throwable $e) {
             Yii::error('Ошибка обработки изображения: '.$e->getMessage(), __METHOD__);
             return false;
         }
     }
+
 
 
     public function actionRecognize()
