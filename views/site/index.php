@@ -26,9 +26,6 @@ CSS);
 
 <div class="container mt-3 text-center">
     <h2>Тратометр</h2>
-
-    <img id="preview-image" style="max-width:100%; border:1px solid #ccc; margin-top:10px;" />
-
     <button id="start-scan" class="btn btn-primary mb-3" type="button">📷 Сканировать</button>
 
     <div id="camera-wrapper" style="display:none;">
@@ -95,18 +92,19 @@ CSS);
                     Сумма:
                     <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>" class="form-control mb-1">
 
-                    <!-- Категорию временно скрываем -->
                     <input type="hidden" name="category" value="<?= Html::encode($entry->category) ?>">
 
-                    <!-- Qty: JS сам обернёт в input-group и добавит +/- при инициализации -->
                     Кол-во:
                     <input type="number" step="0.001" name="qty" value="<?= $entry->qty ?>" class="form-control mb-1">
 
-                    <!-- кнопку сохранения прячем: теперь автосейв -->
-                    <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
+                        <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
+                    </div>
                 </form>
             </div>
         <?php endforeach; ?>
+
     </div>
 </div>
 

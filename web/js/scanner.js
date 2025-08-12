@@ -271,30 +271,32 @@ if (mSaveBtn) {
 function bindEntryRow(container) {
     const form = container.querySelector('form.entry-form');
     if (!form) return;
-    const id = form.dataset.id;
+
+    const id       = form.dataset.id;
     const amountEl = form.querySelector('input[name="amount"]');
     const qtyEl    = form.querySelector('input[name="qty"]');
+    const delBtn   = form.querySelector('.delete-entry');
 
-    // Вставим +/- если их нет (как в модалке)
+    // Обернём qty в input-group с +/- если ещё нет
     let minusBtn = form.querySelector('.qty-minus');
     let plusBtn  = form.querySelector('.qty-plus');
-
     if (!minusBtn || !plusBtn) {
-        // оборачиваем qty в input-group
         const parent = qtyEl.parentElement;
-        const group = document.createElement('div');
+        const group  = document.createElement('div');
         group.className = 'input-group mb-1';
+
         minusBtn = document.createElement('button');
         minusBtn.type = 'button';
         minusBtn.className = 'btn btn-outline-secondary qty-minus';
         minusBtn.textContent = '–';
+
         plusBtn = document.createElement('button');
         plusBtn.type = 'button';
         plusBtn.className = 'btn btn-outline-secondary qty-plus';
         plusBtn.textContent = '+';
 
-        // переносим qty внутрь группы
         qtyEl.classList.add('form-control', 'text-center');
+
         parent.insertBefore(group, qtyEl);
         group.appendChild(minusBtn);
         group.appendChild(qtyEl);
@@ -307,21 +309,26 @@ function bindEntryRow(container) {
         const fd = new FormData();
         fd.append('amount', amountEl.value);
         fd.append('qty', qtyEl.value);
+
         try {
             const r = await fetch(`index.php?r=scan/update&id=${id}`, {
                 method: 'POST',
                 headers: { 'X-CSRF-Token': csrf },
                 body: fd,
+                credentials: 'include',
             });
-            // можно вернуть новый total — если сервер это делает; иначе игнорируем
-            // const res = await r.json();
-            // if (res.total) updateTotal(res.total);
+            const ct = r.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) return;
+            const res = await r.json();
+            if (res && res.success && typeof res.total !== 'undefined') {
+                updateTotal(res.total);
+            }
         } catch (e) {
             console.error('autosave error', e);
         }
     };
+    const debouncedSave = debounce(doSave, 400);
 
-    const debouncedSave = debounce(doSave, 500);
     amountEl.addEventListener('input', debouncedSave);
     qtyEl.addEventListener('input', debouncedSave);
 
@@ -339,33 +346,67 @@ function bindEntryRow(container) {
         debouncedSave();
     });
 
-    // скрыть старую кнопку ручного сохранения, если есть
+    // Удаление
+    if (delBtn) {
+        delBtn.onclick = async () => {
+            if (!confirm('Удалить запись?')) return;
+            try {
+                const r = await fetch(`index.php?r=scan/delete&id=${id}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': csrf },
+                    credentials: 'include',
+                });
+                const res = await r.json();
+                if (res.success) {
+                    container.remove();
+                    if (typeof res.total !== 'undefined') updateTotal(res.total);
+                } else {
+                    alert(res.error || 'Не удалось удалить');
+                }
+            } catch (e) {
+                alert('Ошибка удаления: ' + e.message);
+            }
+        };
+    }
+
+    // скрыть старую кнопку ручного сохранения, если вдруг есть
     const saveBtn = form.querySelector('.save-entry');
     if (saveBtn) saveBtn.classList.add('d-none');
 }
 
+
 function addEntryToTop(entry) {
-    const wrap = document.querySelector('.mt-3.text-start'); // контейнер списка
-    if (!wrap) return;
+    const listWrap = document.querySelector('.mt-3.text-start');
+    if (!listWrap) return;
 
     const div = document.createElement('div');
     div.className = 'border p-2 mb-2';
     div.innerHTML = `
     <form class="entry-form" data-id="${entry.id}">
-      Сумма: <input type="number" step="0.01" name="amount" value="${entry.amount}" class="form-control mb-1">
+      Сумма:
+      <input type="number" step="0.01" name="amount" value="${entry.amount}" class="form-control mb-1">
+
+      <input type="hidden" name="category" value="${entry.category ?? ''}">
+
       Кол-во:
       <input type="number" step="0.001" name="qty" value="${entry.qty}" class="form-control mb-1">
-      <button class="btn btn-sm btn-outline-success save-entry d-none">💾</button>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
+        <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
+      </div>
     </form>
   `;
-    wrap.prepend(div);
+    listWrap.prepend(div);
     bindEntryRow(div);
 }
+
 
 function updateTotal(total) {
     const el = document.querySelector('.mt-3 h5 strong');
     if (el) el.textContent = Number(total).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
 
 // ===== Инициализация для уже существующих записей =====
 document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));

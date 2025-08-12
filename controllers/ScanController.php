@@ -432,5 +432,64 @@ class ScanController extends Controller
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
+    public function actionUpdate($id)
+    {
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        $m = \app\models\PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
+        if (!$m) {
+            Yii::$app->response->statusCode = 404;
+            return ['success' => false, 'error' => 'Запись не найдена'];
+        }
+
+        $amount = Yii::$app->request->post('amount', null);
+        $qty    = Yii::$app->request->post('qty', null);
+
+        if ($amount !== null) $m->amount = (float)$amount;
+        if ($qty !== null)    $m->qty    = (float)$qty;
+
+        $m->updated_at = time();
+
+        if (!$m->save(false, ['amount','qty','updated_at'])) {
+            return ['success' => false, 'error' => 'Не удалось сохранить', 'details' => $m->errors];
+        }
+
+        $total = (float)Yii::$app->db->createCommand(
+            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
+            [':u' => Yii::$app->user->id]
+        )->queryScalar();
+
+        return [
+            'success' => true,
+            'entry'   => ['id'=>$m->id,'amount'=>$m->amount,'qty'=>$m->qty],
+            'total'   => $total,
+        ];
+    }
+    public function actionDelete($id)
+    {
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        if (!Yii::$app->request->isPost) {
+            Yii::$app->response->statusCode = 405;
+            return ['success' => false, 'error' => 'Метод не поддерживается'];
+        }
+
+        $m = \app\models\PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
+        if (!$m) {
+            Yii::$app->response->statusCode = 404;
+            return ['success' => false, 'error' => 'Запись не найдена'];
+        }
+
+        if ($m->delete() === false) {
+            return ['success' => false, 'error' => 'Не удалось удалить'];
+        }
+
+        $total = (float)Yii::$app->db->createCommand(
+            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
+            [':u' => Yii::$app->user->id]
+        )->queryScalar();
+
+        return ['success' => true, 'total' => $total];
+    }
 
 }
