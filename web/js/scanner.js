@@ -144,6 +144,7 @@ scanModalEl?.addEventListener('hidden.bs.modal', () => {
         wrap.style.display = 'none';
         stopStream();
         wasSaved = false;
+        startBtn.textContent = '📷 Открыть камеру';
         manualBtn?.classList.remove('d-none'); // камера закрылась → вернули кнопку
     }
 });
