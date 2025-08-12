@@ -469,3 +469,76 @@ manualBtn.onclick = () => {
     if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Скан'; // у тебя так называется
     bootstrapModal?.show();
 };
+function openCamera() {
+    const cameraWrapper = document.createElement('div');
+    cameraWrapper.id = 'camera-wrapper';
+    cameraWrapper.style.display = 'flex';
+    cameraWrapper.style.flexDirection = 'column';
+    cameraWrapper.style.height = '100vh';
+    cameraWrapper.style.padding = '0';
+    cameraWrapper.style.margin = '0';
+    cameraWrapper.style.boxSizing = 'border-box';
+
+    // Верхние кнопки
+    const topControls = document.createElement('div');
+    topControls.style.padding = '10px';
+    topControls.style.flexShrink = '0';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✖ Закрыть камеру';
+    closeBtn.className = 'btn btn-outline-secondary w-100 mb-2';
+    closeBtn.onclick = closeCamera;
+    topControls.appendChild(closeBtn);
+
+    const manualBtn = document.createElement('button');
+    manualBtn.textContent = '✍ Ввести вручную';
+    manualBtn.className = 'btn btn-outline-secondary w-100';
+    manualBtn.onclick = openManualInput;
+    topControls.appendChild(manualBtn);
+
+    cameraWrapper.appendChild(topControls);
+
+    // Видоискатель
+    const cameraView = document.createElement('div');
+    cameraView.id = 'camera-view';
+    cameraView.style.flex = '1';
+    cameraView.style.background = 'black';
+    cameraView.style.width = '100%';
+    cameraView.style.display = 'flex';
+    cameraView.style.justifyContent = 'center';
+    cameraView.style.alignItems = 'center';
+    cameraWrapper.appendChild(cameraView);
+
+    // Нижняя кнопка (фиксирована)
+    const bottomControls = document.createElement('div');
+    bottomControls.style.flexShrink = '0';
+    bottomControls.style.padding = '10px';
+    bottomControls.style.background = 'white';
+
+    const scanBtn = document.createElement('button');
+    scanBtn.id = 'scan-btn';
+    scanBtn.className = 'btn btn-outline-secondary w-100';
+    scanBtn.innerHTML = '📷 Сканировать';
+    scanBtn.onclick = takeSnapshot;
+    bottomControls.appendChild(scanBtn);
+
+    cameraWrapper.appendChild(bottomControls);
+
+    // Заменяем контент на камеру
+    const mainContainer = document.getElementById('main-content');
+    mainContainer.innerHTML = '';
+    mainContainer.appendChild(cameraWrapper);
+
+    startCamera();
+
+    // Прокрутка вниз к кнопке, но камера останется полностью видимой
+    setTimeout(() => {
+        document.getElementById('scan-btn').scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 200);
+}
+
+function closeCamera() {
+    const mainContainer = document.getElementById('main-content');
+    mainContainer.innerHTML = '';
+    renderMainPage();
+}
