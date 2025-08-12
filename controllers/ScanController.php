@@ -285,39 +285,63 @@ class ScanController extends Controller
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
      */
+    /**
+     * Мягкая предобработка без «черных заливов».
+     * - Сохраняем цвет (на тёплом фоне).
+     * - Минимально чистим шум и чуть повышаем резкость.
+     * - Без агрессивного контраста и бинаризации.
+     */
     private function preprocessImage(string $filePath): bool
     {
-        Yii::info('Обработка изображения начата', __METHOD__);
+        Yii::info('Обработка изображения (soft) начата', __METHOD__);
         try {
-            $image = new \Imagick($filePath);
-            $image->setImageFormat('jpeg');
+            $im = new \Imagick($filePath);
+            $im->setImageFormat('jpeg');
+            $im->autoOrient(); // если EXIF есть
 
-            // ресайз по ширине до 1024
-            $width = $image->getImageWidth();
-            if ($width > 1024) {
-                $image->resizeImage(1024, 0, \Imagick::FILTER_LANCZOS, 1);
+            // 1) Resize (чуть больше, чем 1024 — OCR любит 1200–1600 по ширине)
+            $w = $im->getImageWidth();
+            if ($w > 1280) {
+                $im->resizeImage(1280, 0, \Imagick::FILTER_LANCZOS, 1);
             }
 
-            // Ч/Б + контраст/яркость/резкость
-            $image->setImageColorspace(\Imagick::COLORSPACE_GRAY);
-            $image->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
-            $image->sigmoidalContrastImage(true, 10, 0.5);
-            $image->modulateImage(120, 100, 100);
-            $image->sharpenImage(2, 1);
+            // 2) Определим "тёплый фон" грубо по средней насыщенности/оттенку (очень дешёвая эвристика)
+            $thumb = clone $im;
+            $thumb->resizeImage(64, 64, \Imagick::FILTER_BOX, 1);
+            $thumb->setImageColorspace(\Imagick::COLORSPACE_HSL);
+            $stats = $thumb->getImageChannelMean(\Imagick::CHANNEL_SATURATION);
+            $avgSat = $stats['mean'] / \Imagick::getQuantum(); // 0..1
+            $thumb->destroy();
 
-            // обрезка 5% по краям
-            $w = $image->getImageWidth();
-            $h = $image->getImageHeight();
-            $cropX = (int)($w * 0.05);
-            $cropY = (int)($h * 0.05);
-            $image->cropImage($w - 2*$cropX, $h - 2*$cropY, $cropX, $cropY);
-            $image->setImagePage(0, 0, 0, 0);
+            $isWarmBg = $avgSat > 0.20; // «насыщенный фон» -> считаем, что цвет лучше не ломать
 
-            $ok = $image->writeImage($filePath);
-            $image->clear();
-            $image->destroy();
+            // 3) Минимальная чистка
+            if (!$isWarmBg) {
+                // На «холодном» фоне можно аккуратно в Ч/Б (без сильного контраста)
+                $im->setImageColorspace(\Imagick::COLORSPACE_GRAY);
+                $im->setImageType(\Imagick::IMGTYPE_GRAYSCALE);
 
-            Yii::info('Обработка изображения завершена успешно', __METHOD__);
+                // Чуть повысим микроконтраст, но мягко
+                $im->contrastImage(true);              // +1 шаг
+                $im->brightnessContrastImage(0, 5);    // +5 контраст (Imagick 7+; игнор, если нет)
+            } else {
+                // На жёлтом/красном фоне оставляем цвет и слегка уменьшаем насыщенность,
+                // чтобы OCR лучше видел контуры текста
+                $im->modulateImage(100, 90, 100);      // яркость 100%, сатурация -10%, тон 0
+            }
+
+            // 4) Небольшая резкость, без «перешарпа»
+            $im->unsharpMaskImage(0.5, 0.5, 1.0, 0.02);
+
+            // 5) Больше не режем 5% по краям — можно срезать цену. Если очень нужно:
+            // $crop = 0.02; ... но я бы сейчас отключил
+            // (оставляем как есть)
+
+            $ok = $im->writeImage($filePath);
+            $im->clear();
+            $im->destroy();
+
+            Yii::info('Soft-обработка завершена', __METHOD__);
             return $ok;
         } catch (\Throwable $e) {
             Yii::error('Ошибка обработки изображения: '.$e->getMessage(), __METHOD__);
@@ -325,9 +349,10 @@ class ScanController extends Controller
         }
     }
 
+
     public function actionRecognize()
     {
-        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
         try {
             $image = \yii\web\UploadedFile::getInstanceByName('image');
@@ -335,49 +360,110 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Изображение не загружено'];
             }
 
-            $tmpPath = Yii::getAlias('@runtime/' . uniqid('scan_') . '.' . $image->extension);
-            if (!$image->saveAs($tmpPath)) {
+            $ext = strtolower($image->extension ?: 'jpg');
+            $sizeLimit = 1024 * 1024; // 1 МБ для OCR.space
+
+            // --- Сохраняем сырой файл
+            $rawPath = \Yii::getAlias('@runtime/' . uniqid('scan_raw_') . '.' . $ext);
+            if (!$image->saveAs($rawPath)) {
                 return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
             }
 
-            if (!$this->preprocessImage($tmpPath)) {
-                @unlink($tmpPath);
-                return ['success' => false, 'error' => 'Ошибка при обработке изображения'];
+            // --- Готовим копию под предобработку (soft)
+            $procPath = \Yii::getAlias('@runtime/' . uniqid('scan_proc_') . '.' . $ext);
+            @copy($rawPath, $procPath);
+            $procOk = $this->preprocessImage($procPath); // твоя "мягкая" версия
+
+            if (!$procOk) {
+                @unlink($procPath);
+                $procPath = null;
             }
 
-            if (filesize($tmpPath) > 1024*1024) {
-                @unlink($tmpPath);
+            // --- Контроль размера: если обработанный > 1 МБ — выбрасываем его
+            if ($procPath && @filesize($procPath) > $sizeLimit) {
+                @unlink($procPath);
+                $procPath = null;
+            }
+
+            // Если и сырой >1 МБ, а обработанного нет — сразу ошибка (OCR.space не примет)
+            if ((!$procPath) && @filesize($rawPath) > $sizeLimit) {
+                @unlink($rawPath);
                 return ['success' => false, 'error' => 'Размер файла превышает 1 МБ'];
             }
 
-            $recognizedData = $this->recognizeText($tmpPath);
-            @unlink($tmpPath);
+            // --- Обёртка: запустить OCR и вытащить сумму
+            $run = function (string $path) {
+                $recognized = $this->recognizeText($path);
+                if (isset($recognized['error'])) {
+                    // пробрасываем типичные причины
+                    return ['error' => $recognized['error'], 'reason' => 'ocr', 'recognized' => $recognized];
+                }
 
-            if (isset($recognizedData['error'])) {
-                // 429 от rate limiter словится раньше, но на всякий случай
-                return ['success' => false, 'error' => $recognizedData['error'], 'reason' => 'ocr'];
+                $amount = $this->extractAmountByOverlay($recognized);
+                if ($amount === null || $amount === 0.0) {
+                    $amount = $this->extractAmount($recognized['ParsedText'] ?? '');
+                }
+
+                if (!$amount) {
+                    return ['error' => 'no_amount', 'reason' => 'no_amount', 'recognized' => $recognized];
+                }
+
+                return ['amount' => $amount, 'recognized' => $recognized];
+            };
+
+            // --- Проход 1: по обработанному изображению (если есть)
+            $usedPass = 'processed';
+            $r1 = $procPath ? $run($procPath) : ['error' => 'preprocess_failed', 'reason' => 'preprocess'];
+
+            // --- Если не нашли сумму — Проход 2: по сырому изображению
+            if (empty($r1['amount'])) {
+                $usedPass = 'raw';
+                // Если сырой файл >1 МБ, второй проход делать нельзя
+                if (@filesize($rawPath) > $sizeLimit) {
+                    // выбираем понятную ошибку
+                    @unlink($rawPath);
+                    if ($procPath) @unlink($procPath);
+                    return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
+                }
+
+                $r2 = $run($rawPath);
+                if (empty($r2['amount'])) {
+                    @unlink($rawPath);
+                    if ($procPath) @unlink($procPath);
+
+                    // Приоритизируем причины
+                    if (($r1['reason'] ?? '') === 'ocr' || ($r2['reason'] ?? '') === 'ocr') {
+                        return ['success' => false, 'error' => 'Ошибка OCR', 'reason' => 'ocr'];
+                    }
+                    if (($r1['reason'] ?? '') === 'no_amount' || ($r2['reason'] ?? '') === 'no_amount') {
+                        return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
+                    }
+                    return ['success' => false, 'error' => 'Текст не распознан', 'reason' => 'empty'];
+                }
+
+                // успех по raw
+                @unlink($rawPath);
+                if ($procPath) @unlink($procPath);
+                return [
+                    'success'           => true,
+                    'recognized_amount' => $r2['amount'],
+                    'parsed_text'       => $r2['recognized']['ParsedText'] ?? '',
+                    'pass'              => $usedPass, // 'raw'
+                ];
             }
 
-            if (empty($recognizedData['ParsedText'])) {
-                return ['success' => false, 'error' => 'Текст не распознан', 'reason' => 'empty'];
-            }
-
-            $amount = $this->extractAmountByOverlay($recognizedData);
-            if ($amount === null) {
-                $amount = $this->extractAmount($recognizedData['ParsedText']);
-            }
-            if (!$amount) {
-                return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
-            }
-
+            // успех по processed
+            @unlink($rawPath);
+            if ($procPath) @unlink($procPath);
             return [
                 'success'           => true,
-                'recognized_amount' => $amount,
-                'parsed_text'       => $recognizedData['ParsedText'],
+                'recognized_amount' => $r1['amount'],
+                'parsed_text'       => $r1['recognized']['ParsedText'] ?? '',
+                'pass'              => $usedPass, // 'processed'
             ];
 
         } catch (\Throwable $e) {
-            Yii::error($e->getMessage(), __METHOD__);
+            \Yii::error($e->getMessage(), __METHOD__);
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
