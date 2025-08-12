@@ -62,6 +62,7 @@ function stopCamera() {
 
 // Переключатель кнопки камеры
 startBtn.onclick = async () => {
+    cameraActive = !!currentStream;
     if (!cameraActive) {
         // открыть камеру
         wrap.style.display = 'block';
@@ -139,13 +140,15 @@ async function initCamera() {
 }
 
 // Закрытие модалки: если запись сохранена — прячем камеру и останавливаем стрим
-scanModalEl?.addEventListener('hidden.bs.modal', () => {
+scanModalEl?.addEventListener('hidden.bs.modal', async () => {
     if (wasSaved) {
         wrap.style.display = 'none';
-        stopStream();
+        await stopStream();           // гасим стрим
+        cameraActive = false;         // <-- критично!
         wasSaved = false;
+
         startBtn.textContent = '📷 Открыть камеру';
-        manualBtn?.classList.remove('d-none'); // камера закрылась → вернули кнопку
+        manualBtn?.classList.remove('d-none');
     }
 });
 
@@ -433,13 +436,3 @@ function updateTotal(total) {
 document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));
 
 captureBtn.onclick = captureAndRecognize;
-manualBtn.onclick = () => {
-    // просто открываем модалку, без камеры и OCR
-    mAmountEl.value = fmt2(0);
-    mQtyEl.value = 1;
-    mNoteEl.value = '';
-    lastParsedText = '';          // нет OCR-текста
-    mPhotoWrap.style.display = 'none';
-    if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Скан'; // у тебя так называется
-    bootstrapModal?.show();
-};
