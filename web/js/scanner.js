@@ -31,6 +31,47 @@ let scanBusy = false;
 let lastPhotoURL = null;
 let lastParsedText = '';
 let wasSaved = false; // чтобы по закрытию модалки знать, скрывать ли камеру
+// === Тумблер камеры + кнопка ручного ввода ===
+let cameraActive = false;
+const startScanBtn = document.getElementById('start-scan');
+const manualAddBtn = document.getElementById('manual-add');
+
+// Функция запуска камеры
+function startCamera() {
+    const videoEl = document.getElementById('video');
+    if (!videoEl) return;
+
+    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        window.currentStream = stream;
+        videoEl.srcObject = stream;
+        videoEl.style.display = 'block';
+    }).catch(err => {
+        console.error('Ошибка запуска камеры', err);
+    });
+}
+
+// Функция остановки камеры
+function stopCamera() {
+    if (window.currentStream) {
+        window.currentStream.getTracks().forEach(track => track.stop());
+        window.currentStream = null;
+    }
+    const videoEl = document.getElementById('video');
+    if (videoEl) videoEl.style.display = 'none';
+}
+
+// Переключатель кнопки камеры
+startScanBtn.onclick = () => {
+    if (!cameraActive) {
+        startCamera();
+        startScanBtn.textContent = '✖ Закрыть камеру';
+        cameraActive = true;
+    } else {
+        stopCamera();
+        startScanBtn.textContent = '📷 Открыть камеру';
+        cameraActive = false;
+    }
+};
 
 // ===== Утилсы =====
 const getCsrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
