@@ -124,27 +124,6 @@ class ScanController extends Controller
         }
     }
 
-
-    /**
-     * Обновление суммы / количества / категории
-     */
-    public function actionUpdate($id)
-    {
-        Yii::$app->response->format = Response::FORMAT_JSON;
-
-        $entry = PriceEntry::findOne(['id' => $id, 'user_id' => Yii::$app->user->id]);
-        if (!$entry) {
-            throw new NotFoundHttpException('Запись не найдена');
-        }
-
-        $entry->load(Yii::$app->request->post(), '');
-        if ($entry->save()) {
-            return ['ok' => true];
-        } else {
-            return ['ok' => false, 'errors' => $entry->getErrors()];
-        }
-    }
-
     /**
      * Распознавание текста через OCR API
      */

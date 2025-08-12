@@ -86,17 +86,5 @@ class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface, R
         $this->update(false, ['ocr_allowance','ocr_allowance_updated_at']);
     }
 
-    public function loadAllowance($request, $action)
-    {
-        return [(int)$this->ocr_allowance, (int)$this->ocr_allowance_updated_at];
-    }
-
-    public function saveAllowance($request, $action, $allowance, $timestamp)
-    {
-        $this->ocr_allowance = (int)$allowance;
-        $this->ocr_allowance_updated_at = (int)$timestamp;
-        // без валидации, только эти поля
-        $this->update(false, ['ocr_allowance','ocr_allowance_updated_at']);
-    }
 }
 
