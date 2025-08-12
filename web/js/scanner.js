@@ -77,11 +77,16 @@ startBtn.onclick = async () => {
             }, 100);
             cameraActive = true;
             startBtn.textContent = '✖ Закрыть камеру';
+            // кнопка у низа экрана + отступ снизу
+            captureBtn.classList.add('fixed-bottom');
+            document.body.classList.add('camera-active');
         } catch (e) {
             alert('Не удалось открыть камеру: ' + (e?.message || e));
             wrap.style.display = 'none';
             cameraActive = false;
             startBtn.textContent = '📷 Открыть камеру';
+            captureBtn.classList.remove('fixed-bottom');
+            document.body.classList.remove('camera-active');
         }
     } else {
         // закрыть камеру
@@ -89,6 +94,8 @@ startBtn.onclick = async () => {
         wrap.style.display = 'none';    // прячем блок
         cameraActive = false;
         startBtn.textContent = '📷 Открыть камеру';
+        captureBtn.classList.remove('fixed-bottom');
+        document.body.classList.remove('camera-active');
     }
 };
 

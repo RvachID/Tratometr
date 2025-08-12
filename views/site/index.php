@@ -21,6 +21,23 @@ $this->registerCss(<<<CSS
   vertical-align: middle;
 }
 @keyframes spin { 0% {transform: rotate(0)} 100% {transform: rotate(360deg)} }
+
+/* оставляем место под фиксированную кнопку, когда камера открыта */
+body.camera-active { padding-bottom: 84px; }
+
+/* фиксируем кнопку у низа экрана */
+#capture.fixed-bottom{
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 12px;
+  width: min(420px, calc(100% - 24px));
+  z-index: 1000;
+}
+
+/* видеоцентр и правильные пропорции */
+#camera-wrapper { margin: 0 auto; max-width: 420px; }
+#camera { width: 100%; height: auto; background: #000; display:block;}
 CSS);
 ?>
 
