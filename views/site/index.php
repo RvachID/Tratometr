@@ -26,13 +26,13 @@ CSS);
 
 <div class="container mt-3 text-center">
     <h2>Тратометр</h2>
-    <button id="start-scan" class="btn btn-primary mb-3" type="button">📷 Сканировать</button>
+    <button id="start-scan" class="btn btn-primary mb-3" type="button">📷 Открыть камеру</button>
 
     <div id="camera-wrapper" style="display:none;">
         <video id="camera" autoplay playsinline width="100%" style="max-width:400px;"></video>
         <br>
         <button id="capture" class="btn btn-success mt-2" type="button">
-            <span class="btn-text">📸 Сфоткать</span>
+            <span class="btn-text">📸 Сканировать</span>
             <span class="spinner" style="display:none;"></span>
         </button>
     </div>
@@ -48,7 +48,7 @@ CSS);
                 <div class="modal-body">
 
                     <div class="mb-2 text-start">
-                        <label class="form-label">Сумма</label>
+                        <label class="form-label">Цена</label>
                         <input type="number" step="0.01" class="form-control" id="m-amount">
                     </div>
 
@@ -59,7 +59,7 @@ CSS);
                             <input type="number" step="0.001" class="form-control text-center" id="m-qty" value="1">
                             <button class="btn btn-outline-secondary" type="button" id="m-qty-plus">+</button>
                         </div>
-                        <small class="text-muted">Целые удобнее через +/-; дробные можно вводить вручную.</small>
+                        <small class="text-muted">Штуки добавляем через +/-; килограммы (дробные) можно вводить вручную.</small>
                     </div>
 
                     <div class="mb-2 text-start">
@@ -73,7 +73,7 @@ CSS);
 
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-link" id="m-show-photo" type="button">Показать фото</button>
+                    <button class="btn btn-link" id="m-show-photo" type="button">Скан</button>
                     <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>
                     <button class="btn btn-primary" id="m-save" type="button">Сохранить</button>
                 </div>

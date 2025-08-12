@@ -121,12 +121,12 @@ async function captureAndRecognize() {
                         })
                         .then(res=>{
                             if (!res.success) {
-                                // если именно сумма не распознана — покажем фото на странице
+                                // если именно цена не распознана — покажем фото на странице
                                 const msg = (res.error||'').toLowerCase();
-                                if (previewImg && (msg.includes('не удалось извлечь сумму') || msg.includes('сумма не распознана') || res.reason==='no_amount')) {
+                                if (previewImg && (msg.includes('не удалось извлечь цену') || msg.includes('цена не распознана') || res.reason==='no_amount')) {
                                     previewImg.src = lastPhotoURL;
                                 }
-                                throw new Error(res.error || 'Не удалось распознать сумму');
+                                throw new Error(res.error || 'Не удалось распознать цену');
                             }
 
                             // заполняем модалку
@@ -231,7 +231,7 @@ function bindEntryRow(container) {
     const qtyEl    = form.querySelector('input[name="qty"]');
     const delBtn   = form.querySelector('.delete-entry');
 
-    // привести сумму к 2 знакам на загрузке
+    // привести цену к 2 знакам на загрузке
     if (amountEl) amountEl.value = fmt2(amountEl.value);
     amountEl?.addEventListener('blur', () => { amountEl.value = fmt2(amountEl.value); });
 
@@ -324,12 +324,12 @@ function addEntryToTop(entry) {
     div.className = 'border p-2 mb-2';
     div.innerHTML = `
     <form class="entry-form" data-id="${entry.id}">
-      Сумма:
+      Цена:
       <input type="number" step="0.01" name="amount" value="${fmt2(entry.amount)}" class="form-control mb-1">
 
       <input type="hidden" name="category" value="${entry.category ?? ''}">
 
-      Кол-во:
+      Штуки или килограммы:
       <input type="number" step="0.001" name="qty" value="${entry.qty}" class="form-control mb-1">
 
       <div class="d-flex gap-2">
