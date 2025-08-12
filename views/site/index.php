@@ -17,7 +17,10 @@ $this->title = 'Тратометр';
     <div id="camera-wrapper" style="display:none;">
         <video id="camera" autoplay playsinline width="100%" style="max-width:400px;"></video>
         <br>
-        <button id="capture" class="btn btn-success mt-2">📸 Сфоткать</button>
+        <button id="captureBtn" type="button">
+            <span class="btn-text">Сфоткать</span>
+            <span class="spinner" style="display:none;"></span>
+        </button>
     </div>
 
     <div class="mt-3">
