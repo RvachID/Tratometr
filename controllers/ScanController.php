@@ -13,6 +13,9 @@ use yii\filters\RateLimiter;
 
 class ScanController extends Controller
 {
+
+    private const ASK_THRESHOLD_SEC = 45 * 60;   // 45 минут
+    private const RESET_THRESHOLD_SEC = 120 * 60;  // 2 часа
     public $enableCsrfValidation = true;
 
     public function beforeAction($action)
@@ -43,6 +46,111 @@ class ScanController extends Controller
         return $b;
     }
 
+    private function getShopSession(): array
+    {
+        return Yii::$app->session->get('shopSession', [
+            'store' => '',
+            'category' => '',
+            'started_at' => 0,
+            'last_scan_at' => 0,
+        ]);
+    }
+
+    private function setShopSession(string $store, string $category): void
+    {
+        $now = time();
+        Yii::$app->session->set('shopSession', [
+            'store' => $store,
+            'category' => $category,
+            'started_at' => $now,
+            'last_scan_at' => $now,
+        ]);
+    }
+
+    private function touchShopSession(): void
+    {
+        $sess = $this->getShopSession();
+        if (!empty($sess['store'])) {
+            $sess['last_scan_at'] = time();
+            Yii::$app->session->set('shopSession', $sess);
+        }
+    }
+
+    public function actionIndex()
+    {
+        return $this->render('index'); // только кнопки
+    }
+
+    public function actionStart()
+    {
+        $categories = ['Еда', 'Одежда', 'Детское', 'Дом', 'Аптека', 'Техника', 'Транспорт', 'Развлечения', 'Питомцы', 'Другое'];
+        return $this->render('start', ['categories' => $categories]);
+    }
+
+    // Принятие формы «Магазин/Категория»
+    public function actionBegin()
+    {
+        $store = trim((string)Yii::$app->request->post('store', ''));
+        $category = trim((string)Yii::$app->request->post('category', ''));
+        if ($store === '') {
+            return $this->redirect(['site/start']);
+        }
+        $this->setShopSession($store, $category);
+        return $this->redirect(['site/scan']);
+    }
+
+    // Страница сканера + проверка таймаутов
+    public function actionScan()
+    {
+        $sess = $this->getShopSession();
+
+        // нет активной сессии — на форму
+        if (empty($sess['store'])) {
+            return $this->redirect(['site/start']);
+        }
+
+        $idle = time() - (int)$sess['last_scan_at'];
+        if ($idle >= self::RESET_THRESHOLD_SEC) {
+            // старье — начинаем заново
+            Yii::$app->session->remove('shopSession');
+            return $this->redirect(['site/start']);
+        }
+
+        if ($idle >= self::ASK_THRESHOLD_SEC && Yii::$app->request->get('resume') === null) {
+            // спросим, прежде чем продолжать
+            return $this->render('resume', [
+                'store' => $sess['store'],
+                'category' => $sess['category'],
+            ]);
+        }
+
+        // обычный рендер сканнера (данные передадим в data-* атрибуты)
+        return $this->render('scan', [
+            'store' => $sess['store'],
+            'category' => $sess['category'],
+        ]);
+    }
+
+    // Кнопки со страницы «resume»: продолжить или начать новую
+    public function actionResume()
+    {
+        $choice = Yii::$app->request->post('choice', 'continue'); // continue|new
+        if ($choice === 'new') {
+            Yii::$app->session->remove('shopSession');
+            return $this->redirect(['site/start']);
+        }
+        // continue — просто перейти к сканеру, пометив, что подтверждено
+        return $this->redirect(['site/scan', 'resume' => 1]);
+    }
+
+    // ВЫЗЫВАТЬ ЭТО из action, что сохраняет позицию (после save)
+    public function touchShoppingSessionPublic(): void
+    {
+        $this->touchShopSession();
+    }
+
+
+
     /**
      * Распознавание текста через OCR API
      */
@@ -55,9 +163,9 @@ class ScanController extends Controller
         try {
             $apiResponse = \Yii::$app->ocr->parseImage($filePath, 'rus', [
                 'isOverlayRequired' => true,
-                'scale'             => true,   // апскейл для мелкого текста
+                'scale' => true,   // апскейл для мелкого текста
                 'detectOrientation' => true,
-                'OCREngine'         => 2,      // у OCR.space обычно точнее Overlay
+                'OCREngine' => 2,      // у OCR.space обычно точнее Overlay
             ]);
 
             if (!empty($apiResponse['IsErroredOnProcessing'])) {
@@ -71,8 +179,8 @@ class ScanController extends Controller
             }
 
             return [
-                'ParsedText'    => $results['ParsedText']  ?? '',
-                'TextOverlay'   => $results['TextOverlay'] ?? ['Lines' => []],
+                'ParsedText' => $results['ParsedText'] ?? '',
+                'TextOverlay' => $results['TextOverlay'] ?? ['Lines' => []],
                 'full_response' => $apiResponse,
             ];
         } catch (\Throwable $e) {
@@ -113,12 +221,12 @@ class ScanController extends Controller
 
             // приведение типов + чистка
             foreach ($words as &$w) {
-                $w['WordText']       = (string)($w['WordText'] ?? '');
-                $w['IsStrikethrough']= !empty($w['IsStrikethrough']);
-                $w['Height']         = isset($w['Height']) ? (int)$w['Height'] : 0;
-                $w['Left']           = isset($w['Left'])   ? (int)$w['Left']   : 0;
-                $w['Top']            = isset($w['Top'])    ? (int)$w['Top']    : 0;
-                $w['Width']          = isset($w['Width'])  ? (int)$w['Width']  : 0;
+                $w['WordText'] = (string)($w['WordText'] ?? '');
+                $w['IsStrikethrough'] = !empty($w['IsStrikethrough']);
+                $w['Height'] = isset($w['Height']) ? (int)$w['Height'] : 0;
+                $w['Left'] = isset($w['Left']) ? (int)$w['Left'] : 0;
+                $w['Top'] = isset($w['Top']) ? (int)$w['Top'] : 0;
+                $w['Width'] = isset($w['Width']) ? (int)$w['Width'] : 0;
 
                 // убираем валюты/буквы внутри слова, оставляем цифры и , .
                 $w['WordText'] = preg_replace('~[^\d.,\s%]~u', '', $w['WordText']);
@@ -139,14 +247,14 @@ class ScanController extends Controller
                 $minT = min(array_column($group, 'Top'));
                 $maxB = max(array_map(fn($g) => $g['Top'] + $g['Height'], $group));
 
-                $gWidth  = max(1, $maxR - $minL);
+                $gWidth = max(1, $maxR - $minL);
                 $gHeight = max(1, $maxB - $minT);
-                $area    = $gWidth * $gHeight;
+                $area = $gWidth * $gHeight;
 
                 if ($val !== null) {
-                    $hasSep   = (bool)preg_match('~[.,]~', $raw);
+                    $hasSep = (bool)preg_match('~[.,]~', $raw);
                     $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
-                    $digits   = preg_match_all('~\d~', $raw);
+                    $digits = preg_match_all('~\d~', $raw);
 
                     // базовый скор: площадь bbox
                     $score = (float)$area;
@@ -156,7 +264,7 @@ class ScanController extends Controller
                     if ($digits >= 3) $score *= 1.15;
 
                     // штрафы
-                    if ($val < 1.0)  $score *= 0.2;           // .50 и т.п.
+                    if ($val < 1.0) $score *= 0.2;           // .50 и т.п.
                     if ($digits <= 2 && !$hasCents) $score *= 0.6;
 
                     if ($score > $bestScore) {
@@ -170,8 +278,14 @@ class ScanController extends Controller
 
             foreach ($words as $w) {
                 // отбрасываем перечеркнутые (старые цены) и проценты
-                if ($w['IsStrikethrough']) { $flush(); continue; }
-                if (strpos($w['WordText'], '%') !== false) { $flush(); continue; }
+                if ($w['IsStrikethrough']) {
+                    $flush();
+                    continue;
+                }
+                if (strpos($w['WordText'], '%') !== false) {
+                    $flush();
+                    continue;
+                }
 
                 $t = preg_replace('~\s+~u', '', $w['WordText']); // внутри слова
                 if ($t !== '' && preg_match('~^[\d.,]+$~u', $t)) {
@@ -334,7 +448,7 @@ class ScanController extends Controller
             Yii::info('Safe-обработка завершена', __METHOD__);
             return $ok;
         } catch (\Throwable $e) {
-            Yii::error('Ошибка обработки изображения: '.$e->getMessage(), __METHOD__);
+            Yii::error('Ошибка обработки изображения: ' . $e->getMessage(), __METHOD__);
             return false;
         }
     }
@@ -423,20 +537,20 @@ class ScanController extends Controller
                 @unlink($rawPath);
                 if ($procPath) @unlink($procPath);
                 return [
-                    'success'           => true,
+                    'success' => true,
                     'recognized_amount' => $r2['amount'],
-                    'parsed_text'       => $r2['recognized']['ParsedText'] ?? '',
-                    'pass'              => $usedPass, // 'raw'
+                    'parsed_text' => $r2['recognized']['ParsedText'] ?? '',
+                    'pass' => $usedPass, // 'raw'
                 ];
             }
 
             @unlink($rawPath);
             if ($procPath) @unlink($procPath);
             return [
-                'success'           => true,
+                'success' => true,
                 'recognized_amount' => $r1['amount'],
-                'parsed_text'       => $r1['recognized']['ParsedText'] ?? '',
-                'pass'              => $usedPass, // 'processed'
+                'parsed_text' => $r1['recognized']['ParsedText'] ?? '',
+                'pass' => $usedPass, // 'processed'
             ];
 
         } catch (\Throwable $e) {
@@ -455,6 +569,7 @@ class ScanController extends Controller
             $note     = Yii::$app->request->post('note', '');
             $text     = Yii::$app->request->post('parsed_text', '');
             $category = Yii::$app->request->post('category', null);
+            $store    = Yii::$app->request->post('store', '');
 
             // валидация входа
             if (!is_numeric($amount) || (float)$amount <= 0) {
@@ -468,6 +583,7 @@ class ScanController extends Controller
             $entry->user_id           = Yii::$app->user->id;
             $entry->amount            = (float)$amount;
             $entry->qty               = (float)$qty;
+            $entry->store             = (string)$store;
             $entry->category          = $category ?: null;
             $entry->note              = (string)$note;
             $entry->recognized_text   = (string)$text;
@@ -477,12 +593,22 @@ class ScanController extends Controller
             $entry->updated_at        = time();
 
             if (!$entry->save()) {
-                // вернём детали, чтобы видеть, что не понравилось валидации
-                return ['success' => false, 'error' => 'Ошибка сохранения', 'details' => $entry->errors];
+                return [
+                    'success' => false,
+                    'error'   => 'Ошибка сохранения',
+                    'details' => $entry->errors
+                ];
             }
 
-            // считаем total для пользователя прямо тут
-            $db = Yii::$app->db;
+            // обновляем last_scan_at в сессии
+            $sess = Yii::$app->session->get('shopSession', []);
+            if (!empty($sess)) {
+                $sess['last_scan_at'] = time();
+                Yii::$app->session->set('shopSession', $sess);
+            }
+
+            // считаем total
+            $db    = Yii::$app->db;
             $total = (float)$db->createCommand(
                 'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
                 [':u' => Yii::$app->user->id]
@@ -490,14 +616,15 @@ class ScanController extends Controller
 
             return [
                 'success' => true,
-                'entry' => [
-                    'id'      => $entry->id,
-                    'amount'  => $entry->amount,
-                    'qty'     => $entry->qty,
+                'entry'   => [
+                    'id'       => $entry->id,
+                    'amount'   => $entry->amount,
+                    'qty'      => $entry->qty,
                     'note'     => (string)$entry->note,
-                    'category'=> $entry->category,
+                    'store'    => (string)$entry->store,
+                    'category' => $entry->category,
                 ],
-                'total' => $total,
+                'total'   => $total,
             ];
 
         } catch (\Throwable $e) {
@@ -517,14 +644,14 @@ class ScanController extends Controller
         }
 
         $amount = Yii::$app->request->post('amount', null);
-        $qty    = Yii::$app->request->post('qty', null);
+        $qty = Yii::$app->request->post('qty', null);
 
         if ($amount !== null) $m->amount = (float)$amount;
-        if ($qty !== null)    $m->qty    = (float)$qty;
+        if ($qty !== null) $m->qty = (float)$qty;
 
         $m->updated_at = time();
 
-        if (!$m->save(false, ['amount','qty','updated_at'])) {
+        if (!$m->save(false, ['amount', 'qty', 'updated_at'])) {
             return ['success' => false, 'error' => 'Не удалось сохранить', 'details' => $m->errors];
         }
 
@@ -535,8 +662,8 @@ class ScanController extends Controller
 
         return [
             'success' => true,
-            'entry'   => ['id'=>$m->id,'amount'=>$m->amount,'qty'=>$m->qty],
-            'total'   => $total,
+            'entry' => ['id' => $m->id, 'amount' => $m->amount, 'qty' => $m->qty],
+            'total' => $total,
         ];
     }
 

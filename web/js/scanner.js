@@ -35,6 +35,9 @@
     let lastParsedText = '';
     let wasSaved = false;
     let cameraActive = false;
+    const root = document.getElementById('scan-root');
+    const metaStore = root?.dataset.store || '';
+    const metaCategory = root?.dataset.category || '';
 
     // Переключатель камеры
     if (startBtn) {
@@ -264,6 +267,9 @@
 
                 wasSaved = true;
                 bootstrapModal?.hide();
+
+                fd.append('store', metaStore);
+                fd.append('category', metaCategory);
 
                 if (lastPhotoURL) { URL.revokeObjectURL(lastPhotoURL); lastPhotoURL = null; }
             } catch (e) { alert(e.message); }
