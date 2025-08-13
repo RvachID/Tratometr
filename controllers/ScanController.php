@@ -45,119 +45,6 @@ class ScanController extends Controller
         return $b;
     }
 
-    private function getShopSession(): array
-    {
-        return Yii::$app->session->get('shopSession', [
-            'store' => '',
-            'category' => '',
-            'started_at' => 0,
-            'last_scan_at' => 0,
-        ]);
-    }
-
-    private function setShopSession(string $store, string $category): void
-    {
-        $now = time();
-        Yii::$app->session->set('shopSession', [
-            'store' => $store,
-            'category' => $category,
-            'started_at' => $now,
-            'last_scan_at' => $now,
-        ]);
-    }
-
-    private function touchShopSession(): void
-    {
-        $sess = $this->getShopSession();
-        if (!empty($sess['store'])) {
-            $sess['last_scan_at'] = time();
-            Yii::$app->session->set('shopSession', $sess);
-        }
-    }
-
-    public function actionIndex()
-    {
-        return $this->render('index'); // только кнопки
-    }
-
-    public function actionStart()
-    {
-        $categories = ['Еда', 'Одежда', 'Детское', 'Дом', 'Аптека', 'Техника', 'Транспорт', 'Развлечения', 'Питомцы', 'Другое'];
-        return $this->render('start', ['categories' => $categories]);
-    }
-
-    // Принятие формы «Магазин/Категория»
-    public function actionBegin()
-    {
-        $store = trim((string)Yii::$app->request->post('store', ''));
-        $category = trim((string)Yii::$app->request->post('category', ''));
-        if ($store === '') {
-            return $this->redirect(['site/start']);
-        }
-        $this->setShopSession($store, $category);
-        return $this->redirect(['site/scan']);
-    }
-
-    // Страница сканера + проверка таймаутов
-    public function actionScan()
-    {
-        $sess = $this->getShopSession();
-
-        // нет активной сессии — на форму
-        if (empty($sess['store'])) {
-            return $this->redirect(['site/start']);
-        }
-
-        $idle = time() - (int)$sess['last_scan_at'];
-        if ($idle >= self::RESET_THRESHOLD_SEC) {
-            // старье — начинаем заново
-            Yii::$app->session->remove('shopSession');
-            return $this->redirect(['site/start']);
-        }
-
-        if ($idle >= self::ASK_THRESHOLD_SEC && Yii::$app->request->get('resume') === null) {
-            // спросим, прежде чем продолжать
-            return $this->render('resume', [
-                'store' => $sess['store'],
-                'category' => $sess['category'],
-            ]);
-        }
-        $entries = \app\models\PriceEntry::find()
-            ->where(['user_id' => Yii::$app->user->id])
-            ->orderBy(['id' => SORT_DESC])
-            ->all();
-
-        $total = (float)Yii::$app->db->createCommand(
-            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
-            [':u' => Yii::$app->user->id]
-        )->queryScalar();
-
-        // обычный рендер сканнера (данные передадим в data-* атрибуты)
-        return $this->render('scan', [
-            'store' => $sess['store'],
-            'category' => $sess['category'],
-        ]);
-    }
-
-    // Кнопки со страницы «resume»: продолжить или начать новую
-    public function actionResume()
-    {
-        $choice = Yii::$app->request->post('choice', 'continue'); // continue|new
-        if ($choice === 'new') {
-            Yii::$app->session->remove('shopSession');
-            return $this->redirect(['site/start']);
-        }
-        // continue — просто перейти к сканеру, пометив, что подтверждено
-        return $this->redirect(['site/scan', 'resume' => 1]);
-    }
-
-    // ВЫЗЫВАТЬ ЭТО из action, что сохраняет позицию (после save)
-    public function touchShoppingSessionPublic(): void
-    {
-        $this->touchShopSession();
-    }
-
-
 
     /**
      * Распознавание текста через OCR API
@@ -572,13 +459,23 @@ class ScanController extends Controller
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
         try {
-            $amount = Yii::$app->request->post('amount');
-            $qty = Yii::$app->request->post('qty', 1);
-            $note = Yii::$app->request->post('note', '');
-            $text = Yii::$app->request->post('parsed_text', '');
+            $amount   = Yii::$app->request->post('amount');
+            $qty      = Yii::$app->request->post('qty', 1);
+            $note     = (string)Yii::$app->request->post('note', '');
+            $text     = (string)Yii::$app->request->post('parsed_text', '');
+            $store    = (string)Yii::$app->request->post('store', '');
             $category = Yii::$app->request->post('category', null);
 
-            // валидация входа
+            // подстраховка из сессии
+            $sess = Yii::$app->session->get('shopSession', []);
+            if ($store === '' && !empty($sess['store'])) {
+                $store = (string)$sess['store'];
+            }
+            if (($category === null || $category === '') && !empty($sess['category'])) {
+                $category = (string)$sess['category'];
+            }
+
+            // базовая валидация суммы/кол-ва
             if (!is_numeric($amount) || (float)$amount <= 0) {
                 return ['success' => false, 'error' => 'Неверная сумма'];
             }
@@ -587,44 +484,50 @@ class ScanController extends Controller
             }
 
             $entry = new \app\models\PriceEntry();
-            $entry->user_id = Yii::$app->user->id;
-            $entry->amount = (float)$amount;
-            $entry->qty = (float)$qty;
-            $entry->category = $category ?: null;
-            $entry->note = (string)$note;
-            $entry->recognized_text = (string)$text;
+            $entry->user_id           = Yii::$app->user->id;
+            $entry->amount            = (float)$amount;
+            $entry->qty               = (float)$qty;
+            $entry->store             = trim($store);          // <-- магазин
+            $entry->category          = $category ?: null;     // <-- категория
+            $entry->note              = $note;
+            $entry->recognized_text   = $text;
             $entry->recognized_amount = (float)$amount;
-            $entry->source = 'price_tag';
-            $entry->created_at = time();
-            $entry->updated_at = time();
+            $entry->source            = 'price_tag';
+            $entry->created_at        = time();
+            $entry->updated_at        = time();
 
-            if (!$entry->save()) {
-                // вернём детали, чтобы видеть, что не понравилось валидации
-                return ['success' => false, 'error' => 'Ошибка сохранения', 'details' => $entry->errors];
+            // временный лог для диагностики
+            Yii::info('STORE_DEBUG POST store=' . $store . ' category=' . $category, __METHOD__);
+
+            // сохраняем без валидации, чтобы исключить любое правило,
+            // которое может преобразовывать строки в null
+            if (!$entry->save(false)) {
+                return ['success' => false, 'error' => 'Ошибка сохранения (save false)'];
             }
 
-            //Обновляем время сессии
-            $sess = Yii::$app->session->get('shopSession', []);
-            $sess['last_scan_at'] = time();
-            Yii::$app->session->set('shopSession', $sess);
+            // обновим last_scan_at у сессии
+            if (!empty($sess)) {
+                $sess['last_scan_at'] = time();
+                Yii::$app->session->set('shopSession', $sess);
+            }
 
-            // считаем total для пользователя прямо тут
-            $db = Yii::$app->db;
-            $total = (float)$db->createCommand(
+            // пересчёт total
+            $total = (float)Yii::$app->db->createCommand(
                 'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
                 [':u' => Yii::$app->user->id]
             )->queryScalar();
 
             return [
                 'success' => true,
-                'entry' => [
-                    'id' => $entry->id,
-                    'amount' => $entry->amount,
-                    'qty' => $entry->qty,
-                    'note' => (string)$entry->note,
+                'entry'   => [
+                    'id'       => $entry->id,
+                    'amount'   => $entry->amount,
+                    'qty'      => $entry->qty,
+                    'note'     => (string)$entry->note,
+                    'store'    => (string)$entry->store,      // вернём то, что реально сохранилось
                     'category' => $entry->category,
                 ],
-                'total' => $total,
+                'total'   => $total,
             ];
 
         } catch (\Throwable $e) {
@@ -632,6 +535,7 @@ class ScanController extends Controller
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
+
 
     public function actionUpdate($id)
     {
