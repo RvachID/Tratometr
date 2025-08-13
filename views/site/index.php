@@ -89,7 +89,7 @@ $this->title = 'Тратометр';
                 </form>
 
                 <!-- слот для заметки (JS будет рендерить сюда) -->
-                <div class="entry-note-slot"></div>
+                <div class="entry-note-wrap"></div>
 
                 <!-- Кнопки всегда внизу -->
                 <div class="d-flex gap-2 mt-2">
