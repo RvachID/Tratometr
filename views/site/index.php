@@ -103,6 +103,8 @@ $this->title = 'Тратометр';
 </div>
 
 <?php
-// Подключаем твой JS (обновлённый scanner.js)
-$this->registerJsFile(Url::to('@web/js/scanner.js'), ['depends' => [\yii\web\JqueryAsset::class]]);
+$this->registerJsFile('@web/js/common.js',  ['depends' => [\yii\web\JqueryAsset::class]]);
+$this->registerJsFile('@web/js/entries.js', ['depends' => [\yii\web\JqueryAsset::class]]);
+$this->registerJsFile('@web/js/scanner.js', ['depends' => [\yii\web\JqueryAsset::class]]);
 ?>
+
