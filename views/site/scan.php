@@ -3,6 +3,10 @@
 use yii\helpers\Html;
 
 $this->title = 'Сканнер';
+
+$total = $total ?? 0;
+$entries = $entries ?? [];
+
 ?>
     <div class="container mt-3 text-center"
          id="scan-root"

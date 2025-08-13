@@ -122,6 +122,15 @@ class ScanController extends Controller
                 'category' => $sess['category'],
             ]);
         }
+        $entries = \app\models\PriceEntry::find()
+            ->where(['user_id' => Yii::$app->user->id])
+            ->orderBy(['id' => SORT_DESC])
+            ->all();
+
+        $total = (float)Yii::$app->db->createCommand(
+            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
+            [':u' => Yii::$app->user->id]
+        )->queryScalar();
 
         // обычный рендер сканнера (данные передадим в data-* атрибуты)
         return $this->render('scan', [
