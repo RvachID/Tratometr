@@ -124,6 +124,65 @@ const debounce = (fn, ms) => {
 };
 const fmt2 = (x) => Number(x || 0).toFixed(2);
 
+//Выводим комментарий если он есть
+function renderNote(container, note) {
+    // удалим старый блок, если есть
+    container.querySelector('.entry-note-wrap')?.remove();
+    if (!note) return;
+
+    const WRAP = document.createElement('div');
+    WRAP.className = 'entry-note-wrap';
+    WRAP.style.marginTop = '6px';
+
+    const ICON = document.createElement('span');
+    ICON.textContent = '📝';
+    ICON.setAttribute('aria-hidden', 'true');
+    ICON.style.marginRight = '6px';
+
+    const TEXT = document.createElement('span');
+    TEXT.className = 'entry-note-text';
+    TEXT.textContent = note;
+    // Лёгкий «line-clamp» на 2 строки (без CSS-файлов)
+    TEXT.style.display = '-webkit-box';
+    TEXT.style.webkitBoxOrient = 'vertical';
+    TEXT.style.webkitLineClamp = '2';
+    TEXT.style.overflow = 'hidden';
+    TEXT.style.wordBreak = 'break-word';
+    TEXT.style.color = '#555';
+
+    const TOGGLE = document.createElement('button');
+    TOGGLE.type = 'button';
+    TOGGLE.className = 'entry-note-toggle';
+    TOGGLE.textContent = 'Показать ещё';
+    TOGGLE.style.background = 'none';
+    TOGGLE.style.border = 'none';
+    TOGGLE.style.padding = '0 0 0 22px';
+    TOGGLE.style.marginTop = '4px';
+    TOGGLE.style.color = '#0d6efd';
+    TOGGLE.style.fontSize = '0.9rem';
+    TOGGLE.style.cursor = 'pointer';
+    TOGGLE.style.display = (note.length > 60) ? 'inline-block' : 'none';
+
+    let expanded = false;
+    TOGGLE.onclick = () => {
+        expanded = !expanded;
+        if (expanded) {
+            TEXT.style.webkitLineClamp = 'unset';
+            TEXT.style.display = 'block';
+            TOGGLE.textContent = 'Свернуть';
+        } else {
+            TEXT.style.display = '-webkit-box';
+            TEXT.style.webkitLineClamp = '2';
+            TOGGLE.textContent = 'Показать ещё';
+        }
+    };
+
+    WRAP.appendChild(ICON);
+    WRAP.appendChild(TEXT);
+    WRAP.appendChild(TOGGLE);
+    container.appendChild(WRAP);
+}
+
 // ===== Камера =====
 async function stopStream() {
     if (currentStream) {
@@ -359,6 +418,11 @@ function bindEntryRow(container) {
     const form = container.querySelector('form.entry-form');
     if (!form) return;
 
+// Показ комментария (если сервер отдал note через hidden)
+    const noteInput = form.querySelector('input[name="note"]');
+    const noteVal = noteInput ? (noteInput.value || '').trim() : '';
+    if (noteVal) renderNote(container, noteVal);
+
     const id = form.dataset.id;
     const amountEl = form.querySelector('input[name="amount"]');
     const qtyEl = form.querySelector('input[name="qty"]');
@@ -469,6 +533,7 @@ function addEntryToTop(entry) {
       <input type="number" step="0.01" name="amount" value="${fmt2(entry.amount)}" class="form-control mb-1">
 
       <input type="hidden" name="category" value="${entry.category ?? ''}">
+      <input type="hidden" name="note" value="${(entry.note ?? '').replace(/"/g,'&quot;')}">
 
       Штуки или килограммы:
       <input type="number" step="0.001" name="qty" value="${entry.qty}" class="form-control mb-1">
@@ -480,8 +545,15 @@ function addEntryToTop(entry) {
     </form>
   `;
     listWrap.prepend(div);
+
+    // Привязываем хэндлеры
     bindEntryRow(div);
+
+    // Рендерим комментарий (если есть)
+    const noteVal = (entry.note ?? '').trim();
+    if (noteVal) renderNote(div, noteVal);
 }
+
 
 function updateTotal(total) {
     const el = document.querySelector('.mt-3 h5 strong');
