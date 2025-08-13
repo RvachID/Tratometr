@@ -6,8 +6,7 @@ $this->title = 'Сканнер';
 
 $total = $total ?? 0;
 $entries = $entries ?? [];
-yii\bootstrap5\BootstrapAsset::register($this);
-yii\bootstrap5\BootstrapPluginAsset::register($this);
+
 ?>
     <div class="container mt-3 text-center"
          id="scan-root"
@@ -114,7 +113,17 @@ yii\bootstrap5\BootstrapPluginAsset::register($this);
 <?php
 // Подключения js постранично
 
-$this->registerJsFile('@web/js/common.js',  ['position' => \yii\web\View::POS_END]);
-$this->registerJsFile('@web/js/entries.js', ['position' => \yii\web\View::POS_END]);
-$this->registerJsFile('@web/js/scanner.js', ['position' => \yii\web\View::POS_END]);
+$this->registerJsFile('@web/js/common.js',  [
+    'depends'  => [\yii\bootstrap5\BootstrapPluginAsset::class], // <= важно
+    'position' => \yii\web\View::POS_END
+]);
+$this->registerJsFile('@web/js/entries.js', [
+    'depends'  => [\yii\bootstrap5\BootstrapPluginAsset::class],
+    'position' => \yii\web\View::POS_END
+]);
+$this->registerJsFile('@web/js/scanner.js', [
+    'depends'  => [\yii\bootstrap5\BootstrapPluginAsset::class],
+    'position' => \yii\web\View::POS_END
+]);
+
 
