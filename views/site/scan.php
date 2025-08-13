@@ -112,6 +112,8 @@ $entries = $entries ?? [];
 
 <?php
 // Подключения js по-странично
-$this->registerJsFile('@web/js/common.js', ['depends' => [\yii\web\JqueryAsset::class]]);
-$this->registerJsFile('@web/js/entries.js', ['depends' => [\yii\web\JqueryAsset::class]]);
-$this->registerJsFile('@web/js/scanner.js', ['depends' => [\yii\web\JqueryAsset::class]]);
+
+$this->registerJsFile('@web/js/common.js',  ['position' => \yii\web\View::POS_END]);
+$this->registerJsFile('@web/js/entries.js', ['position' => \yii\web\View::POS_END]);
+$this->registerJsFile('@web/js/scanner.js', ['position' => \yii\web\View::POS_END]);
+
