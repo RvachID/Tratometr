@@ -251,6 +251,8 @@
             fd.append('qty', mQtyEl.value);
             fd.append('note', mNoteEl.value);
             fd.append('parsed_text', lastParsedText);
+            fd.append('store',    metaStore);
+            fd.append('category', metaCategory);
 
             try {
                 const r = await fetch('/index.php?r=scan/store', {
@@ -267,9 +269,6 @@
 
                 wasSaved = true;
                 bootstrapModal?.hide();
-
-                fd.append('store', metaStore);
-                fd.append('category', metaCategory);
 
                 if (lastPhotoURL) { URL.revokeObjectURL(lastPhotoURL); lastPhotoURL = null; }
             } catch (e) { alert(e.message); }
