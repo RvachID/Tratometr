@@ -13,6 +13,8 @@ use app\models\ContactForm;
 
 class SiteController extends Controller
 {
+    private const ASK_THRESHOLD_SEC = 45 * 60;   // 45 минут
+    private const RESET_THRESHOLD_SEC = 120 * 60;  // 2 часа
     /**
      * {@inheritdoc}
      */
@@ -137,5 +139,88 @@ class SiteController extends Controller
             'total' => $total,
         ]);
     }
+    // ----- сессия «магазин/категория» -----
+    private function getShopSession(): array
+    {
+        return Yii::$app->session->get('shopSession', [
+            'store'        => '',
+            'category'     => '',
+            'started_at'   => 0,
+            'last_scan_at' => 0,
+        ]);
+    }
+    private function setShopSession(string $store, string $category): void
+    {
+        $now = time();
+        Yii::$app->session->set('shopSession', [
+            'store'        => $store,
+            'category'     => $category,
+            'started_at'   => $now,
+            'last_scan_at' => $now,
+        ]);
+    }
 
+    // ----- страницы -----
+    public function actionIndex()
+    {
+        // главная: кнопки («За покупками» и т.д.)
+        return $this->render('index');
+    }
+
+    public function actionStart()
+    {
+        // форма «Магазин + Категория»
+        $categories = ['Еда','Одежда','Детское','Дом','Аптека','Техника','Транспорт','Развлечения','Питомцы','Другое'];
+        return $this->render('start', ['categories' => $categories]);
+    }
+
+    // обработка формы «Начать покупки»
+    public function actionBegin()
+    {
+        $store    = trim((string)Yii::$app->request->post('store', ''));
+        $category = trim((string)Yii::$app->request->post('category', ''));
+        if ($store === '') return $this->redirect(['site/start']);
+
+        $this->setShopSession($store, $category);
+        return $this->redirect(['site/scan']);
+    }
+
+    // страница сканера с проверкой таймаутов
+    public function actionScan()
+    {
+        $sess = $this->getShopSession();
+
+        if (empty($sess['store'])) {
+            return $this->redirect(['site/start']);
+        }
+
+        $idle = time() - (int)$sess['last_scan_at'];
+        if ($idle >= self::RESET_THRESHOLD_SEC) {
+            Yii::$app->session->remove('shopSession');
+            return $this->redirect(['site/start']);
+        }
+
+        if ($idle >= self::ASK_THRESHOLD_SEC && Yii::$app->request->get('resume') === null) {
+            return $this->render('resume', [
+                'store'    => $sess['store'],
+                'category' => $sess['category'],
+            ]);
+        }
+
+        // отдаём страницу со СТАРЫМ функционалом (камера/список/модалка)
+        return $this->render('scan', [
+            'store'    => $sess['store'],
+            'category' => $sess['category'],
+        ]);
+    }
+
+    public function actionResume()
+    {
+        $choice = Yii::$app->request->post('choice', 'continue'); // continue|new
+        if ($choice === 'new') {
+            Yii::$app->session->remove('shopSession');
+            return $this->redirect(['site/start']);
+        }
+        return $this->redirect(['site/scan', 'resume' => 1]);
+    }
 }

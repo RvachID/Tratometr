@@ -14,8 +14,7 @@ use yii\filters\RateLimiter;
 class ScanController extends Controller
 {
 
-    private const ASK_THRESHOLD_SEC = 45 * 60;   // 45 минут
-    private const RESET_THRESHOLD_SEC = 120 * 60;  // 2 часа
+
     public $enableCsrfValidation = true;
 
     public function beforeAction($action)
@@ -564,12 +563,11 @@ class ScanController extends Controller
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
         try {
-            $amount   = Yii::$app->request->post('amount');
-            $qty      = Yii::$app->request->post('qty', 1);
-            $note     = Yii::$app->request->post('note', '');
-            $text     = Yii::$app->request->post('parsed_text', '');
+            $amount = Yii::$app->request->post('amount');
+            $qty = Yii::$app->request->post('qty', 1);
+            $note = Yii::$app->request->post('note', '');
+            $text = Yii::$app->request->post('parsed_text', '');
             $category = Yii::$app->request->post('category', null);
-            $store    = Yii::$app->request->post('store', '');
 
             // валидация входа
             if (!is_numeric($amount) || (float)$amount <= 0) {
@@ -580,35 +578,29 @@ class ScanController extends Controller
             }
 
             $entry = new \app\models\PriceEntry();
-            $entry->user_id           = Yii::$app->user->id;
-            $entry->amount            = (float)$amount;
-            $entry->qty               = (float)$qty;
-            $entry->store             = (string)$store;
-            $entry->category          = $category ?: null;
-            $entry->note              = (string)$note;
-            $entry->recognized_text   = (string)$text;
+            $entry->user_id = Yii::$app->user->id;
+            $entry->amount = (float)$amount;
+            $entry->qty = (float)$qty;
+            $entry->category = $category ?: null;
+            $entry->note = (string)$note;
+            $entry->recognized_text = (string)$text;
             $entry->recognized_amount = (float)$amount;
-            $entry->source            = 'price_tag';
-            $entry->created_at        = time();
-            $entry->updated_at        = time();
+            $entry->source = 'price_tag';
+            $entry->created_at = time();
+            $entry->updated_at = time();
 
             if (!$entry->save()) {
-                return [
-                    'success' => false,
-                    'error'   => 'Ошибка сохранения',
-                    'details' => $entry->errors
-                ];
+                // вернём детали, чтобы видеть, что не понравилось валидации
+                return ['success' => false, 'error' => 'Ошибка сохранения', 'details' => $entry->errors];
             }
 
-            // обновляем last_scan_at в сессии
+            //Обновляем время сессии
             $sess = Yii::$app->session->get('shopSession', []);
-            if (!empty($sess)) {
-                $sess['last_scan_at'] = time();
-                Yii::$app->session->set('shopSession', $sess);
-            }
+            $sess['last_scan_at'] = time();
+            Yii::$app->session->set('shopSession', $sess);
 
-            // считаем total
-            $db    = Yii::$app->db;
+            // считаем total для пользователя прямо тут
+            $db = Yii::$app->db;
             $total = (float)$db->createCommand(
                 'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
                 [':u' => Yii::$app->user->id]
@@ -616,15 +608,14 @@ class ScanController extends Controller
 
             return [
                 'success' => true,
-                'entry'   => [
-                    'id'       => $entry->id,
-                    'amount'   => $entry->amount,
-                    'qty'      => $entry->qty,
-                    'note'     => (string)$entry->note,
-                    'store'    => (string)$entry->store,
+                'entry' => [
+                    'id' => $entry->id,
+                    'amount' => $entry->amount,
+                    'qty' => $entry->qty,
+                    'note' => (string)$entry->note,
                     'category' => $entry->category,
                 ],
-                'total'   => $total,
+                'total' => $total,
             ];
 
         } catch (\Throwable $e) {
