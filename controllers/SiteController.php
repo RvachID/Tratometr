@@ -161,11 +161,7 @@ class SiteController extends Controller
     }
 
     // ----- страницы -----
-    public function actionIndex()
-    {
-        // главная: кнопки («За покупками» и т.д.)
-        return $this->render('index');
-    }
+
 
     public function actionStart()
     {
