@@ -87,15 +87,26 @@ $this->title = 'Тратометр';
 
                     <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
 
-                    <div class="d-flex gap-2">
+                    <?php if (!empty($entry->note)): ?>
+                        <div class="note-preview">
+                            <span class="note-text"><?= Html::encode(mb_strimwidth($entry->note, 0, 40, '...')) ?></span>
+                            <?php if (mb_strlen($entry->note) > 40): ?>
+                                <button type="button" class="btn btn-link p-0 note-toggle">Ещё</button>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="d-flex gap-2 mt-2">
                         <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
                         <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
                     </div>
                 </form>
             </div>
         <?php endforeach; ?>
-
     </div>
+
+
+</div>
 </div>
 
 <?php
