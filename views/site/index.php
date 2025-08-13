@@ -76,20 +76,21 @@ $this->title = 'Тратометр';
         <?php foreach ($entries as $entry): ?>
             <div class="border p-2 mb-2">
                 <form class="entry-form" data-id="<?= $entry->id ?>">
-                    Сумма:
+                    Цена:
                     <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
                            class="form-control mb-1">
 
                     <input type="hidden" name="category" value="<?= Html::encode($entry->category) ?>">
 
-                    Кол-во:
+                    Штук или килограмм:
                     <input type="number" step="0.001" name="qty" value="<?= $entry->qty ?>" class="form-control mb-1">
+
+                    <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
 
                     <div class="d-flex gap-2">
                         <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
                         <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
                     </div>
-                    <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
                 </form>
             </div>
         <?php endforeach; ?>

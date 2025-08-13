@@ -145,7 +145,7 @@ function renderNote(container, note) {
     // Лёгкий «line-clamp» на 2 строки (без CSS-файлов)
     TEXT.style.display = '-webkit-box';
     TEXT.style.webkitBoxOrient = 'vertical';
-    TEXT.style.webkitLineClamp = '2';
+    TEXT.style.webkitLineClamp = '1';
     TEXT.style.overflow = 'hidden';
     TEXT.style.wordBreak = 'break-word';
     TEXT.style.color = '#555';
@@ -153,7 +153,7 @@ function renderNote(container, note) {
     const TOGGLE = document.createElement('button');
     TOGGLE.type = 'button';
     TOGGLE.className = 'entry-note-toggle';
-    TOGGLE.textContent = 'Показать ещё';
+    TOGGLE.textContent = 'Еще';
     TOGGLE.style.background = 'none';
     TOGGLE.style.border = 'none';
     TOGGLE.style.padding = '0 0 0 22px';
@@ -172,8 +172,8 @@ function renderNote(container, note) {
             TOGGLE.textContent = 'Свернуть';
         } else {
             TEXT.style.display = '-webkit-box';
-            TEXT.style.webkitLineClamp = '2';
-            TOGGLE.textContent = 'Показать ещё';
+            TEXT.style.webkitLineClamp = '1';
+            TOGGLE.textContent = 'Еще';
         }
     };
 
