@@ -494,6 +494,7 @@ class ScanController extends Controller
                     'id'      => $entry->id,
                     'amount'  => $entry->amount,
                     'qty'     => $entry->qty,
+                    'note'     => (string)$entry->note,
                     'category'=> $entry->category,
                 ],
                 'total' => $total,

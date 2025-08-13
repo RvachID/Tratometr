@@ -89,6 +89,7 @@ $this->title = 'Тратометр';
                         <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
                         <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
                     </div>
+                    <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
                 </form>
             </div>
         <?php endforeach; ?>
