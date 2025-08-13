@@ -126,26 +126,28 @@ const fmt2 = (x) => Number(x || 0).toFixed(2);
 
 //Выводим комментарий если он есть
 function renderNote(container, note) {
-    // удалим старый блок, если есть
-    container.querySelector('.entry-note-wrap')?.remove();
-    if (!note) return;
+    // 1) находим готовый слот или создаём перед блоком кнопок
+    let slot = container.querySelector('.entry-note-wrap');
+    if (!slot) {
+        slot = document.createElement('div');
+        slot.className = 'entry-note-wrap';
+        slot.style.marginTop = '6px';
+        const btns = container.querySelector('.d-flex.gap-2.mt-2'); // блок кнопок
+        container.insertBefore(slot, btns ?? null); // вставляем ПЕРЕД кнопками
+    }
 
-    const WRAP = document.createElement('div');
-    WRAP.className = 'entry-note-wrap';
-    WRAP.style.marginTop = '6px';
+    // 2) чистим слот и показываем/скрываем
+    slot.innerHTML = '';
+    if (!note) { slot.style.display = 'none'; return; }
+    slot.style.display = '';
 
-    const ICON = document.createElement('span');
-    ICON.textContent = '📝';
-    ICON.setAttribute('aria-hidden', 'true');
-    ICON.style.marginRight = '6px';
-
-    const TEXT = document.createElement('span');
+    // 3) сам контент заметки + "Ещё/Свернуть"
+    const TEXT = document.createElement('div');
     TEXT.className = 'entry-note-text';
     TEXT.textContent = note;
-    // Лёгкий «line-clamp» на 2 строки (без CSS-файлов)
     TEXT.style.display = '-webkit-box';
     TEXT.style.webkitBoxOrient = 'vertical';
-    TEXT.style.webkitLineClamp = '1';
+    TEXT.style.webkitLineClamp = '2';
     TEXT.style.overflow = 'hidden';
     TEXT.style.wordBreak = 'break-word';
     TEXT.style.color = '#555';
@@ -154,7 +156,6 @@ function renderNote(container, note) {
     TOGGLE.type = 'button';
     TOGGLE.className = 'entry-note-toggle';
     TOGGLE.textContent = 'Ещё';
-    // левый край, без отступов
     TOGGLE.style.background = 'none';
     TOGGLE.style.border = 'none';
     TOGGLE.style.padding = '0';
@@ -173,16 +174,15 @@ function renderNote(container, note) {
             TOGGLE.textContent = 'Свернуть';
         } else {
             TEXT.style.display = '-webkit-box';
-            TEXT.style.webkitLineClamp = '1';
+            TEXT.style.webkitLineClamp = '2';
             TOGGLE.textContent = 'Ещё';
         }
     };
 
-    WRAP.appendChild(ICON);
-    WRAP.appendChild(TEXT);
-    WRAP.appendChild(TOGGLE);
-    container.appendChild(WRAP);
+    slot.appendChild(TEXT);
+    slot.appendChild(TOGGLE);
 }
+
 
 // ===== Камера =====
 async function stopStream() {
