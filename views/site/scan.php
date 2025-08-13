@@ -6,7 +6,8 @@ $this->title = 'Сканнер';
 
 $total = $total ?? 0;
 $entries = $entries ?? [];
-
+yii\bootstrap5\BootstrapAsset::register($this);
+yii\bootstrap5\BootstrapPluginAsset::register($this);
 ?>
     <div class="container mt-3 text-center"
          id="scan-root"
@@ -111,7 +112,7 @@ $entries = $entries ?? [];
     </div>
 
 <?php
-// Подключения js по-странично
+// Подключения js постранично
 
 $this->registerJsFile('@web/js/common.js',  ['position' => \yii\web\View::POS_END]);
 $this->registerJsFile('@web/js/entries.js', ['position' => \yii\web\View::POS_END]);
