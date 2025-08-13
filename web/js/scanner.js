@@ -35,9 +35,11 @@
     let lastParsedText = '';
     let wasSaved = false;
     let cameraActive = false;
-    const root = document.getElementById('scan-root');
-    const metaStore = root?.dataset.store || '';
-    const metaCategory = root?.dataset.category || '';
+    const scanRoot     = document.getElementById('scan-root');
+    const metaStore    = scanRoot?.dataset.store || '';
+    const metaCategory = scanRoot?.dataset.category || '';
+    console.log('scan meta:', { metaStore, metaCategory });
+
 
     // Переключатель камеры
     if (startBtn) {
