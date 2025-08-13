@@ -153,11 +153,12 @@ function renderNote(container, note) {
     const TOGGLE = document.createElement('button');
     TOGGLE.type = 'button';
     TOGGLE.className = 'entry-note-toggle';
-    TOGGLE.textContent = 'Еще';
+    TOGGLE.textContent = 'Ещё';
+    // левый край, без отступов
     TOGGLE.style.background = 'none';
     TOGGLE.style.border = 'none';
-    TOGGLE.style.padding = '0 0 0 22px';
-    TOGGLE.style.marginTop = '4px';
+    TOGGLE.style.padding = '0';
+    TOGGLE.style.margin = '4px 0 0 0';
     TOGGLE.style.color = '#0d6efd';
     TOGGLE.style.fontSize = '0.9rem';
     TOGGLE.style.cursor = 'pointer';
@@ -173,7 +174,7 @@ function renderNote(container, note) {
         } else {
             TEXT.style.display = '-webkit-box';
             TEXT.style.webkitLineClamp = '1';
-            TOGGLE.textContent = 'Еще';
+            TOGGLE.textContent = 'Ещё';
         }
     };
 
