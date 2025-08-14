@@ -575,10 +575,10 @@ class ScanController extends Controller
         }
 
         $amount = Yii::$app->request->post('amount', null);
-        $qty = Yii::$app->request->post('qty', null);
+        $qty    = Yii::$app->request->post('qty', null);
 
         if ($amount !== null) $m->amount = (float)$amount;
-        if ($qty !== null) $m->qty = (float)$qty;
+        if ($qty    !== null) $m->qty    = (float)$qty;
 
         $m->updated_at = time();
 
@@ -586,17 +586,40 @@ class ScanController extends Controller
             return ['success' => false, 'error' => 'Не удалось сохранить', 'details' => $m->errors];
         }
 
-        $total = (float)Yii::$app->db->createCommand(
-            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
-            [':u' => Yii::$app->user->id]
-        )->queryScalar();
+        // ---- ТОТАЛ ТОЛЬКО ПО ТЕКУЩЕЙ СЕССИИ ----
+        $sess        = Yii::$app->session->get('shopSession', []);
+        $storeSess   = (string)($sess['store'] ?? '');
+        $catSess     = (string)($sess['category'] ?? '');
+        $startedSess = (int)($sess['started_at'] ?? 0);
+
+        $db    = Yii::$app->db;
+        $total = 0.0;
+
+        if ($storeSess !== '' && $startedSess > 0) {
+            if ($catSess === '') {
+                $total = (float)$db->createCommand(
+                    'SELECT COALESCE(SUM(amount*qty),0)
+                 FROM price_entry
+                 WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
+                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':from' => $startedSess]
+                )->queryScalar();
+            } else {
+                $total = (float)$db->createCommand(
+                    'SELECT COALESCE(SUM(amount*qty),0)
+                 FROM price_entry
+                 WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
+                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':c' => $catSess, ':from' => $startedSess]
+                )->queryScalar();
+            }
+        }
 
         return [
             'success' => true,
-            'entry' => ['id' => $m->id, 'amount' => $m->amount, 'qty' => $m->qty],
-            'total' => $total,
+            'entry'   => ['id' => $m->id, 'amount' => $m->amount, 'qty' => $m->qty],
+            'total'   => $total,
         ];
     }
+
 
     public function actionDelete($id)
     {
@@ -617,12 +640,35 @@ class ScanController extends Controller
             return ['success' => false, 'error' => 'Не удалось удалить'];
         }
 
-        $total = (float)Yii::$app->db->createCommand(
-            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
-            [':u' => Yii::$app->user->id]
-        )->queryScalar();
+        // ---- ТОТАЛ ТОЛЬКО ПО ТЕКУЩЕЙ СЕССИИ ----
+        $sess        = Yii::$app->session->get('shopSession', []);
+        $storeSess   = (string)($sess['store'] ?? '');
+        $catSess     = (string)($sess['category'] ?? '');
+        $startedSess = (int)($sess['started_at'] ?? 0);
+
+        $db    = Yii::$app->db;
+        $total = 0.0;
+
+        if ($storeSess !== '' && $startedSess > 0) {
+            if ($catSess === '') {
+                $total = (float)$db->createCommand(
+                    'SELECT COALESCE(SUM(amount*qty),0)
+                 FROM price_entry
+                 WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
+                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':from' => $startedSess]
+                )->queryScalar();
+            } else {
+                $total = (float)$db->createCommand(
+                    'SELECT COALESCE(SUM(amount*qty),0)
+                 FROM price_entry
+                 WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
+                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':c' => $catSess, ':from' => $startedSess]
+                )->queryScalar();
+            }
+        }
 
         return ['success' => true, 'total' => $total];
     }
+
 
 }
