@@ -106,8 +106,11 @@ body {
 }
 
 /* Шапка */
+.navbar-dark.bg-dark {
+    background-color: #B08D57 !important; /* оливково-золотистый */
+}
 .navbar {
-    background-color: #B08D57; !important; /* оливково-золотистый */
+    background-color: #B08D57 !important; /* оливково-золотистый */
 }
 .navbar .navbar-brand,
 .navbar .nav-link,
