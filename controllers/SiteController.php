@@ -165,53 +165,76 @@ class SiteController extends Controller
     // страница сканера с проверкой таймаутов
     public function actionScan()
     {
-        // грузим текущую «сессию покупок»
         $sess = $this->getShopSession();
         $now  = time();
 
-        $store    = (string)($sess['store'] ?? '');
-        $category = (string)($sess['category'] ?? '');
-        $lastScan = (int)($sess['last_scan_at'] ?? 0);
-
-        $idle = $lastScan ? ($now - $lastScan) : PHP_INT_MAX;
+        $store      = (string)($sess['store'] ?? '');
+        $category   = (string)($sess['category'] ?? '');
+        $startedAt  = (int)($sess['started_at'] ?? 0);
+        $lastScan   = (int)($sess['last_scan_at'] ?? 0);
+        $idle       = $lastScan ? ($now - $lastScan) : PHP_INT_MAX;
 
         $needPrompt = false;
 
-        // > 2 часов — обнуляем сессию и просим ввести магазин/категорию заново
-        if ($idle >= self::RESET_THRESHOLD_SEC || $store === '') {
+        if ($store === '' || $idle >= self::RESET_THRESHOLD_SEC) {
+            // сессии нет/старая — обнуляем и просим начать
             Yii::$app->session->remove('shopSession');
-            $store      = '';
-            $category   = '';
+            $store = '';
+            $category = '';
+            $startedAt = 0;
+            $needPrompt = true;
+        } elseif ($idle >= self::ASK_THRESHOLD_SEC) {
+            // 45–120 мин — предложим подтвердить/сменить магазин
             $needPrompt = true;
         }
-        // 45–120 минут — предлагаем подтвердить/сменить магазин (префилл оставляем)
-        elseif ($idle >= self::ASK_THRESHOLD_SEC) {
-            $needPrompt = true;
+
+        // ⚠️ только текущая сессия
+        $entries = [];
+        $total   = 0.0;
+
+        if ($store !== '' && $startedAt > 0) {
+            $q = \app\models\PriceEntry::find()
+                ->where(['user_id' => Yii::$app->user->id, 'store' => $store])
+                ->andWhere(['>=', 'created_at', $startedAt])
+                ->orderBy(['id' => SORT_DESC])
+                ->limit(200);
+
+            // категория может быть пустой (NULL)
+            if ($category === '') {
+                $q->andWhere(['category' => null]);
+            } else {
+                $q->andWhere(['category' => $category]);
+            }
+
+            $entries = $q->all();
+
+            // тотал только по текущей сессии
+            $db = Yii::$app->db;
+            if ($category === '') {
+                $total = (float)$db->createCommand(
+                    'SELECT COALESCE(SUM(amount*qty),0) 
+                 FROM price_entry 
+                 WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
+                    [':u' => Yii::$app->user->id, ':s' => $store, ':from' => $startedAt]
+                )->queryScalar();
+            } else {
+                $total = (float)$db->createCommand(
+                    'SELECT COALESCE(SUM(amount*qty),0) 
+                 FROM price_entry 
+                 WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
+                    [':u' => Yii::$app->user->id, ':s' => $store, ':c' => $category, ':from' => $startedAt]
+                )->queryScalar();
+            }
         }
 
-        // Подтянем список и сумму, как раньше
-        $entries = \app\models\PriceEntry::find()
-            ->where(['user_id' => Yii::$app->user->id])
-            ->orderBy(['id' => SORT_DESC])
-            ->limit(200)
-            ->all();
-
-        $total = (float)Yii::$app->db->createCommand(
-            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
-            [':u' => Yii::$app->user->id]
-        )->queryScalar();
-
-        // Всегда рендерим scan: store/category уйдут в data-атрибуты,
-        // needPrompt — для JS, чтобы показать модалку магазина.
         return $this->render('scan', [
-            'store'       => $store,
-            'category'    => $category,
-            'entries'     => $entries,
-            'total'       => $total,
-            'needPrompt'  => $needPrompt, // <-- используем в JS
+            'store'        => $store,
+            'category'     => $category,
+            'entries'      => $entries,
+            'total'        => $total,
+            'needPrompt'   => $needPrompt,
         ]);
     }
-
 
     // GET: статусы таймеров
     public function actionSessionStatus()

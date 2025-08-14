@@ -466,8 +466,13 @@ class ScanController extends Controller
             $store    = (string)Yii::$app->request->post('store', '');
             $category = Yii::$app->request->post('category', null);
 
-            // подстраховка из сессии
-            $sess = Yii::$app->session->get('shopSession', []);
+            // --- подстраховка из сессии ---
+            $sess = Yii::$app->session->get('shopSession', [
+                'store'        => '',
+                'category'     => '',
+                'started_at'   => 0,
+                'last_scan_at' => 0,
+            ]);
             if ($store === '' && !empty($sess['store'])) {
                 $store = (string)$sess['store'];
             }
@@ -475,7 +480,7 @@ class ScanController extends Controller
                 $category = (string)$sess['category'];
             }
 
-            // базовая валидация суммы/кол-ва
+            // --- базовая валидация ---
             if (!is_numeric($amount) || (float)$amount <= 0) {
                 return ['success' => false, 'error' => 'Неверная сумма'];
             }
@@ -483,12 +488,13 @@ class ScanController extends Controller
                 $qty = 1;
             }
 
+            // --- сохранение записи ---
             $entry = new \app\models\PriceEntry();
             $entry->user_id           = Yii::$app->user->id;
             $entry->amount            = (float)$amount;
             $entry->qty               = (float)$qty;
-            $entry->store             = trim($store);          // <-- магазин
-            $entry->category          = $category ?: null;     // <-- категория
+            $entry->store             = trim($store);
+            $entry->category          = $category ?: null;   // пустую строку превращаем в NULL
             $entry->note              = $note;
             $entry->recognized_text   = $text;
             $entry->recognized_amount = (float)$amount;
@@ -496,26 +502,47 @@ class ScanController extends Controller
             $entry->created_at        = time();
             $entry->updated_at        = time();
 
-            // временный лог для диагностики
+            // временный лог
             Yii::info('STORE_DEBUG POST store=' . $store . ' category=' . $category, __METHOD__);
 
-            // сохраняем без валидации, чтобы исключить любое правило,
-            // которое может преобразовывать строки в null
+            // сохраняем без валидации (исключаем фильтры правил, которые могут терять значение)
             if (!$entry->save(false)) {
                 return ['success' => false, 'error' => 'Ошибка сохранения (save false)'];
             }
 
-            // обновим last_scan_at у сессии
+            // --- обновим last_scan_at у сессии ---
             if (!empty($sess)) {
                 $sess['last_scan_at'] = time();
                 Yii::$app->session->set('shopSession', $sess);
             }
 
-            // пересчёт total
-            $total = (float)Yii::$app->db->createCommand(
-                'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
-                [':u' => Yii::$app->user->id]
-            )->queryScalar();
+            // --- пересчёт total ТОЛЬКО по текущей сессии ---
+            $storeSess   = (string)($sess['store'] ?? $store);
+            $catSess     = (string)($sess['category'] ?? ($category ?? ''));
+            $startedSess = (int)($sess['started_at'] ?? 0);
+
+            $db    = Yii::$app->db;
+            $total = 0.0;
+
+            if ($storeSess !== '' && $startedSess > 0) {
+                if ($catSess === '') {
+                    // категория не задана (NULL)
+                    $total = (float)$db->createCommand(
+                        'SELECT COALESCE(SUM(amount*qty),0)
+                     FROM price_entry
+                     WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
+                        [':u' => Yii::$app->user->id, ':s' => $storeSess, ':from' => $startedSess]
+                    )->queryScalar();
+                } else {
+                    // категория задана
+                    $total = (float)$db->createCommand(
+                        'SELECT COALESCE(SUM(amount*qty),0)
+                     FROM price_entry
+                     WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
+                        [':u' => Yii::$app->user->id, ':s' => $storeSess, ':c' => $catSess, ':from' => $startedSess]
+                    )->queryScalar();
+                }
+            }
 
             return [
                 'success' => true,
@@ -524,7 +551,7 @@ class ScanController extends Controller
                     'amount'   => $entry->amount,
                     'qty'      => $entry->qty,
                     'note'     => (string)$entry->note,
-                    'store'    => (string)$entry->store,      // вернём то, что реально сохранилось
+                    'store'    => (string)$entry->store,
                     'category' => $entry->category,
                 ],
                 'total'   => $total,
@@ -535,6 +562,7 @@ class ScanController extends Controller
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
+
 
     public function actionUpdate($id)
     {
