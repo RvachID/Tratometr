@@ -64,8 +64,8 @@
             titleText = `Покупаем: ${category || '—'}. В магазине: ${store || '—'}`;
         }
 
-        const h2 = document.querySelector('.container.mt-3.text-center h6');
-        if (h2) h2.textContent = titleText;
+        const h6 = document.querySelector('.container.mt-3.text-center h6');
+        if (h6) h6.textContent = titleText;
     }
 
     updateScanTitle();
