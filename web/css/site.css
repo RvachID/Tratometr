@@ -99,23 +99,25 @@ a.desc:after {
 }
 @keyframes spin { 0% {transform: rotate(0)} 100% {transform: rotate(360deg)} }
 /* Дезигн */
-/* Фон страницы */
+/* ===== Общий фон и текст ===== */
 body {
-    background-color: #F8F9FA;
+    background-color: #F8F9FA; /* светло-серый фон */
     color: #212529; /* тёмный текст */
 }
 
-/* Шапка */
+/* ===== Шапка (градиент сине-серый) ===== */
 .navbar-dark.bg-dark {
-    background: linear-gradient(90deg, #5f5131, #B08D57) !important;
+    background: linear-gradient(90deg, #2C3E50, #3E4E60) !important;
 }
+
+/* Текст и иконки в шапке */
 .navbar-dark .navbar-brand,
 .navbar-dark .nav-link,
 .navbar-dark .navbar-toggler-icon {
     color: #fff !important;
 }
 
-/* Кнопки в оливково-золотистых тонах */
+/* ===== Кнопки (золотистый акцент) ===== */
 .btn-outline-secondary {
     color: #B08D57;
     border-color: #B08D57;
@@ -127,7 +129,23 @@ body {
     border-color: #B08D57;
 }
 
-/* Для заголовков с акцентом */
+/* ===== Заголовки с мягким золотистым оттенком ===== */
 h1, h2, h3, h4, h5 {
     color: #A98467;
 }
+
+/* ===== Цитата на главной (тот же золотистый) ===== */
+.quote {
+    color: #B08D57;
+    font-style: italic;
+}
+
+/* ===== Мелкие улучшения ===== */
+a {
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+
+

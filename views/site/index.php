@@ -2,7 +2,7 @@
 use yii\helpers\Url;
 $this->title = 'Тратометр';
 ?>
-<div class="container mt-3 text-center">
+<div class="quote container mt-3 text-center">
     <?php if (!empty($quote)): ?>
         <div class="text-muted small mb-3">
             «<?= htmlspecialchars($quote['text']) ?>»
