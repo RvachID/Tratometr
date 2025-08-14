@@ -35,39 +35,82 @@
     let lastParsedText = '';
     let wasSaved = false;
     let cameraActive = false;
-    const scanRoot = document.getElementById('scan-root');
-    let metaStore = scanRoot?.dataset.store || '';
-    let metaCategory = scanRoot?.dataset.category || '';
-    console.log('scan meta:', {metaStore, metaCategory});
-
-    function updateScanTitle() {
+    document.addEventListener('DOMContentLoaded', () => {
         const scanRoot = document.getElementById('scan-root');
-        const category = scanRoot?.dataset.category || '';
-        const store = scanRoot?.dataset.store || '';
+        let   metaStore    = scanRoot?.dataset.store || '';
+        let   metaCategory = scanRoot?.dataset.category || '';
+        const needPrompt   = scanRoot?.dataset.needPrompt === '1';
 
-        let titleText = 'Тратометр';
-        if (category || store) {
-            titleText = `Покупаем: ${category || '—'}. В магазине: ${store || '—'}`;
+        const shopModalEl  = document.getElementById('shopModal');
+        const shopStoreEl  = document.getElementById('shop-store');
+        const shopCatEl    = document.getElementById('shop-category');
+        const shopBeginBtn = document.getElementById('shop-begin');
+        const shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
+
+        function updateScanTitle() {
+            try {
+                const h2 = document.getElementById('scan-title');
+                if (!h2) return;
+                const cat = (scanRoot?.dataset.category ?? metaCategory) || '';
+                const sto = (scanRoot?.dataset.store    ?? metaStore)    || '';
+                if (cat || sto) {
+                    h2.textContent = `Покупаем: ${cat || '—'}. В магазине: ${sto || '—'}`;
+                } else {
+                    h2.textContent = 'Тратометр';
+                }
+            } catch (e) { /* не ломаем инициализацию */ }
         }
 
-        const h2 = document.querySelector('.container.mt-3.text-center h2');
-        if (h2) h2.textContent = titleText;
-    }
+        // первичное обновление заголовка
+        updateScanTitle();
 
+        // показать модалку при необходимости (с префиллом)
+        if (needPrompt && shopModal) {
+            if (metaStore)    shopStoreEl.value = metaStore;
+            if (metaCategory) shopCatEl.value   = metaCategory;
+            shopModal.show();
+        }
 
+        // Сабмит модалки: создать/обновить сессию
+        shopBeginBtn && (shopBeginBtn.onclick = async () => {
+            const store = (shopStoreEl.value || '').trim();
+            const cat   = (shopCatEl.value   || '').trim();
+            if (!store) { shopStoreEl.focus(); return; }
 
-    const shopModalEl = document.getElementById('shopModal');
-    const shopStoreEl = document.getElementById('shop-store');
-    const shopCatEl = document.getElementById('shop-category');
-    const shopBeginBtn = document.getElementById('shop-begin');
-    let shopModal = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
+            const csrf = (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')) || '';
+            const fd = new FormData();
+            fd.append('store', store);
+            fd.append('category', cat);
 
-    const needPrompt = scanRoot?.dataset.needPrompt === '1';
-    if (needPrompt && shopModal) {
-        if (metaStore) shopStoreEl.value = metaStore;     // префилл, если есть
-        if (metaCategory) shopCatEl.value = metaCategory;
-        shopModal.show();
-    }
+            try {
+                const r = await fetch('/index.php?r=site/begin-ajax', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': csrf },
+                    body: fd,
+                    credentials: 'include'
+                });
+                const res = await r.json();
+                if (!res.ok) throw new Error(res.error || 'Не удалось начать сессию');
+
+                // обновляем данные и атрибуты
+                metaStore    = res.store    || store;
+                metaCategory = res.category || cat;
+                scanRoot?.setAttribute('data-store', metaStore);
+                scanRoot?.setAttribute('data-category', metaCategory);
+
+                shopModal?.hide();
+                updateScanTitle(); // <— сразу обновляем заголовок
+            } catch (e) { alert(e.message); }
+        });
+
+        // После закрытия модалки — на всякий случай тоже обновим заголовок
+        shopModalEl?.addEventListener('hidden.bs.modal', () => {
+            // синхронизируемся с data-атрибутами
+            metaStore    = scanRoot?.dataset.store    || metaStore;
+            metaCategory = scanRoot?.dataset.category || metaCategory;
+            updateScanTitle();
+        });
+    });
 
 
     // Переключатель камеры
@@ -343,11 +386,6 @@
                 alert(e.message);
             }
         };
-    }
-    if (shopModalEl) {
-        shopModalEl.addEventListener('hidden.bs.modal', function () {
-            updateScanTitle();
-        });
     }
     // init
     if (captureBtn) captureBtn.onclick = captureAndRecognize;
