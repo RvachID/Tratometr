@@ -35,10 +35,23 @@
     let lastParsedText = '';
     let wasSaved = false;
     let cameraActive = false;
-    const scanRoot     = document.getElementById('scan-root');
-    const metaStore    = scanRoot?.dataset.store || '';
-    const metaCategory = scanRoot?.dataset.category || '';
+    const scanRoot  = document.getElementById('scan-root');
+    let   metaStore    = scanRoot?.dataset.store || '';
+    let   metaCategory = scanRoot?.dataset.category || '';
     console.log('scan meta:', { metaStore, metaCategory });
+
+    const shopModalEl  = document.getElementById('shopModal');
+    const shopStoreEl  = document.getElementById('shop-store');
+    const shopCatEl    = document.getElementById('shop-category');
+    const shopBeginBtn = document.getElementById('shop-begin');
+    let   shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
+
+    const needPrompt = scanRoot?.dataset.needPrompt === '1';
+    if (needPrompt && shopModal) {
+        if (metaStore)    shopStoreEl.value = metaStore;     // префилл, если есть
+        if (metaCategory) shopCatEl.value   = metaCategory;
+        shopModal.show();
+    }
 
 
     // Переключатель камеры
@@ -279,4 +292,61 @@
 
     // init
     if (captureBtn) captureBtn.onclick = captureAndRecognize;
+
+    async function checkShopSession() {
+        try {
+            const r = await fetch('/index.php?r=site/session-status', { credentials: 'include' });
+            const res = await r.json();
+            if (!res.ok) return;
+
+            // если нет активной сессии или таймеры вышли — показываем модалку
+            if (res.needPrompt && shopModal) {
+                // префилл, если есть старые значения (полезно для 45–120 минут)
+                if (res.store)     shopStoreEl.value = res.store;
+                if (res.category)  shopCatEl.value   = res.category;
+                shopModal.show();
+            } else {
+                // обновим локальные метаданные из ответа (на случай рефреша)
+                metaStore    = res.store     || metaStore;
+                metaCategory = res.category  || metaCategory;
+                scanRoot?.setAttribute('data-store', metaStore);
+                scanRoot?.setAttribute('data-category', metaCategory);
+            }
+        } catch (e) { /* молча */ }
+    }
+    document.addEventListener('DOMContentLoaded', checkShopSession);
+
+    shopBeginBtn && (shopBeginBtn.onclick = async () => {
+        const store = (shopStoreEl.value || '').trim();
+        const cat   = (shopCatEl.value || '').trim();
+        if (!store) { shopStoreEl.focus(); return; }
+
+        const csrf = getCsrf();
+        const fd = new FormData();
+        fd.append('store', store);
+        fd.append('category', cat);
+
+        try {
+            const r = await fetch('/index.php?r=site/begin-ajax', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrf },
+                body: fd,
+                credentials: 'include'
+            });
+            const res = await r.json();
+            if (!res.ok) throw new Error('Не удалось начать сессию');
+
+            // обновляем метаданные для сохранений
+            metaStore    = res.store || store;
+            metaCategory = res.category || cat;
+            scanRoot?.setAttribute('data-store', metaStore);
+            scanRoot?.setAttribute('data-category', metaCategory);
+
+            shopModal?.hide();
+        } catch (e) {
+            alert(e.message);
+        }
+    });
 })();
+
+

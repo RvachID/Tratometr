@@ -162,61 +162,104 @@ class SiteController extends Controller
 
     // ----- страницы -----
 
-
-    public function actionStart()
-    {
-        // форма «Магазин + Категория»
-        $categories = ['Еда','Одежда','Детское','Дом','Аптека','Техника','Транспорт','Развлечения','Питомцы','Другое'];
-        return $this->render('start', ['categories' => $categories]);
-    }
-
-    // обработка формы «Начать покупки»
-    public function actionBegin()
-    {
-        $store    = trim((string)Yii::$app->request->post('store', ''));
-        $category = trim((string)Yii::$app->request->post('category', ''));
-        if ($store === '') return $this->redirect(['site/start']);
-
-        $this->setShopSession($store, $category);
-        return $this->redirect(['site/scan']);
-    }
-
     // страница сканера с проверкой таймаутов
     public function actionScan()
     {
+        // грузим текущую «сессию покупок»
         $sess = $this->getShopSession();
+        $now  = time();
 
-        if (empty($sess['store'])) {
-            return $this->redirect(['site/start']);
-        }
+        $store    = (string)($sess['store'] ?? '');
+        $category = (string)($sess['category'] ?? '');
+        $lastScan = (int)($sess['last_scan_at'] ?? 0);
 
-        $idle = time() - (int)$sess['last_scan_at'];
-        if ($idle >= self::RESET_THRESHOLD_SEC) {
+        $idle = $lastScan ? ($now - $lastScan) : PHP_INT_MAX;
+
+        $needPrompt = false;
+
+        // > 2 часов — обнуляем сессию и просим ввести магазин/категорию заново
+        if ($idle >= self::RESET_THRESHOLD_SEC || $store === '') {
             Yii::$app->session->remove('shopSession');
-            return $this->redirect(['site/start']);
+            $store      = '';
+            $category   = '';
+            $needPrompt = true;
+        }
+        // 45–120 минут — предлагаем подтвердить/сменить магазин (префилл оставляем)
+        elseif ($idle >= self::ASK_THRESHOLD_SEC) {
+            $needPrompt = true;
         }
 
-        if ($idle >= self::ASK_THRESHOLD_SEC && Yii::$app->request->get('resume') === null) {
-            return $this->render('resume', [
-                'store'    => $sess['store'],
-                'category' => $sess['category'],
-            ]);
-        }
+        // Подтянем список и сумму, как раньше
+        $entries = \app\models\PriceEntry::find()
+            ->where(['user_id' => Yii::$app->user->id])
+            ->orderBy(['id' => SORT_DESC])
+            ->limit(200)
+            ->all();
 
-        // отдаём страницу со СТАРЫМ функционалом (камера/список/модалка)
+        $total = (float)Yii::$app->db->createCommand(
+            'SELECT COALESCE(SUM(amount * qty),0) FROM price_entry WHERE user_id=:u',
+            [':u' => Yii::$app->user->id]
+        )->queryScalar();
+
+        // Всегда рендерим scan: store/category уйдут в data-атрибуты,
+        // needPrompt — для JS, чтобы показать модалку магазина.
         return $this->render('scan', [
-            'store'    => $sess['store'],
-            'category' => $sess['category'],
+            'store'       => $store,
+            'category'    => $category,
+            'entries'     => $entries,
+            'total'       => $total,
+            'needPrompt'  => $needPrompt, // <-- используем в JS
         ]);
     }
 
-    public function actionResume()
+
+    // GET: статусы таймеров
+    public function actionSessionStatus()
     {
-        $choice = Yii::$app->request->post('choice', 'continue'); // continue|new
-        if ($choice === 'new') {
-            Yii::$app->session->remove('shopSession');
-            return $this->redirect(['site/start']);
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        $sess = Yii::$app->session->get('shopSession', [
+            'store' => '', 'category' => '', 'started_at' => 0, 'last_scan_at' => 0
+        ]);
+
+        $now  = time();
+        $idle = $now - (int)$sess['last_scan_at'];
+
+        $needPrompt = false;
+        if (!empty($sess['store'])) {
+            if ($idle >= self::RESET_THRESHOLD_SEC) $needPrompt = true;      // >2ч — точно спросить
+            elseif ($idle >= self::ASK_THRESHOLD_SEC) $needPrompt = true;    // 45–120 мин — спросить
+        } else {
+            $needPrompt = true; // нет активной сессии — просим ввести
         }
-        return $this->redirect(['site/scan', 'resume' => 1]);
+
+        return [
+            'ok'        => true,
+            'store'     => (string)($sess['store'] ?? ''),
+            'category'  => (string)($sess['category'] ?? ''),
+            'needPrompt'=> $needPrompt,
+            'idle'      => $idle,
+        ];
     }
+
+// POST: установить/сменить магазин+категорию (AJAX)
+    public function actionBeginAjax()
+    {
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        $store    = trim((string)Yii::$app->request->post('store', ''));
+        $category = trim((string)Yii::$app->request->post('category', ''));
+        if ($store === '') return ['ok' => false, 'error' => 'Укажите магазин'];
+
+        $now = time();
+        Yii::$app->session->set('shopSession', [
+            'store'        => $store,
+            'category'     => $category,
+            'started_at'   => $now,
+            'last_scan_at' => $now,
+        ]);
+
+        return ['ok' => true, 'store' => $store, 'category' => $category];
+    }
+
 }

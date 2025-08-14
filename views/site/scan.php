@@ -12,6 +12,7 @@ $entries = $entries ?? [];
          id="scan-root"
          data-store="<?= Html::encode($store) ?>"
          data-category="<?= Html::encode($category) ?>">
+        data-need-prompt="<?= !empty($needPrompt) ? '1' : '0' ?>">
         <div class="container mt-3 text-center">
             <h2>Тратометр</h2>
             <button id="start-scan" class="btn btn-outline-secondary mb-3" type="button">📷 Открыть камеру</button>
@@ -24,7 +25,41 @@ $entries = $entries ?? [];
                     <span class="spinner" style="display:none;"></span>
                 </button>
             </div>
-
+            <!-- Модалка выбора магазина/категории -->
+            <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Начать покупки</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-2">
+                                <label class="form-label">Магазин</label>
+                                <input type="text" class="form-control" id="shop-store" placeholder="Пятёрочка / Lidl / ..." required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Категория</label>
+                                <select class="form-select" id="shop-category">
+                                    <option>Еда</option>
+                                    <option>Одежда</option>
+                                    <option>Детское</option>
+                                    <option>Дом</option>
+                                    <option>Аптека</option>
+                                    <option>Техника</option>
+                                    <option>Транспорт</option>
+                                    <option>Развлечения</option>
+                                    <option>Питомцы</option>
+                                    <option>Другое</option>
+                                </select>
+                            </div>
+                            <small class="text-muted">Эти поля сохранятся к каждой позиции из текущих покупок.</small>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" id="shop-begin">Начать</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Модалка предпросмотра -->
             <div class="modal fade" id="scanModal" tabindex="-1" aria-hidden="true">

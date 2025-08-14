@@ -536,7 +536,6 @@ class ScanController extends Controller
         }
     }
 
-
     public function actionUpdate($id)
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
