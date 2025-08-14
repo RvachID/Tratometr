@@ -54,15 +54,7 @@
         if (h2) h2.textContent = titleText;
     }
 
-    if (shopModalEl) {
-        shopModalEl.addEventListener('hidden.bs.modal', function () {
-            updateScanTitle();
-        });
-    }
 
-
-// вызвать при загрузке страницы
-    updateScanTitle();
 
     const shopModalEl = document.getElementById('shopModal');
     const shopStoreEl = document.getElementById('shop-store');
@@ -352,7 +344,11 @@
             }
         };
     }
-
+    if (shopModalEl) {
+        shopModalEl.addEventListener('hidden.bs.modal', function () {
+            updateScanTitle();
+        });
+    }
     // init
     if (captureBtn) captureBtn.onclick = captureAndRecognize;
 
