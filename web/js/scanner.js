@@ -54,8 +54,6 @@
         if (h2) h2.textContent = titleText;
     }
 
-// вызвать при загрузке страницы
-    updateScanTitle();
 
     const shopModalEl  = document.getElementById('shopModal');
     const shopStoreEl  = document.getElementById('shop-store');
