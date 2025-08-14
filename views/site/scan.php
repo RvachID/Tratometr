@@ -9,10 +9,10 @@ $entries = $entries ?? [];
 
 ?>
     <div class="container mt-3 text-center"
-         id="scan-root"
+    <div id="scan-root"
          data-store="<?= Html::encode($store) ?>"
-         data-category="<?= Html::encode($category) ?>">
-        data-need-prompt="<?= !empty($needPrompt) ? '1' : '0' ?>">
+         data-category="<?= Html::encode($category) ?>"
+         data-need-prompt="<?= !empty($needPrompt) ? '1' : '0' ?>">
         <div class="container mt-3 text-center">
             <h2>Тратометр</h2>
             <button id="start-scan" class="btn btn-outline-secondary mb-3" type="button">📷 Открыть камеру</button>
