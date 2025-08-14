@@ -98,3 +98,36 @@ a.desc:after {
     vertical-align: middle;
 }
 @keyframes spin { 0% {transform: rotate(0)} 100% {transform: rotate(360deg)} }
+/* Дезигн */
+/* Фон страницы */
+body {
+    background-color: #F8F9FA;
+    color: #212529; /* тёмный текст */
+}
+
+/* Шапка */
+.navbar {
+    background-color: #B08D57; /* оливково-золотистый */
+}
+.navbar .navbar-brand,
+.navbar .nav-link,
+.navbar .navbar-toggler-icon {
+    color: #fff !important;
+}
+
+/* Кнопки в оливково-золотистых тонах */
+.btn-outline-secondary {
+    color: #B08D57;
+    border-color: #B08D57;
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+    background-color: #B08D57;
+    color: #fff;
+    border-color: #B08D57;
+}
+
+/* Для заголовков с акцентом */
+h1, h2, h3, h4, h5 {
+    color: #A98467;
+}
