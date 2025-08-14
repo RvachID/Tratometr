@@ -38,8 +38,22 @@
     const scanRoot  = document.getElementById('scan-root');
     let   metaStore    = scanRoot?.dataset.store || '';
     let   metaCategory = scanRoot?.dataset.category || '';
+
+    function updateScanTitle() {
+        const h2 = document.getElementById('scan-title');
+        if (!h2) return;
+        const cat = scanRoot?.dataset.category || metaCategory || '';
+        const sto = scanRoot?.dataset.store || metaStore || '';
+        if (cat || sto) {
+            h2.textContent = `Покупаем: ${cat || '—'}. В магазине: ${sto || '—'}`;
+        } else {
+            h2.textContent = 'Тратометр';
+        }
+    }
+
     console.log('scan meta:', { metaStore, metaCategory });
 
+    updateScanTitle();
     const shopModalEl  = document.getElementById('shopModal');
     const shopStoreEl  = document.getElementById('shop-store');
     const shopCatEl    = document.getElementById('shop-category');
@@ -53,11 +67,6 @@
         shopModal.show();
     }
 
-// Подмена заголовка
-    const pageTitle = document.querySelector('.container.mt-3.text-center h2');
-    if (pageTitle && metaStore && metaCategory) {
-        pageTitle.textContent = `Покупаем ${metaCategory} в ${metaStore}`;
-    }
     // Переключатель камеры
     if (startBtn) {
         startBtn.onclick = async () => {
@@ -345,7 +354,7 @@
             metaCategory = res.category || cat;
             scanRoot?.setAttribute('data-store', metaStore);
             scanRoot?.setAttribute('data-category', metaCategory);
-
+            updateScanTitle();
             shopModal?.hide();
         } catch (e) {
             alert(e.message);
