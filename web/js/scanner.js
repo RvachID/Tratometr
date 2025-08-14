@@ -1,30 +1,30 @@
 // scanner.js
 (function () {
-    const { getCsrf, fmt2, resetPhotoPreview } = window.Utils;
+    const {getCsrf, fmt2, resetPhotoPreview} = window.Utils;
 
     // ===== DOM =====
-    const startBtn   = document.getElementById('start-scan');
-    const wrap       = document.getElementById('camera-wrapper');
-    const video      = document.getElementById('camera');
+    const startBtn = document.getElementById('start-scan');
+    const wrap = document.getElementById('camera-wrapper');
+    const video = document.getElementById('camera');
     const captureBtn = document.getElementById('capture');
     const previewImg = document.getElementById('preview-image');
-    const manualBtn  = document.getElementById('manual-add');
+    const manualBtn = document.getElementById('manual-add');
 
-    const btnTextEl    = captureBtn?.querySelector('.btn-text') || captureBtn;
+    const btnTextEl = captureBtn?.querySelector('.btn-text') || captureBtn;
     const btnSpinnerEl = captureBtn?.querySelector('.spinner');
 
     // ===== Модалка =====
-    const scanModalEl   = document.getElementById('scanModal');
-    const mAmountEl     = document.getElementById('m-amount');
-    const mQtyEl        = document.getElementById('m-qty');
-    const mQtyMinusEl   = document.getElementById('m-qty-minus');
-    const mQtyPlusEl    = document.getElementById('m-qty-plus');
-    const mNoteEl       = document.getElementById('m-note');
+    const scanModalEl = document.getElementById('scanModal');
+    const mAmountEl = document.getElementById('m-amount');
+    const mQtyEl = document.getElementById('m-qty');
+    const mQtyMinusEl = document.getElementById('m-qty-minus');
+    const mQtyPlusEl = document.getElementById('m-qty-plus');
+    const mNoteEl = document.getElementById('m-note');
     const mShowPhotoBtn = document.getElementById('m-show-photo');
-    const mPhotoWrap    = document.getElementById('m-photo-wrap');
-    const mPhotoImg     = document.getElementById('m-photo');
-    const mRetakeBtn    = document.getElementById('m-retake');
-    const mSaveBtn      = document.getElementById('m-save');
+    const mPhotoWrap = document.getElementById('m-photo-wrap');
+    const mPhotoImg = document.getElementById('m-photo');
+    const mRetakeBtn = document.getElementById('m-retake');
+    const mSaveBtn = document.getElementById('m-save');
 
     let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
 
@@ -35,15 +35,15 @@
     let lastParsedText = '';
     let wasSaved = false;
     let cameraActive = false;
-    const scanRoot  = document.getElementById('scan-root');
-    let   metaStore    = scanRoot?.dataset.store || '';
-    let   metaCategory = scanRoot?.dataset.category || '';
-    console.log('scan meta:', { metaStore, metaCategory });
+    const scanRoot = document.getElementById('scan-root');
+    let metaStore = scanRoot?.dataset.store || '';
+    let metaCategory = scanRoot?.dataset.category || '';
+    console.log('scan meta:', {metaStore, metaCategory});
 
     function updateScanTitle() {
-        const scanRoot  = document.getElementById('scan-root');
-        const category  = scanRoot?.dataset.category || '';
-        const store     = scanRoot?.dataset.store || '';
+        const scanRoot = document.getElementById('scan-root');
+        const category = scanRoot?.dataset.category || '';
+        const store = scanRoot?.dataset.store || '';
 
         let titleText = 'Тратометр';
         if (category || store) {
@@ -54,19 +54,26 @@
         if (h2) h2.textContent = titleText;
     }
 
+    if (shopModalEl) {
+        shopModalEl.addEventListener('hidden.bs.modal', function () {
+            updateScanTitle();
+        });
+    }
+
+
 // вызвать при загрузке страницы
     updateScanTitle();
 
-    const shopModalEl  = document.getElementById('shopModal');
-    const shopStoreEl  = document.getElementById('shop-store');
-    const shopCatEl    = document.getElementById('shop-category');
+    const shopModalEl = document.getElementById('shopModal');
+    const shopStoreEl = document.getElementById('shop-store');
+    const shopCatEl = document.getElementById('shop-category');
     const shopBeginBtn = document.getElementById('shop-begin');
-    let   shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
+    let shopModal = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
 
     const needPrompt = scanRoot?.dataset.needPrompt === '1';
     if (needPrompt && shopModal) {
-        if (metaStore)    shopStoreEl.value = metaStore;     // префилл, если есть
-        if (metaCategory) shopCatEl.value   = metaCategory;
+        if (metaStore) shopStoreEl.value = metaStore;     // префилл, если есть
+        if (metaCategory) shopCatEl.value = metaCategory;
         shopModal.show();
     }
 
@@ -76,10 +83,11 @@
         startBtn.onclick = async () => {
             cameraActive = !!currentStream;
             if (!cameraActive) {
-                wrap?.setAttribute('style','display:block');
+                wrap?.setAttribute('style', 'display:block');
                 try {
                     if (!navigator.mediaDevices?.getUserMedia) {
-                        alert('Доступ к камере не поддерживается в этом браузере'); return;
+                        alert('Доступ к камере не поддерживается в этом браузере');
+                        return;
                     }
                     await initCamera();
                     cameraActive = true;
@@ -128,19 +136,32 @@
             currentStream = null;
         }
     }
-    async function getStream(c) { return await navigator.mediaDevices.getUserMedia(c); }
+
+    async function getStream(c) {
+        return await navigator.mediaDevices.getUserMedia(c);
+    }
+
     async function initCamera() {
         await stopStream();
-        const primary = { video: { facingMode: { ideal: 'environment' } }, audio: false };
-        try { currentStream = await getStream(primary); }
-        catch { currentStream = await getStream({ video: true, audio: false }); }
-        video.setAttribute('playsinline','true');
+        const primary = {video: {facingMode: {ideal: 'environment'}}, audio: false};
+        try {
+            currentStream = await getStream(primary);
+        } catch {
+            currentStream = await getStream({video: true, audio: false});
+        }
+        video.setAttribute('playsinline', 'true');
         video.srcObject = currentStream;
         await new Promise(res => {
-            const h = () => { video.removeEventListener('loadedmetadata', h); res(); };
+            const h = () => {
+                video.removeEventListener('loadedmetadata', h);
+                res();
+            };
             if (video.readyState >= 1) res(); else video.addEventListener('loadedmetadata', h);
         });
-        try { await video.play(); } catch {}
+        try {
+            await video.play();
+        } catch {
+        }
     }
 
     // Закрытие модалки
@@ -167,7 +188,10 @@
         else if (captureBtn) captureBtn.textContent = 'Сканируем…';
 
         try {
-            if (!video.videoWidth || !video.videoHeight) { alert('Камера ещё не готова'); return; }
+            if (!video.videoWidth || !video.videoHeight) {
+                alert('Камера ещё не готова');
+                return;
+            }
 
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
@@ -178,17 +202,20 @@
             // простая бинаризация
             const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = img.data;
-            for (let i=0;i<data.length;i+=4){
-                const avg=(data[i]+data[i+1]+data[i+2])/3;
-                const bw=avg>128?255:0;
-                data[i]=data[i+1]=data[i+2]=bw;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const bw = avg > 128 ? 255 : 0;
+                data[i] = data[i + 1] = data[i + 2] = bw;
             }
-            ctx.putImageData(img,0,0);
+            ctx.putImageData(img, 0, 0);
 
-            await new Promise((resolve)=>{
-                canvas.toBlob((blob)=>{
-                    try{
-                        if(!blob){ alert('Не удалось получить изображение'); return resolve(false); }
+            await new Promise((resolve) => {
+                canvas.toBlob((blob) => {
+                    try {
+                        if (!blob) {
+                            alert('Не удалось получить изображение');
+                            return resolve(false);
+                        }
                         if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
                         lastPhotoURL = URL.createObjectURL(blob);
 
@@ -196,21 +223,26 @@
                         formData.append('image', blob, 'scan.jpg');
 
                         const csrf = getCsrf();
-                        if (!csrf){ alert('CSRF-токен не найден'); return resolve(false); }
+                        if (!csrf) {
+                            alert('CSRF-токен не найден');
+                            return resolve(false);
+                        }
 
                         fetch('/index.php?r=scan/recognize', {
-                            method:'POST', headers:{'X-CSRF-Token':csrf}, body:formData, credentials:'include'
+                            method: 'POST', headers: {'X-CSRF-Token': csrf}, body: formData, credentials: 'include'
                         })
-                            .then(async r=>{
-                                if (r.status===429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
-                                const ct=r.headers.get('content-type')||'';
-                                if (!ct.includes('application/json')) { throw new Error('Сервер вернул не JSON.'); }
+                            .then(async r => {
+                                if (r.status === 429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
+                                const ct = r.headers.get('content-type') || '';
+                                if (!ct.includes('application/json')) {
+                                    throw new Error('Сервер вернул не JSON.');
+                                }
                                 return r.json();
                             })
-                            .then(res=>{
+                            .then(res => {
                                 if (!res.success) {
-                                    const msg = (res.error||'').toLowerCase();
-                                    if (previewImg && (msg.includes('не удалось извлечь цену') || msg.includes('цена не распознана') || res.reason==='no_amount')) {
+                                    const msg = (res.error || '').toLowerCase();
+                                    if (previewImg && (msg.includes('не удалось извлечь цену') || msg.includes('цена не распознана') || res.reason === 'no_amount')) {
                                         previewImg.src = lastPhotoURL;
                                     }
                                     throw new Error(res.error || 'Не удалось распознать цену');
@@ -225,8 +257,13 @@
                                 bootstrapModal?.show();
                                 resolve(true);
                             })
-                            .catch(err=>{ alert(err.message); resolve(false); });
-                    } catch(e){ resolve(false); }
+                            .catch(err => {
+                                alert(err.message);
+                                resolve(false);
+                            });
+                    } catch (e) {
+                        resolve(false);
+                    }
                 }, 'image/jpeg', 0.9);
             });
 
@@ -253,7 +290,9 @@
         };
     }
     if (mAmountEl) {
-        mAmountEl.addEventListener('blur', () => { mAmountEl.value = fmt2(mAmountEl.value); });
+        mAmountEl.addEventListener('blur', () => {
+            mAmountEl.value = fmt2(mAmountEl.value);
+        });
     }
 
     if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
@@ -273,7 +312,9 @@
     }
 
     if (mRetakeBtn) {
-        mRetakeBtn.onclick = () => { bootstrapModal?.hide(); };
+        mRetakeBtn.onclick = () => {
+            bootstrapModal?.hide();
+        };
     }
     if (mSaveBtn) {
         mSaveBtn.onclick = async () => {
@@ -283,14 +324,14 @@
             fd.append('qty', mQtyEl.value);
             fd.append('note', mNoteEl.value);
             fd.append('parsed_text', lastParsedText);
-            fd.append('store',    metaStore);
+            fd.append('store', metaStore);
             fd.append('category', metaCategory);
 
             try {
                 const r = await fetch('/index.php?r=scan/store', {
-                    method:'POST', headers:{'X-CSRF-Token':csrf}, body:fd, credentials:'include'
+                    method: 'POST', headers: {'X-CSRF-Token': csrf}, body: fd, credentials: 'include'
                 });
-                const ct = r.headers.get('content-type')||'';
+                const ct = r.headers.get('content-type') || '';
                 if (!ct.includes('application/json')) throw new Error('Сервер вернул не JSON.');
                 const res = await r.json();
                 if (!res.success) throw new Error(res.error || 'Ошибка сохранения');
@@ -302,8 +343,13 @@
                 wasSaved = true;
                 bootstrapModal?.hide();
 
-                if (lastPhotoURL) { URL.revokeObjectURL(lastPhotoURL); lastPhotoURL = null; }
-            } catch (e) { alert(e.message); }
+                if (lastPhotoURL) {
+                    URL.revokeObjectURL(lastPhotoURL);
+                    lastPhotoURL = null;
+                }
+            } catch (e) {
+                alert(e.message);
+            }
         };
     }
 
@@ -312,31 +358,36 @@
 
     async function checkShopSession() {
         try {
-            const r = await fetch('/index.php?r=site/session-status', { credentials: 'include' });
+            const r = await fetch('/index.php?r=site/session-status', {credentials: 'include'});
             const res = await r.json();
             if (!res.ok) return;
 
             // если нет активной сессии или таймеры вышли — показываем модалку
             if (res.needPrompt && shopModal) {
                 // префилл, если есть старые значения (полезно для 45–120 минут)
-                if (res.store)     shopStoreEl.value = res.store;
-                if (res.category)  shopCatEl.value   = res.category;
+                if (res.store) shopStoreEl.value = res.store;
+                if (res.category) shopCatEl.value = res.category;
                 shopModal.show();
             } else {
                 // обновим локальные метаданные из ответа (на случай рефреша)
-                metaStore    = res.store     || metaStore;
-                metaCategory = res.category  || metaCategory;
+                metaStore = res.store || metaStore;
+                metaCategory = res.category || metaCategory;
                 scanRoot?.setAttribute('data-store', metaStore);
                 scanRoot?.setAttribute('data-category', metaCategory);
             }
-        } catch (e) { /* молча */ }
+        } catch (e) { /* молча */
+        }
     }
+
     document.addEventListener('DOMContentLoaded', checkShopSession);
 
     shopBeginBtn && (shopBeginBtn.onclick = async () => {
         const store = (shopStoreEl.value || '').trim();
-        const cat   = (shopCatEl.value || '').trim();
-        if (!store) { shopStoreEl.focus(); return; }
+        const cat = (shopCatEl.value || '').trim();
+        if (!store) {
+            shopStoreEl.focus();
+            return;
+        }
 
         const csrf = getCsrf();
         const fd = new FormData();
@@ -346,7 +397,7 @@
         try {
             const r = await fetch('/index.php?r=site/begin-ajax', {
                 method: 'POST',
-                headers: { 'X-CSRF-Token': csrf },
+                headers: {'X-CSRF-Token': csrf},
                 body: fd,
                 credentials: 'include'
             });
@@ -354,7 +405,7 @@
             if (!res.ok) throw new Error('Не удалось начать сессию');
 
             // обновляем метаданные для сохранений
-            metaStore    = res.store || store;
+            metaStore = res.store || store;
             metaCategory = res.category || cat;
             scanRoot?.setAttribute('data-store', metaStore);
             scanRoot?.setAttribute('data-category', metaCategory);

@@ -15,7 +15,7 @@ $entries = $entries ?? [];
          data-need-prompt="<?= !empty($needPrompt) ? '1' : '0' ?>">
 
         <div class="container mt-3 text-center">
-            <h2>Тратометр</h2>
+            <h4>Тратометр</h4>
             <button id="start-scan" class="btn btn-outline-secondary mb-3" type="button">📷 Открыть камеру</button>
             <button id="manual-add" class="btn btn-outline-secondary mb-3 ms-2" type="button">✍️ Ввести вручную</button>
 
