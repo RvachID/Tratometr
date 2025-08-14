@@ -73,12 +73,18 @@
                 wrap?.setAttribute('style','display:block');
                 try {
                     if (!navigator.mediaDevices?.getUserMedia) {
-                        alert('Доступ к камере не поддерживается в этом браузере'); return;
+                        alert('Доступ к камере не поддерживается в этом браузере');
+                        return;
                     }
                     await initCamera();
                     cameraActive = true;
                     startBtn.textContent = '✖ Закрыть камеру';
                     manualBtn?.classList.add('d-none');
+
+                    // При запуске камеры снова показываем кнопки
+                    document.getElementById('m-show-photo').style.display = '';
+                    document.getElementById('m-retake').style.display = '';
+
                 } catch (e) {
                     alert('Не удалось открыть камеру: ' + (e?.message || e));
                     if (wrap) wrap.style.display = 'none';
@@ -96,6 +102,7 @@
         };
     }
 
+
     // Ручной ввод
     if (manualBtn) {
         manualBtn.onclick = async () => {
@@ -105,15 +112,21 @@
                 cameraActive = false;
                 if (startBtn) startBtn.textContent = '📷 Открыть камеру';
             }
+
             mAmountEl.value = fmt2(0);
             mQtyEl.value = 1;
             mNoteEl.value = '';
             lastParsedText = '';
-            if (mShowPhotoBtn) mShowPhotoBtn.style.display = 'none';
+
+            // Скрыть кнопки "Скан" и "Переснять"
+            document.getElementById('m-show-photo').style.display = 'none';
+            document.getElementById('m-retake').style.display = 'none';
+
             resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
             bootstrapModal?.show();
         };
     }
+
 
     // ===== Камера =====
     async function stopStream() {
