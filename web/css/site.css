@@ -105,9 +105,9 @@ body {
     color: #212529; /* тёмный текст */
 }
 
-/* ===== Шапка (тёплый градиент бронза → золото) ===== */
+/* ===== Шапка (металлический бронзовый градиент) ===== */
 .navbar-dark.bg-dark {
-    background: linear-gradient(90deg, #8B5E3C, #A98467) !important;
+    background: linear-gradient(90deg, #7C4F35, #C19A6B) !important;
 }
 
 /* Текст и иконки в шапке */
@@ -152,8 +152,9 @@ a:hover {
 .form-control:focus,
 .form-select:focus {
     border-color: #B08D57;
-    box-shadow: 0 0 0 0.25rem rgba(176, 141, 87, 0.25) !important;
+    box-shadow: 0 0 0 0.25rem rgba(176, 141, 87, 0.25);
 }
+
 
 
 
