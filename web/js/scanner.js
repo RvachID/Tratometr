@@ -64,12 +64,11 @@
             titleText = `Покупаем: ${category || '—'}. В магазине: ${store || '—'}`;
         }
 
-        const h2 = document.querySelector('.container.mt-3.text-center h4');
+        const h2 = document.querySelector('.container.mt-3.text-center h6');
         if (h2) h2.textContent = titleText;
     }
 
-
-
+    updateScanTitle();
 
     // Переключатель камеры
     if (startBtn) {
