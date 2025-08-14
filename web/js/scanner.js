@@ -54,10 +54,22 @@
     }
 
 // Подмена заголовка
-    const pageTitle = document.querySelector('.container.mt-3.text-center h4');
-    if (pageTitle && metaStore && metaCategory) {
-        pageTitle.textContent = `Покупаем ${metaCategory} в ${metaStore}`;
+    function updateScanTitle() {
+        const scanRoot  = document.getElementById('scan-root');
+        const category  = scanRoot?.dataset.category || '';
+        const store     = scanRoot?.dataset.store || '';
+
+        let titleText = 'Тратометр';
+        if (category || store) {
+            titleText = `Покупаем: ${category || '—'}. В магазине: ${store || '—'}`;
+        }
+
+        const h2 = document.querySelector('.container.mt-3.text-center h4');
+        if (h2) h2.textContent = titleText;
     }
+
+
+
 
     // Переключатель камеры
     if (startBtn) {
@@ -346,7 +358,7 @@
             metaCategory = res.category || cat;
             scanRoot?.setAttribute('data-store', metaStore);
             scanRoot?.setAttribute('data-category', metaCategory);
-
+            updateScanTitle(); //обновляем заголовок
             shopModal?.hide();
         } catch (e) {
             alert(e.message);
