@@ -1,6 +1,6 @@
 <?php
 use yii\helpers\Url;
-$this->title = 'Тратометр';
+
 ?>
 <div class="container mt-3 text-center">
     <h2>Тратометр</h2>
