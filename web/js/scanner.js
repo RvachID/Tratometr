@@ -45,7 +45,7 @@
         const category  = scanRoot?.dataset.category || '';
         const store     = scanRoot?.dataset.store || '';
 
-        let titleText = 'Тратометр';
+        let titleText;
         if (category || store) {
             titleText = `Покупаем: ${category || '—'}. В магазине: ${store || '—'}`;
         }
