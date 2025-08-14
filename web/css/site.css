@@ -107,14 +107,11 @@ body {
 
 /* Шапка */
 .navbar-dark.bg-dark {
-    background-color: #B08D57 !important; /* оливково-золотистый */
+    background: linear-gradient(90deg, #5f5131, #B08D57) !important;
 }
-.navbar {
-    background-color: #B08D57 !important; /* оливково-золотистый */
-}
-.navbar .navbar-brand,
-.navbar .nav-link,
-.navbar .navbar-toggler-icon {
+.navbar-dark .navbar-brand,
+.navbar-dark .nav-link,
+.navbar-dark .navbar-toggler-icon {
     color: #fff !important;
 }
 
