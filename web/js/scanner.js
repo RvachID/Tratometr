@@ -54,6 +54,10 @@
     console.log('scan meta:', { metaStore, metaCategory });
 
     updateScanTitle();
+    document.getElementById('shopModal')?.addEventListener('hidden.bs.modal', () => {
+        updateScanTitle();
+    });
+
     const shopModalEl  = document.getElementById('shopModal');
     const shopStoreEl  = document.getElementById('shop-store');
     const shopCatEl    = document.getElementById('shop-category');
