@@ -40,6 +40,23 @@
     let   metaCategory = scanRoot?.dataset.category || '';
     console.log('scan meta:', { metaStore, metaCategory });
 
+    function updateScanTitle() {
+        const scanRoot  = document.getElementById('scan-root');
+        const category  = scanRoot?.dataset.category || '';
+        const store     = scanRoot?.dataset.store || '';
+
+        let titleText = 'Тратометр';
+        if (category || store) {
+            titleText = `Покупаем: ${category || '—'}. В магазине: ${store || '—'}`;
+        }
+
+        const h2 = document.querySelector('.container.mt-3.text-center h2');
+        if (h2) h2.textContent = titleText;
+    }
+
+// вызвать при загрузке страницы
+    updateScanTitle();
+
     const shopModalEl  = document.getElementById('shopModal');
     const shopStoreEl  = document.getElementById('shop-store');
     const shopCatEl    = document.getElementById('shop-category');
