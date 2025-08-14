@@ -38,25 +38,7 @@
     const scanRoot  = document.getElementById('scan-root');
     let   metaStore    = scanRoot?.dataset.store || '';
     let   metaCategory = scanRoot?.dataset.category || '';
-
-    function updateScanTitle() {
-        const h2 = document.getElementById('scan-title');
-        if (!h2) return;
-        const cat = scanRoot?.dataset.category || metaCategory || '';
-        const sto = scanRoot?.dataset.store || metaStore || '';
-        if (cat || sto) {
-            h2.textContent = `Покупаем: ${cat || '—'}. В магазине: ${sto || '—'}`;
-        } else {
-            h2.textContent = 'Тратометр';
-        }
-    }
-
     console.log('scan meta:', { metaStore, metaCategory });
-
-    updateScanTitle();
-    document.getElementById('shopModal')?.addEventListener('hidden.bs.modal', () => {
-        updateScanTitle();
-    });
 
     const shopModalEl  = document.getElementById('shopModal');
     const shopStoreEl  = document.getElementById('shop-store');
@@ -71,6 +53,18 @@
         shopModal.show();
     }
 
+    function updateScanTitle() {
+        const h2 = document.getElementById('scan-title');
+        if (!h2) return;
+        const cat = scanRoot?.dataset.category || metaCategory || '';
+        const sto = scanRoot?.dataset.store || metaStore || '';
+        if (cat || sto) {
+            h2.textContent = `Покупаем: ${cat || '—'}. В магазине: ${sto || '—'}`;
+        } else {
+            h2.textContent = 'Тратометр';
+        }
+    }
+    updateScanTitle();
     // Переключатель камеры
     if (startBtn) {
         startBtn.onclick = async () => {
@@ -332,6 +326,15 @@
         } catch (e) { /* молча */ }
     }
     document.addEventListener('DOMContentLoaded', checkShopSession);
+
+    // После закрытия модалки — обновляем заголовок на всякий случай
+    shopModalEl?.addEventListener('hidden.bs.modal', () => {
+        // синхронизируемся с актуальными data-атрибутами
+        metaStore    = scanRoot?.dataset.store    || metaStore;
+        metaCategory = scanRoot?.dataset.category || metaCategory;
+        updateScanTitle();
+    });
+
 
     shopBeginBtn && (shopBeginBtn.onclick = async () => {
         const store = (shopStoreEl.value || '').trim();
