@@ -3,81 +3,72 @@
     const {getCsrf, fmt2, resetPhotoPreview} = window.Utils;
 
     // ===== DOM =====
-    const startBtn = document.getElementById('start-scan');
-    const wrap = document.getElementById('camera-wrapper');
-    const video = document.getElementById('camera');
+    const startBtn   = document.getElementById('start-scan');
+    const wrap       = document.getElementById('camera-wrapper');
+    const video      = document.getElementById('camera');
     const captureBtn = document.getElementById('capture');
     const previewImg = document.getElementById('preview-image');
-    const manualBtn = document.getElementById('manual-add');
+    const manualBtn  = document.getElementById('manual-add');
 
-    const btnTextEl = captureBtn?.querySelector('.btn-text') || captureBtn;
+    const btnTextEl    = captureBtn?.querySelector('.btn-text') || captureBtn;
     const btnSpinnerEl = captureBtn?.querySelector('.spinner');
 
-    // ===== Модалка =====
-    const scanModalEl = document.getElementById('scanModal');
-    const mAmountEl = document.getElementById('m-amount');
-    const mQtyEl = document.getElementById('m-qty');
-    const mQtyMinusEl = document.getElementById('m-qty-minus');
-    const mQtyPlusEl = document.getElementById('m-qty-plus');
-    const mNoteEl = document.getElementById('m-note');
-    const mShowPhotoBtn = document.getElementById('m-show-photo');
-    const mPhotoWrap = document.getElementById('m-photo-wrap');
-    const mPhotoImg = document.getElementById('m-photo');
-    const mRetakeBtn = document.getElementById('m-retake');
-    const mSaveBtn = document.getElementById('m-save');
+    // ===== Скан-метаданные/заголовок (ВНЕ DOMContentLoaded!) =====
+    const scanRoot     = document.getElementById('scan-root');
+    let   metaStore    = scanRoot?.dataset.store || '';
+    let   metaCategory = scanRoot?.dataset.category || '';
+    const needPrompt   = scanRoot?.dataset.needPrompt === '1';
 
-    let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
+    function updateScanTitle() {
+        try {
+            const h2  = document.getElementById('scan-title');
+            if (!h2) return;
+            const cat = (scanRoot?.dataset.category ?? metaCategory) || '';
+            const sto = (scanRoot?.dataset.store    ?? metaStore)    || '';
+            h2.textContent = (cat || sto)
+                ? `Покупаем: ${cat || '—'}. В магазине: ${sto || '—'}`
+                : 'Тратометр';
+        } catch(_) {}
+    }
+    // первичное обновление заголовка
+    updateScanTitle();
 
-    // ===== Состояние =====
-    let currentStream = null;
-    let scanBusy = false;
-    let lastPhotoURL = null;
-    let lastParsedText = '';
-    let wasSaved = false;
-    let cameraActive = false;
-    document.addEventListener('DOMContentLoaded', () => {
-        const scanRoot = document.getElementById('scan-root');
-        let   metaStore    = scanRoot?.dataset.store || '';
-        let   metaCategory = scanRoot?.dataset.category || '';
-        const needPrompt   = scanRoot?.dataset.needPrompt === '1';
+    // ===== Модалка предпросмотра =====
+    const scanModalEl  = document.getElementById('scanModal');
+    const mAmountEl    = document.getElementById('m-amount');
+    const mQtyEl       = document.getElementById('m-qty');
+    const mQtyMinusEl  = document.getElementById('m-qty-minus');
+    const mQtyPlusEl   = document.getElementById('m-qty-plus');
+    const mNoteEl      = document.getElementById('m-note');
+    const mShowPhotoBtn= document.getElementById('m-show-photo');
+    const mPhotoWrap   = document.getElementById('m-photo-wrap');
+    const mPhotoImg    = document.getElementById('m-photo');
+    const mRetakeBtn   = document.getElementById('m-retake');
+    const mSaveBtn     = document.getElementById('m-save');
+    let   bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
 
-        const shopModalEl  = document.getElementById('shopModal');
-        const shopStoreEl  = document.getElementById('shop-store');
-        const shopCatEl    = document.getElementById('shop-category');
-        const shopBeginBtn = document.getElementById('shop-begin');
-        const shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
+    // ===== Модалка выбора магазина/категории (ВНЕ DOMContentLoaded!) =====
+    const shopModalEl  = document.getElementById('shopModal');
+    const shopStoreEl  = document.getElementById('shop-store');
+    const shopCatEl    = document.getElementById('shop-category');
+    const shopBeginBtn = document.getElementById('shop-begin');
+    const shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
 
-        function updateScanTitle() {
-            try {
-                const h2 = document.getElementById('scan-title');
-                if (!h2) return;
-                const cat = (scanRoot?.dataset.category ?? metaCategory) || '';
-                const sto = (scanRoot?.dataset.store    ?? metaStore)    || '';
-                if (cat || sto) {
-                    h2.textContent = `Покупаем: ${cat || '—'}. В магазине: ${sto || '—'}`;
-                } else {
-                    h2.textContent = 'Тратометр';
-                }
-            } catch (e) { /* не ломаем инициализацию */ }
-        }
+    // показать модалку при необходимости
+    if (needPrompt && shopModal) {
+        if (metaStore)    shopStoreEl.value = metaStore;
+        if (metaCategory) shopCatEl.value   = metaCategory;
+        shopModal.show();
+    }
 
-        // первичное обновление заголовка
-        updateScanTitle();
-
-        // показать модалку при необходимости (с префиллом)
-        if (needPrompt && shopModal) {
-            if (metaStore)    shopStoreEl.value = metaStore;
-            if (metaCategory) shopCatEl.value   = metaCategory;
-            shopModal.show();
-        }
-
-        // Сабмит модалки: создать/обновить сессию
-        shopBeginBtn && (shopBeginBtn.onclick = async () => {
+    // submit модалки — начало/обновление сессии
+    if (shopBeginBtn) {
+        shopBeginBtn.onclick = async () => {
             const store = (shopStoreEl.value || '').trim();
             const cat   = (shopCatEl.value   || '').trim();
             if (!store) { shopStoreEl.focus(); return; }
 
-            const csrf = (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')) || '';
+            const csrf = getCsrf();
             const fd = new FormData();
             fd.append('store', store);
             fd.append('category', cat);
@@ -85,32 +76,27 @@
             try {
                 const r = await fetch('/index.php?r=site/begin-ajax', {
                     method: 'POST',
-                    headers: { 'X-CSRF-Token': csrf },
+                    headers: {'X-CSRF-Token': csrf},
                     body: fd,
                     credentials: 'include'
                 });
                 const res = await r.json();
                 if (!res.ok) throw new Error(res.error || 'Не удалось начать сессию');
 
-                // обновляем данные и атрибуты
+                // обновляем локальные метаданные и data-* (для других мест)
                 metaStore    = res.store    || store;
                 metaCategory = res.category || cat;
                 scanRoot?.setAttribute('data-store', metaStore);
                 scanRoot?.setAttribute('data-category', metaCategory);
 
                 shopModal?.hide();
-                updateScanTitle(); // <— сразу обновляем заголовок
+                updateScanTitle(); // <— ОБНОВИТЬ ЗАГОЛОВОК СРАЗУ
             } catch (e) { alert(e.message); }
-        });
+        };
+    }
 
-        // После закрытия модалки — на всякий случай тоже обновим заголовок
-        shopModalEl?.addEventListener('hidden.bs.modal', () => {
-            // синхронизируемся с data-атрибутами
-            metaStore    = scanRoot?.dataset.store    || metaStore;
-            metaCategory = scanRoot?.dataset.category || metaCategory;
-            updateScanTitle();
-        });
-    });
+    // на всякий — после закрытия модалки обновим заголовок
+    shopModalEl?.addEventListener('hidden.bs.modal', updateScanTitle);
 
 
     // Переключатель камеры
