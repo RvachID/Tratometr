@@ -3,8 +3,8 @@ use yii\helpers\Url;
 $this->title = 'Тратометр';
 ?>
 <div class="container mt-3 text-center">
-    <div class="Title"> <h6>Тратометр</h6></div>
-    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary w-100 mb-2">🛒 За покупками</a>
+    <h2>Тратометр</h2>
+    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-primary w-100 mb-2">🛒 За покупками</a>
 
     <!-- тут потом появятся История/Статистика
     <div class="d-grid gap-2">
@@ -12,4 +12,3 @@ $this->title = 'Тратометр';
         <a href="#" class="btn btn-outline-secondary disabled">📈 Статистика (скоро)</a>
     </div>-->
 </div>
-

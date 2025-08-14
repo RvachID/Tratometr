@@ -54,11 +54,10 @@
     }
 
 // Подмена заголовка
-    const pageTitle = document.querySelector('.Title h6');
+    const pageTitle = document.querySelector('.container.mt-3.text-center h2');
     if (pageTitle && metaStore && metaCategory) {
-        pageTitle.textContent = `Покупаем ${metaCategory} в магазине: ${metaStore}`;
+        pageTitle.textContent = `Покупаем ${metaCategory} в ${metaStore}`;
     }
-
     // Переключатель камеры
     if (startBtn) {
         startBtn.onclick = async () => {
