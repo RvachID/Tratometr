@@ -29,7 +29,7 @@ $this->title = 'Вход';
         </div>
 
         <div class="d-grid">
-            <button type="submit" class="btn btn-primary">Войти</button>
+            <button type="submit" class="btn btn-outline-secondary">Войти</button>
         </div>
     </form>
 

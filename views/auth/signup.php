@@ -12,6 +12,6 @@ $this->title = 'Регистрация';
 <?= $form->field($model, 'email')->input('email') ?>
 <?= $form->field($model, 'pin_code')->passwordInput() ?>
 <div class="form-group">
-    <?= Html::submitButton('Зарегистрироваться', ['class' => 'btn btn-primary']) ?>
+    <?= Html::submitButton('Зарегистрироваться', ['class' => 'btn btn-outline-secondary']) ?>
 </div>
 <?php ActiveForm::end(); ?>

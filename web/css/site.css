@@ -105,9 +105,9 @@ body {
     color: #212529; /* тёмный текст */
 }
 
-/* ===== Шапка (градиент сине-серый) ===== */
+/* ===== Шапка (тёплый градиент бронза → золото) ===== */
 .navbar-dark.bg-dark {
-    background: linear-gradient(90deg, #2C3E50, #3E4E60) !important;
+    background: linear-gradient(90deg, #8B5E3C, #A98467) !important;
 }
 
 /* Текст и иконки в шапке */
@@ -134,18 +134,26 @@ h1, h2, h3, h4, h5 {
     color: #A98467;
 }
 
-/* ===== Цитата на главной (тот же золотистый) ===== */
+/* ===== Цитата на главной ===== */
 .quote {
     color: #B08D57;
     font-style: italic;
 }
 
-/* ===== Мелкие улучшения ===== */
+/* ===== Ссылки ===== */
 a {
     text-decoration: none;
 }
 a:hover {
     text-decoration: underline;
 }
+
+/* ===== Цвет фокуса у инпутов/селектов/текстовых полей ===== */
+.form-control:focus,
+.form-select:focus {
+    border-color: #B08D57;
+    box-shadow: 0 0 0 0.25rem rgba(176, 141, 87, 0.25) !important;
+}
+
 
 

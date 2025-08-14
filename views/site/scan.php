@@ -56,7 +56,7 @@ $entries = $entries ?? [];
                             <small class="text-muted">Эти поля сохранятся к каждой позиции из текущих покупок.</small>
                         </div>
                         <div class="modal-footer">
-                            <button class="btn btn-primary" id="shop-begin">Начать</button>
+                            <button class="btn btn-outline-secondary" id="shop-begin">Начать</button>
                         </div>
                     </div>
                 </div>
