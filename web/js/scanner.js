@@ -54,7 +54,7 @@
     }
 
 // Подмена заголовка
-    const pageTitle = document.querySelector('.container.mt-3.text-center h2');
+    const pageTitle = document.querySelector('.container.mt-3.text-center h4');
     if (pageTitle && metaStore && metaCategory) {
         pageTitle.textContent = `Покупаем ${metaCategory} в ${metaStore}`;
     }

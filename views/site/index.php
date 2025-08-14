@@ -3,7 +3,7 @@ use yii\helpers\Url;
 $this->title = 'Тратометр';
 ?>
 <div class="container mt-3 text-center">
-    <h2>Тратометр</h2>
+    <h4>Тратометр</h4>
     <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-primary w-100 mb-2">🛒 За покупками</a>
 
     <!-- тут потом появятся История/Статистика
