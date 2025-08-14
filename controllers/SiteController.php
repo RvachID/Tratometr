@@ -120,25 +120,7 @@ class SiteController extends Controller
         return $this->render('about');
     }
 
-    public function actionIndex()
-    {
-        if (Yii::$app->user->isGuest) {
-            return $this->redirect(['auth/login']);
-        }
 
-        $entries = PriceEntry::find()
-            ->where(['user_id' => Yii::$app->user->id])
-            ->orderBy(['created_at' => SORT_DESC])
-            ->limit(20)
-            ->all();
-
-        $total = array_reduce($entries, fn($sum, $e) => $sum + $e->amount * $e->qty, 0);
-
-        return $this->render('index', [
-            'entries' => $entries,
-            'total' => $total,
-        ]);
-    }
     // ----- сессия «магазин/категория» -----
     private function getShopSession(): array
     {
@@ -149,6 +131,7 @@ class SiteController extends Controller
             'last_scan_at' => 0,
         ]);
     }
+
     private function setShopSession(string $store, string $category): void
     {
         $now = time();
@@ -161,6 +144,63 @@ class SiteController extends Controller
     }
 
     // ----- страницы -----
+    public function actionIndex()
+    {
+        if (Yii::$app->user->isGuest) {
+            return $this->redirect(['auth/login']);
+        }
+
+
+        $entries = PriceEntry::find()
+            ->where(['user_id' => Yii::$app->user->id])
+            ->orderBy(['created_at' => SORT_DESC])
+            ->limit(20)
+            ->all();
+
+        $total = array_reduce($entries, fn($sum, $e) => $sum + $e->amount * $e->qty, 0);
+
+        // --- Цитата для главной ---
+        $db = Yii::$app->db;
+        $lastQuoteId = Yii::$app->session->get('last_quote_id');
+
+        $quotesTotal = (new \yii\db\Query())
+            ->from('quotes')
+            ->count('*', $db);
+
+        $quote = null;
+
+        if ($quotesTotal > 0) {
+            $q = (new \yii\db\Query())->from('quotes');
+
+            // Исключаем последнюю цитату только если есть из чего выбирать
+            if ($quotesTotal > 1 && $lastQuoteId) {
+                $q->where(['<>', 'id', $lastQuoteId]);
+            }
+
+            $quote = $q->orderBy(new \yii\db\Expression('RAND()'))
+                ->limit(1)
+                ->one($db);
+
+            // Фолбек на случай пустого результата
+            if (!$quote) {
+                $quote = (new \yii\db\Query())
+                    ->from('quotes')
+                    ->orderBy(new \yii\db\Expression('RAND()'))
+                    ->limit(1)
+                    ->one($db);
+            }
+
+            if ($quote) {
+                Yii::$app->session->set('last_quote_id', $quote['id']);
+            }
+        }
+
+        return $this->render('index', [
+            'entries' => $entries,
+            'total'   => $total,
+            'quote'   => $quote,
+        ]);
+    }
 
     // страница сканера с проверкой таймаутов
     public function actionScan()

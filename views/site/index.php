@@ -3,7 +3,14 @@ use yii\helpers\Url;
 $this->title = 'Тратометр';
 ?>
 <div class="container mt-3 text-center">
-    <h2>Тратометр</h2>
+    <?php if (!empty($quote)): ?>
+        <div class="text-muted small mb-3">
+            «<?= htmlspecialchars($quote['text']) ?>»
+            <?php if (!empty($quote['author'])): ?>
+                — <?= htmlspecialchars($quote['author']) ?>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
     <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary w-100 mb-2">🛒 За покупками</a>
 
     <!-- тут потом появятся История/Статистика
