@@ -54,21 +54,10 @@
     }
 
 // Подмена заголовка
-    function updateScanTitle() {
-        const scanRoot  = document.getElementById('scan-root');
-        const category  = scanRoot?.dataset.category || '';
-        const store     = scanRoot?.dataset.store || '';
-
-        let titleText = 'Тратометр';
-        if (category || store) {
-            titleText = `Покупаем: ${category || '—'}. В магазине: ${store || '—'}`;
-        }
-
-        const h6 = document.querySelector('.container.mt-3.text-center h6');
-        if (h6) h6.textContent = titleText;
+    const pageTitle = document.querySelector('.container.mt-3.text-center h6');
+    if (pageTitle && metaStore && metaCategory) {
+        pageTitle.textContent = `Покупаем ${metaCategory} в магазине: ${metaStore}`;
     }
-
-    updateScanTitle();
 
     // Переключатель камеры
     if (startBtn) {
@@ -357,7 +346,7 @@
             metaCategory = res.category || cat;
             scanRoot?.setAttribute('data-store', metaStore);
             scanRoot?.setAttribute('data-category', metaCategory);
-            updateScanTitle(); //обновляем заголовок
+
             shopModal?.hide();
         } catch (e) {
             alert(e.message);
