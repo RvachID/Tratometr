@@ -6,25 +6,26 @@ use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
 use yii\filters\RateLimitInterface;
 
-
-class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface, RateLimitInterface
+class User extends ActiveRecord implements IdentityInterface, RateLimitInterface
 {
     public static function tableName()
     {
         return '{{%user}}';
     }
 
+    /** Валидации только для того, что реально хранится в таблице */
     public function rules()
     {
         return [
             ['email', 'required'],
             ['email', 'email'],
             ['email', 'unique'],
-            ['pin_code', 'required'],
-            ['pin_code', 'match', 'pattern' => '/^\d{4,6}$/', 'message' => 'PIN должен быть от 4 до 6 цифр'],
+            // password_hash хранится уже захешированным — валидируем на notEmpty при сохранении
+            ['password_hash', 'required'],
         ];
     }
 
+    /* ---------- IdentityInterface ---------- */
     public static function findIdentity($id)
     {
         return static::findOne($id);
@@ -32,7 +33,7 @@ class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface, R
 
     public static function findIdentityByAccessToken($token, $type = null)
     {
-        return null;
+        return null; // не используем
     }
 
     public static function findByEmail($email)
@@ -55,36 +56,56 @@ class User extends \yii\db\ActiveRecord implements \yii\web\IdentityInterface, R
         return $this->auth_key === $authKey;
     }
 
-    public function validatePin($pin)
+    /* ---------- Пароли ---------- */
+
+    /** Устанавливает новый пароль (хеширует) */
+    public function setPassword(string $password): void
     {
-        return $this->pin_code === $pin;
+        $this->password_hash = Yii::$app->security->generatePasswordHash($password);
+        $this->password_updated_at = time();
+        // Инвалидируем старые «запомнить меня»
+        $this->auth_key = Yii::$app->security->generateRandomString();
     }
 
+    /** Проверяет пароль против хеша */
+    public function validatePassword(string $password): bool
+    {
+        return $this->password_hash !== '' &&
+            Yii::$app->security->validatePassword($password, $this->password_hash);
+    }
+
+    /* ---------- Техничка ---------- */
     public function beforeSave($insert)
     {
         if ($insert) {
-            $this->auth_key = Yii::$app->security->generateRandomString();
+            if (empty($this->auth_key)) {
+                $this->auth_key = Yii::$app->security->generateRandomString();
+            }
             $this->created_at = time();
         }
         $this->updated_at = time();
         return parent::beforeSave($insert);
     }
 
-    public function getRateLimit($request, $action) {
+    /* ---------- RateLimitInterface (OCR лимиты оставляем как есть) ---------- */
+    public function getRateLimit($request, $action)
+    {
         if ($action && $action->uniqueId === 'scan/recognize') {
-            return [50, 60]; // [макс-токенов, окно(сек)] тест
-            /* return [10, 60];*/ // [макс-токенов, окно(сек)] боевой
+            return [50, 60]; // тестовый лимит (макс, окно)
+            // return [10, 60]; // боевой лимит
         }
         return [PHP_INT_MAX, 1];
     }
-    public function loadAllowance($request, $action) {
+
+    public function loadAllowance($request, $action)
+    {
         return [(int)$this->ocr_allowance, (int)$this->ocr_allowance_updated_at];
     }
-    public function saveAllowance($request, $action, $allowance, $timestamp) {
+
+    public function saveAllowance($request, $action, $allowance, $timestamp)
+    {
         $this->ocr_allowance = (int)$allowance;
         $this->ocr_allowance_updated_at = (int)$timestamp;
-        $this->update(false, ['ocr_allowance','ocr_allowance_updated_at']);
+        $this->update(false, ['ocr_allowance', 'ocr_allowance_updated_at']);
     }
-
 }
-

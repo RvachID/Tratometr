@@ -23,14 +23,14 @@ class AuthController extends Controller
     {
         if (Yii::$app->request->isPost) {
             $email = Yii::$app->request->post('email');
-            $pin = Yii::$app->request->post('pin_code');
+            $password = Yii::$app->request->post('password');
 
-            $user = User::findByEmail($email);
-            if ($user && $user->validatePin($pin)) {
+            $user = \app\models\User::findByEmail($email);
+            if ($user && $user->validatePassword($password)) {
                 Yii::$app->user->login($user, 3600 * 24 * 30);
                 return $this->goHome();
             }
-            Yii::$app->session->setFlash('error', 'Неверный e‑mail или PIN.');
+            Yii::$app->session->setFlash('error', 'Неверный e-mail или пароль.');
         }
         return $this->render('login');
     }

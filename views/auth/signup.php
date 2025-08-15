@@ -1,17 +1,25 @@
 <?php
-
-use yii\helpers\Html;
 use yii\widgets\ActiveForm;
+use yii\helpers\Html;
 
+/** @var $model app\models\SignupForm */
 $this->title = 'Регистрация';
 ?>
+<div class="container mt-4" style="max-width:480px">
+    <h1 class="h4 mb-3 text-center"><?= Html::encode($this->title) ?></h1>
 
-<h1><?= Html::encode($this->title) ?></h1>
+    <?php $form = ActiveForm::begin(['id' => 'signup-form']); ?>
 
-<?php $form = ActiveForm::begin(); ?>
-<?= $form->field($model, 'email')->input('email') ?>
-<?= $form->field($model, 'pin_code')->passwordInput() ?>
-<div class="form-group">
-    <?= Html::submitButton('Зарегистрироваться', ['class' => 'btn btn-outline-secondary']) ?>
+    <?= $form->field($model, 'email')
+        ->input('email', ['autocomplete' => 'username', 'placeholder' => 'you@example.com']) ?>
+
+    <?= $form->field($model, 'password')
+        ->passwordInput(['autocomplete' => 'new-password', 'placeholder' => 'Минимум 8 символов, буквы и цифры']) ?>
+
+    <?= $form->field($model, 'password_repeat')
+        ->passwordInput(['autocomplete' => 'new-password', 'placeholder' => 'Повторите пароль']) ?>
+
+    <?= Html::submitButton('Зарегистрироваться', ['class' => 'btn btn-outline-secondary w-100']) ?>
+
+    <?php ActiveForm::end(); ?>
 </div>
-<?php ActiveForm::end(); ?>

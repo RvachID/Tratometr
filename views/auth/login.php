@@ -1,39 +1,25 @@
 <?php
-
 use yii\helpers\Html;
 use yii\helpers\Url;
 
 $this->title = 'Вход';
 ?>
-
-<div class="container mt-5" style="max-width: 400px;">
-    <h2 class="mb-4 text-center"><?= Html::encode($this->title) ?></h2>
-
-    <?php if (Yii::$app->session->hasFlash('error')): ?>
-        <div class="alert alert-danger">
-            <?= Yii::$app->session->getFlash('error') ?>
-        </div>
-    <?php endif; ?>
+<div class="container mt-4" style="max-width:480px">
+    <h1 class="h4 mb-3 text-center"><?= Html::encode($this->title) ?></h1>
 
     <form method="post" action="<?= Url::to(['auth/login']) ?>">
-        <?= Html::hiddenInput('_csrf', Yii::$app->request->getCsrfToken()) ?>
+        <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->getCsrfToken()) ?>
 
         <div class="mb-3">
-            <label for="email" class="form-label">Email</label>
-            <input type="email" name="email" class="form-control" id="email" required autofocus>
+            <label class="form-label">E-mail</label>
+            <input type="email" name="email" class="form-control" required autocomplete="username" placeholder="you@example.com">
         </div>
 
         <div class="mb-3">
-            <label for="pin_code" class="form-label">PIN</label>
-            <input type="password" name="pin_code" class="form-control" id="pin_code" required pattern="\d{4,6}">
+            <label class="form-label">Пароль</label>
+            <input type="password" name="password" class="form-control" required autocomplete="current-password" placeholder="Ваш пароль">
         </div>
 
-        <div class="d-grid">
-            <button type="submit" class="btn btn-outline-secondary">Войти</button>
-        </div>
+        <button type="submit" class="btn btn-outline-secondary w-100">Войти</button>
     </form>
-
-    <p class="mt-3 text-center">
-        Нет аккаунта? <?= Html::a('Зарегистрироваться', ['auth/signup']) ?>
-    </p>
 </div>
