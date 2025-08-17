@@ -80,6 +80,10 @@ $config = [
         'ocr' => [
             'class' => \app\components\OcrClient::class,
         ],
+        'ps' => [
+            'class' => \app\components\PurchaseSessionService::class,
+            'autocloseSeconds' => 10800, // 3 часа
+        ],
     ],
     'name' => 'Тратометр',
     'defaultRoute' => 'site/index',

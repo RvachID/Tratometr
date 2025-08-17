@@ -67,29 +67,19 @@ class PriceController extends Controller
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-        $ps = PurchaseSession::find()
-            ->where(['user_id' => Yii::$app->user->id, 'status' => PurchaseSession::STATUS_ACTIVE])
-            ->orderBy(['updated_at' => SORT_DESC])
-            ->limit(1)->one();
-
-        if (!$ps) return ['error' => 'Нет активной покупки. Начните или возобновите сессию.'];
+        $userId = Yii::$app->user->id;
+        $ps = Yii::$app->ps->active($userId);
+        if (!$ps) return ['error'=>'Нет активной покупки.'];
 
         $id = (int)Yii::$app->request->post('id', 0);
-
         $model = $id
-            ? PriceEntry::findOne([
-                'id' => $id,
-                'user_id' => Yii::$app->user->id,
-                // 'session_id' => $ps->id, // можно включить, когда все записи уже с сессией
-            ])
-            : new PriceEntry();
+            ? \app\models\PriceEntry::findOne(['id'=>$id,'user_id'=>$userId])
+            : new \app\models\PriceEntry();
 
         if (!$model) throw new \yii\web\NotFoundHttpException('Запись не найдена');
 
         $model->load(Yii::$app->request->post(), '');
-
-        // жёстко фиксируем принадлежность
-        $model->user_id    = Yii::$app->user->id;
+        $model->user_id    = $userId;
         $model->session_id = $ps->id;
         $model->store      = $ps->shop;
         $model->category   = $ps->category ?: null;
@@ -97,29 +87,24 @@ class PriceController extends Controller
         if ($model->isNewRecord) {
             $model->source = $model->source ?: 'manual';
             $model->qty    = $model->qty ?: 1;
-            if (property_exists($model, 'created_at') && empty($model->created_at)) {
-                $model->created_at = time();
-            }
+            $model->created_at = $model->created_at ?: time();
         }
 
-        if (!$model->validate()) return ['error' => current($model->firstErrors) ?: 'Ошибка валидации'];
-
+        if (!$model->validate()) return ['error'=>current($model->firstErrors) ?: 'Ошибка валидации'];
         $model->save(false);
-        $ps->updateAttributes(['updated_at' => time()]);
 
-        $listTotal = (float) PriceEntry::find()
-            ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
+        Yii::$app->ps->touch($ps);
+
+        $total = (float)\app\models\PriceEntry::find()
+            ->where(['user_id'=>$userId,'session_id'=>$ps->id])
             ->sum('amount * qty');
 
         return [
-            'id'        => $model->id,
-            'rowTotal'  => number_format($model->amount * $model->qty, 2, '.', ''),
-            'listTotal' => number_format($listTotal, 2, '.', ''),
+            'id'=>$model->id,
+            'rowTotal'=>number_format($model->amount*$model->qty, 2, '.', ''),
+            'listTotal'=>number_format($total, 2, '.', ''),
         ];
     }
-
-
-
 
     /** + / − / set(дробное) для qty */
     public function actionQty($id)

@@ -1,7 +1,6 @@
 <?php
 namespace app\models;
 
-use Yii;
 use yii\db\ActiveRecord;
 
 class PurchaseSession extends ActiveRecord
@@ -14,26 +13,18 @@ class PurchaseSession extends ActiveRecord
     public function rules(): array
     {
         return [
+            [['user_id','status','started_at','updated_at'], 'integer'],
             [['user_id','shop','category'], 'required'],
-            [['user_id','limit_amount','status','started_at','updated_at'], 'integer'],
-            [['shop','category'], 'string', 'max'=>120],
+            [['limit_amount'], 'integer'],
+            [['shop','category'], 'string', 'max' => 120],
         ];
     }
 
     public function beforeSave($insert)
     {
         $now = time();
-        if ($insert) $this->started_at = $now;
+        if ($insert && !$this->started_at) $this->started_at = $now;
         $this->updated_at = $now;
         return parent::beforeSave($insert);
     }
-
-    public static function activeForUser(int $userId): ?self
-    {
-        return static::find()
-            ->where(['user_id'=>$userId, 'status'=>self::STATUS_ACTIVE])
-            ->orderBy(['updated_at'=>SORT_DESC])
-            ->limit(1)->one();
-    }
-
 }

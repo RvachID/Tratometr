@@ -62,4 +62,8 @@ class PriceEntry extends ActiveRecord
     {
         return $this->hasOne(User::class, ['id' => 'user_id']);
     }
+    public function getSession() {
+        return $this->hasOne(PurchaseSession::class, ['id' => 'session_id']);
+    }
+
 }
