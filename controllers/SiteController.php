@@ -188,7 +188,7 @@ class SiteController extends Controller
             PriceEntry::deleteAll(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id]);
             PurchaseSession::deleteAll(['id'=>$ps->id, 'user_id'=>$ps->user_id]);
             Yii::$app->session->remove('purchase_session_id');
-            Yii::$app->session->setFlash('success','Покупка удалена.');
+            Yii::$app->session->setFlash('success','Закупка удалена.');
         }
         return $this->redirect(['site/index']);
     }
