@@ -24,7 +24,7 @@ $fmt = Yii::$app->formatter;
     <?php if (!empty($psInfo)): ?>
         <div class="card border-0 shadow-sm mt-2 text-start">
             <div class="card-body">
-                <div class="small text-muted mb-1">Открытая сессия</div>
+                <div class="small text-muted mb-2">Открытая сессия</div>
 
                 <div class="row">
                     <div class="col-12 col-md-4 mb-1">
@@ -44,20 +44,25 @@ $fmt = Yii::$app->formatter;
                     </div>
                 <?php endif; ?>
 
-                <!-- Кнопки: в один ряд, без стека -->
-                <div class="d-flex flex-row flex-nowrap align-items-center gap-2 mt-3">
-                    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary">▶️ Продолжить</a>
+                <!-- Продолжить — одна длинная кнопка -->
+                <div class="mt-3">
+                    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary w-100">▶️ Продолжить</a>
+                </div>
 
-                    <?= Html::beginForm(['site/close-session'], 'post', ['class' => 'd-inline']) ?>
-                    <?= Html::submitButton('✅ Закончить', ['class' => 'btn btn-outline-secondary']) ?>
-                    <?= Html::endForm() ?>
-
-                    <?= Html::beginForm(['site/delete-session'], 'post', [
-                        'class' => 'd-inline',
-                        'onsubmit' => "return confirm('Удалить сессию и все позиции? Это действие необратимо.')"
-                    ]) ?>
-                    <?= Html::submitButton('🗑️ Удалить', ['class' => 'btn btn-outline-secondary']) ?>
-                    <?= Html::endForm() ?>
+                <!-- Ниже: две кнопки в один ряд, поровну -->
+                <div class="row mt-2 g-2">
+                    <div class="col-6">
+                        <?= Html::beginForm(['site/close-session'], 'post') ?>
+                        <?= Html::submitButton('✅ Закончить', ['class' => 'btn btn-outline-secondary w-100']) ?>
+                        <?= Html::endForm() ?>
+                    </div>
+                    <div class="col-6">
+                        <?= Html::beginForm(['site/delete-session'], 'post', [
+                            'onsubmit' => "return confirm('Удалить сессию и все позиции? Это действие необратимо.')"
+                        ]) ?>
+                        <?= Html::submitButton('🗑️ Удалить', ['class' => 'btn btn-outline-secondary w-100']) ?>
+                        <?= Html::endForm() ?>
+                    </div>
                 </div>
             </div>
         </div>
