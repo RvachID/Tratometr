@@ -19,6 +19,7 @@ use yii\db\ActiveRecord;
  * @property float|null $recognized_amount
  * @property int $created_at
  * @property int $updated_at
+ * @property int $session_id
  */
 class PriceEntry extends ActiveRecord
 {
@@ -35,6 +36,7 @@ class PriceEntry extends ActiveRecord
             [['amount', 'qty', 'recognized_amount'], 'number'],
             [['recognized_text'], 'string'],
             [['store', 'category', 'source', 'note', 'photo_path'], 'string', 'max' => 255],
+            ['session_id', 'integer'],
             [['source'], 'in', 'range' => ['manual', 'price_tag', 'receipt']],
         ];
     }
