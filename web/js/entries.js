@@ -127,11 +127,43 @@
     }
 
     function updateTotal(total) {
-        const el = document.querySelector('.mt-3 h5 strong');
-        if (el) el.textContent = Number(total).toLocaleString('ru-RU', {
-            minimumFractionDigits: 2, maximumFractionDigits: 2
-        });
+        const el = document.getElementById('scan-total');
+        if (el) {
+            el.textContent = Number(total).toLocaleString('ru-RU', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            });
+        }
     }
+
+    const doSave = async () => {
+        const fd = new FormData();
+        fd.append('amount', amountEl.value);
+        fd.append('qty', qtyEl.value);
+        try {
+            const r = await fetch(`index.php?r=scan/update&id=${id}`, {
+                method:'POST', headers:{'X-CSRF-Token':csrf}, body:fd, credentials:'include'
+            });
+            let res;
+            const ct = r.headers.get('content-type') || '';
+            if (ct.includes('application/json')) {
+                res = await r.json();
+            } else {
+                const text = await r.text();
+                console.error('update: non-JSON response', text);
+                alert('Ошибка сохранения (сервер вернул не-JSON)');
+                return;
+            }
+            if (res.success && typeof res.total !== 'undefined') {
+                updateTotal(res.total);
+            } else if (res.error) {
+                alert(res.error);
+            }
+        } catch (e) {
+            console.error('autosave error', e);
+            alert('Ошибка сети при сохранении');
+        }
+    };
+
 
     // Инициализация на странице списка
     document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));

@@ -107,6 +107,7 @@ class PriceController extends Controller
     }
 
 
+
     /** + / − / set(дробное) для qty */
     public function actionQty($id)
     {

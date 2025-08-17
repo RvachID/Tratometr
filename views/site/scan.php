@@ -109,8 +109,9 @@ $entries = $entries ?? [];
                 </div>
             </div>
 
-            <div class="mt-3">
-                <h5>Общая сумма: <strong><?= number_format($total, 2, '.', ' ') ?></strong> ₽</h5>
+            <div class="total mt-3">
+                <span class="me-1"><strong><?= $totalLabel ?? 'Общая сумма:' ?></strong></span>
+                <strong id="scan-total"><?= number_format($total ?? 0, 2, '.', ' ') ?></strong>
             </div>
 
             <div class="mt-3 text-start">

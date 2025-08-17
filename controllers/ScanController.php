@@ -524,94 +524,56 @@ class ScanController extends Controller
         }
     }
 
+    /** Автосохранение суммы/qty из строки списка */
     public function actionUpdate($id)
     {
-        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $ps = \app\models\PurchaseSession::activeForUser(Yii::$app->user->id);
-        if (!$ps) return ['success'=>false, 'error'=>'Нет активной покупки.'];
+        $ps = Yii::$app->ps->active(Yii::$app->user->id);
+        if (!$ps) return ['success'=>false,'error'=>'Нет активной покупки.'];
 
-        $model = \app\models\PriceEntry::findOne([
-            'id' => (int)$id,
-            'user_id' => Yii::$app->user->id,
-            // редактировать позволяем только в рамках активной сессии
-            // 'session_id' => $ps->id, // можно включить, если записи уже все с сессией
-        ]);
-        if (!$model) return ['success'=>false, 'error'=>'Запись не найдена'];
+        $m = PriceEntry::findOne(['id'=>(int)$id, 'user_id'=>Yii::$app->user->id]);
+        if (!$m) return ['success'=>false,'error'=>'Запись не найдена'];
 
-        $model->load(Yii::$app->request->post(), '');
+        $m->load(Yii::$app->request->post(), '');
+        // фиксируем принадлежность к текущей серверной сессии
+        $m->user_id    = Yii::$app->user->id;
+        $m->session_id = $ps->id;
+        $m->store      = $ps->shop;
+        $m->category   = $ps->category ?: null;
+        $m->updated_at = time();
 
-        // Жёстко фиксируем владельца и привязку к сессии
-        $model->user_id    = Yii::$app->user->id;
-        if ((int)$model->session_id !== (int)$ps->id) {
-            $model->session_id = $ps->id;
-            // на всякий — синхронизируем контекст
-            $model->store    = $ps->shop;
-            $model->category = $ps->category ?: null;
+        if (!$m->save(false)) {
+            return ['success'=>false,'error'=>'Не удалось сохранить'];
         }
 
-        if (!$model->validate()) {
-            return ['success'=>false, 'error'=>current($model->firstErrors) ?: 'Ошибка валидации'];
-        }
-        $model->save(false);
+        Yii::$app->ps->touch($ps);
 
-        // total только по текущей сессии
-        $total = (float)\app\models\PriceEntry::find()
+        $total = (float) PriceEntry::find()
             ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
             ->sum('amount * qty');
 
-        $ps->updateAttributes(['updated_at'=>time()]);
-
-        return ['success'=>true, 'total'=>number_format($total, 2, '.', '')];
+        return ['success'=>true,'total'=>number_format($total, 2, '.', '')];
     }
 
+    /** Удаление строки из списка */
     public function actionDelete($id)
     {
-        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
-        if (!Yii::$app->request->isPost) {
-            Yii::$app->response->statusCode = 405;
-            return ['success' => false, 'error' => 'Метод не поддерживается'];
-        }
+        $ps = Yii::$app->ps->active(Yii::$app->user->id);
+        if (!$ps) return ['success'=>false,'error'=>'Нет активной покупки.'];
 
-        $m = \app\models\PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
-        if (!$m) {
-            Yii::$app->response->statusCode = 404;
-            return ['success' => false, 'error' => 'Запись не найдена'];
-        }
+        $m = PriceEntry::findOne(['id'=>(int)$id, 'user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id]);
+        if (!$m) return ['success'=>false,'error'=>'Запись не найдена'];
 
-        if ($m->delete() === false) {
-            return ['success' => false, 'error' => 'Не удалось удалить'];
-        }
+        $m->delete();
 
-        // ---- ТОТАЛ ТОЛЬКО ПО ТЕКУЩЕЙ СЕССИИ ----
-        $sess        = Yii::$app->session->get('shopSession', []);
-        $storeSess   = (string)($sess['store'] ?? '');
-        $catSess     = (string)($sess['category'] ?? '');
-        $startedSess = (int)($sess['started_at'] ?? 0);
+        $total = (float) PriceEntry::find()
+            ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
+            ->sum('amount * qty');
 
-        $db    = Yii::$app->db;
-        $total = 0.0;
-
-        if ($storeSess !== '' && $startedSess > 0) {
-            if ($catSess === '') {
-                $total = (float)$db->createCommand(
-                    'SELECT COALESCE(SUM(amount*qty),0)
-                 FROM price_entry
-                 WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
-                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':from' => $startedSess]
-                )->queryScalar();
-            } else {
-                $total = (float)$db->createCommand(
-                    'SELECT COALESCE(SUM(amount*qty),0)
-                 FROM price_entry
-                 WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
-                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':c' => $catSess, ':from' => $startedSess]
-                )->queryScalar();
-            }
-        }
-
-        return ['success' => true, 'total' => $total];
+        return ['success'=>true,'total'=>number_format($total, 2, '.', '')];
     }
 
 
