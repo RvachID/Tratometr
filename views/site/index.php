@@ -44,17 +44,19 @@ $fmt = Yii::$app->formatter;
                     </div>
                 <?php endif; ?>
 
-                <div class="d-flex flex-column flex-sm-row gap-2 mt-3">
-                    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary">Продолжить</a>
+                <!-- Кнопки: в один ряд, без стека -->
+                <div class="d-flex flex-row flex-nowrap align-items-center gap-2 mt-3">
+                    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary">▶️ Продолжить</a>
 
-                    <?= Html::beginForm(['site/close-session'], 'post') ?>
-                    <?= Html::submitButton('Закончить', ['class' => 'btn btn-outline-secondary']) ?>
+                    <?= Html::beginForm(['site/close-session'], 'post', ['class' => 'd-inline']) ?>
+                    <?= Html::submitButton('✅ Закончить', ['class' => 'btn btn-outline-secondary']) ?>
                     <?= Html::endForm() ?>
 
                     <?= Html::beginForm(['site/delete-session'], 'post', [
+                        'class' => 'd-inline',
                         'onsubmit' => "return confirm('Удалить сессию и все позиции? Это действие необратимо.')"
                     ]) ?>
-                    <?= Html::submitButton('Удалить', ['class' => 'btn btn-danger']) ?>
+                    <?= Html::submitButton('🗑️ Удалить', ['class' => 'btn btn-outline-secondary']) ?>
                     <?= Html::endForm() ?>
                 </div>
             </div>
