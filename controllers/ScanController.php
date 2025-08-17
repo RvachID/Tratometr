@@ -10,6 +10,7 @@ use yii\web\NotFoundHttpException;
 use yii\web\BadRequestHttpException;
 use app\models\PriceEntry;
 use yii\filters\RateLimiter;
+use app\models\PurchaseSession;
 
 class ScanController extends Controller
 {
@@ -463,34 +464,31 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Требуется вход'];
             }
 
-            // Активная серверная сессия покупки
-            $ps = $this->getActivePurchaseSession();
+            // Активная серверная сессия (без методов другого контроллера)
+            $ps = PurchaseSession::find()
+                ->where(['user_id' => Yii::$app->user->id, 'status' => PurchaseSession::STATUS_ACTIVE])
+                ->orderBy(['updated_at' => SORT_DESC])
+                ->limit(1)->one();
+
             if (!$ps) {
                 return ['success' => false, 'error' => 'Нет активной покупки. Начните или возобновите сессию.'];
             }
 
-            // --- входные данные ---
             $amount = Yii::$app->request->post('amount');
             $qty    = Yii::$app->request->post('qty', 1);
             $note   = (string)Yii::$app->request->post('note', '');
             $text   = (string)Yii::$app->request->post('parsed_text', '');
 
-            // --- базовая валидация ---
-            if (!is_numeric($amount) || (float)$amount <= 0) {
-                return ['success' => false, 'error' => 'Неверная сумма'];
-            }
-            if (!is_numeric($qty) || (float)$qty <= 0) {
-                $qty = 1;
-            }
+            if (!is_numeric($amount) || (float)$amount <= 0) return ['success' => false, 'error' => 'Неверная сумма'];
+            if (!is_numeric($qty)    || (float)$qty    <= 0) $qty = 1;
 
-            // --- сохранение записи (жёстко привязываем к серверной сессии) ---
-            $entry = new \app\models\PriceEntry();
+            $entry = new PriceEntry();
             $entry->user_id           = Yii::$app->user->id;
-            $entry->session_id        = $ps->id;                    // <— ВАЖНО
+            $entry->session_id        = $ps->id;                // ВАЖНО
             $entry->amount            = (float)$amount;
             $entry->qty               = (float)$qty;
-            $entry->store             = $ps->shop;                  // из сессии, а не из POST
-            $entry->category          = $ps->category ?: null;      // пустую строку → NULL
+            $entry->store             = $ps->shop;              // из сессии
+            $entry->category          = $ps->category ?: null;  // из сессии
             $entry->note              = $note;
             $entry->recognized_text   = $text;
             $entry->recognized_amount = (float)$amount;
@@ -502,11 +500,9 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Ошибка сохранения'];
             }
 
-            // «пульс» активной сессии (для анти-автозакрытия)
             $ps->updateAttributes(['updated_at' => time()]);
 
-            // --- пересчёт total ТОЛЬКО по текущей серверной сессии ---
-            $total = (float)\app\models\PriceEntry::find()
+            $total = (float) PriceEntry::find()
                 ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
                 ->sum('amount * qty');
 
@@ -520,15 +516,13 @@ class ScanController extends Controller
                     'store'    => (string)$entry->store,
                     'category' => $entry->category,
                 ],
-                'total'   => $total, // число; на фронте форматируешь как раньше
+                'total'   => $total,
             ];
-
         } catch (\Throwable $e) {
             Yii::error($e->getMessage() . "\n" . $e->getTraceAsString(), __METHOD__);
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
         }
     }
-
 
     public function actionUpdate($id)
     {
@@ -570,8 +564,6 @@ class ScanController extends Controller
 
         return ['success'=>true, 'total'=>number_format($total, 2, '.', '')];
     }
-
-
 
     public function actionDelete($id)
     {

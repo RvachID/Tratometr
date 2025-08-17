@@ -2,6 +2,7 @@
 
 namespace app\controllers;
 
+use app\models\PurchaseSession;
 use Yii;
 use yii\web\Controller;
 use yii\web\Response;
@@ -66,53 +67,47 @@ class PriceController extends Controller
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-        $ps = $this->getActivePurchaseSession();
-        if (!$ps) {
-            return ['error' => 'Нет активной покупки. Начните или возобновите сессию.'];
-        }
+        $ps = PurchaseSession::find()
+            ->where(['user_id' => Yii::$app->user->id, 'status' => PurchaseSession::STATUS_ACTIVE])
+            ->orderBy(['updated_at' => SORT_DESC])
+            ->limit(1)->one();
+
+        if (!$ps) return ['error' => 'Нет активной покупки. Начните или возобновите сессию.'];
 
         $id = (int)Yii::$app->request->post('id', 0);
 
         $model = $id
-            ? \app\models\PriceEntry::findOne([
+            ? PriceEntry::findOne([
                 'id' => $id,
                 'user_id' => Yii::$app->user->id,
-                'session_id' => $ps->id, // редактировать можно только в текущей сессии
+                // 'session_id' => $ps->id, // можно включить, когда все записи уже с сессией
             ])
-            : new \app\models\PriceEntry();
+            : new PriceEntry();
 
-        if (!$model) {
-            throw new \yii\web\NotFoundHttpException('Запись не найдена');
-        }
+        if (!$model) throw new \yii\web\NotFoundHttpException('Запись не найдена');
 
         $model->load(Yii::$app->request->post(), '');
 
-        // Всегда фиксируем владельца и серверную сессию
+        // жёстко фиксируем принадлежность
         $model->user_id    = Yii::$app->user->id;
         $model->session_id = $ps->id;
+        $model->store      = $ps->shop;
+        $model->category   = $ps->category ?: null;
 
         if ($model->isNewRecord) {
-            $model->source  = $model->source ?: 'manual';
-            $model->qty     = $model->qty ?: 1;
-            // синхронизируем контекст
-            $model->store    = $ps->shop;
-            $model->category = $ps->category ?: null;
+            $model->source = $model->source ?: 'manual';
+            $model->qty    = $model->qty ?: 1;
             if (property_exists($model, 'created_at') && empty($model->created_at)) {
                 $model->created_at = time();
             }
         }
 
-        if (!$model->validate()) {
-            return ['error' => current($model->firstErrors) ?: 'Ошибка валидации'];
-        }
+        if (!$model->validate()) return ['error' => current($model->firstErrors) ?: 'Ошибка валидации'];
 
         $model->save(false);
-
-        // «пульс» сессии
         $ps->updateAttributes(['updated_at' => time()]);
 
-        // Итог ТОЛЬКО по текущей сессии
-        $listTotal = (float)\app\models\PriceEntry::find()
+        $listTotal = (float) PriceEntry::find()
             ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
             ->sum('amount * qty');
 
@@ -122,6 +117,7 @@ class PriceController extends Controller
             'listTotal' => number_format($listTotal, 2, '.', ''),
         ];
     }
+
 
 
 
