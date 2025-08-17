@@ -10,11 +10,10 @@ use yii\web\Response;
 use yii\filters\VerbFilter;
 use app\models\LoginForm;
 use app\models\ContactForm;
-
+use app\models\PurchaseSession;
 class SiteController extends Controller
 {
-    private const ASK_THRESHOLD_SEC = 45 * 60;   // 45 минут
-    private const RESET_THRESHOLD_SEC = 120 * 60;  // 2 часа
+    private const INACTIVITY_AUTOCLOSE_SEC = 10800;
     /**
      * {@inheritdoc}
      */
@@ -22,24 +21,27 @@ class SiteController extends Controller
     {
         return [
             'access' => [
-                'class' => AccessControl::class,
+                'class' => \yii\filters\AccessControl::class,
                 'only' => ['logout'],
                 'rules' => [
                     [
                         'actions' => ['logout'],
-                        'allow' => true,
-                        'roles' => ['@'],
+                        'allow'   => true,
+                        'roles'   => ['@'],
                     ],
                 ],
             ],
             'verbs' => [
-                'class' => VerbFilter::class,
+                'class'   => \yii\filters\VerbFilter::class,
                 'actions' => [
-                    'logout' => ['post'],
+                    'logout'         => ['post'],
+                    'close-session'  => ['post'],
+                    'delete-session' => ['post'],
                 ],
             ],
         ];
     }
+
 
     /**
      * {@inheritdoc}
@@ -120,36 +122,12 @@ class SiteController extends Controller
         return $this->render('about');
     }
 
-
-    // ----- сессия «магазин/категория» -----
-    private function getShopSession(): array
-    {
-        return Yii::$app->session->get('shopSession', [
-            'store'        => '',
-            'category'     => '',
-            'started_at'   => 0,
-            'last_scan_at' => 0,
-        ]);
-    }
-
-    private function setShopSession(string $store, string $category): void
-    {
-        $now = time();
-        Yii::$app->session->set('shopSession', [
-            'store'        => $store,
-            'category'     => $category,
-            'started_at'   => $now,
-            'last_scan_at' => $now,
-        ]);
-    }
-
     // ----- страницы -----
     public function actionIndex()
     {
         if (Yii::$app->user->isGuest) {
             return $this->redirect(['auth/login']);
         }
-
 
         $entries = PriceEntry::find()
             ->where(['user_id' => Yii::$app->user->id])
@@ -159,170 +137,219 @@ class SiteController extends Controller
 
         $total = array_reduce($entries, fn($sum, $e) => $sum + $e->amount * $e->qty, 0);
 
-        // --- Цитата для главной ---
+        // Активная покупка для панели на главной
+        $ps = $this->getActivePurchaseSession();
+        $psInfo = null;
+        if ($ps) {
+            $lastTs = $this->getLastActivityTs($ps);
+            $psInfo = [
+                'id'        => $ps->id,
+                'shop'      => $ps->shop,
+                'category'  => $ps->category,
+                'startedAt' => $ps->started_at,
+                'lastTs'    => $lastTs,
+                'limit'     => $ps->limit_amount,
+            ];
+        }
+
+
         $db = Yii::$app->db;
         $lastQuoteId = Yii::$app->session->get('last_quote_id');
-
-        $quotesTotal = (new \yii\db\Query())
-            ->from('quotes')
-            ->count('*', $db);
-
+        $quotesTotal = (new \yii\db\Query())->from('quotes')->count('*', $db);
         $quote = null;
-
         if ($quotesTotal > 0) {
             $q = (new \yii\db\Query())->from('quotes');
-
-            // Исключаем последнюю цитату только если есть из чего выбирать
-            if ($quotesTotal > 1 && $lastQuoteId) {
-                $q->where(['<>', 'id', $lastQuoteId]);
-            }
-
-            $quote = $q->orderBy(new \yii\db\Expression('RAND()'))
-                ->limit(1)
-                ->one($db);
-
-            // Фолбек на случай пустого результата
-            if (!$quote) {
-                $quote = (new \yii\db\Query())
-                    ->from('quotes')
-                    ->orderBy(new \yii\db\Expression('RAND()'))
-                    ->limit(1)
-                    ->one($db);
-            }
-
-            if ($quote) {
-                Yii::$app->session->set('last_quote_id', $quote['id']);
-            }
+            if ($quotesTotal > 1 && $lastQuoteId) $q->where(['<>','id',$lastQuoteId]);
+            $quote = $q->orderBy(new \yii\db\Expression('RAND()'))->limit(1)->one($db)
+                ?: (new \yii\db\Query())->from('quotes')->orderBy(new \yii\db\Expression('RAND()'))->limit(1)->one($db);
+            if ($quote) Yii::$app->session->set('last_quote_id', $quote['id']);
         }
 
         return $this->render('index', [
             'entries' => $entries,
             'total'   => $total,
             'quote'   => $quote,
+            'psInfo'  => $psInfo,
         ]);
     }
 
-    // страница сканера с проверкой таймаутов
+
+    // страница сканера
     public function actionScan()
     {
-        $sess = $this->getShopSession();
-        $now  = time();
+        if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
 
-        $store      = (string)($sess['store'] ?? '');
-        $category   = (string)($sess['category'] ?? '');
-        $startedAt  = (int)($sess['started_at'] ?? 0);
-        $lastScan   = (int)($sess['last_scan_at'] ?? 0);
-        $idle       = $lastScan ? ($now - $lastScan) : PHP_INT_MAX;
-
-        $needPrompt = false;
-
-        if ($store === '' || $idle >= self::RESET_THRESHOLD_SEC) {
-            // сессии нет/старая — обнуляем и просим начать
-            Yii::$app->session->remove('shopSession');
-            $store = '';
-            $category = '';
-            $startedAt = 0;
-            $needPrompt = true;
-        } elseif ($idle >= self::ASK_THRESHOLD_SEC) {
-            // 45–120 мин — предложим подтвердить/сменить магазин
-            $needPrompt = true;
+        $ps = $this->getActivePurchaseSession();
+        if (!$ps) {
+            // Нет активной — пусть фронт покажет модалку выбора
+            return $this->render('scan', [
+                'store'      => '',
+                'category'   => '',
+                'entries'    => [],
+                'total'      => 0.0,
+                'needPrompt' => true,
+            ]);
         }
 
-        // ⚠️ только текущая сессия
-        $entries = [];
-        $total   = 0.0;
+        // Позиции ТОЛЬКО текущей сессии
+        $entries = PriceEntry::find()
+            ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
+            ->orderBy(['id'=>SORT_DESC])
+            ->limit(200)
+            ->all();
 
-        if ($store !== '' && $startedAt > 0) {
-            $q = \app\models\PriceEntry::find()
-                ->where(['user_id' => Yii::$app->user->id, 'store' => $store])
-                ->andWhere(['>=', 'created_at', $startedAt])
-                ->orderBy(['id' => SORT_DESC])
-                ->limit(200);
+        $db = Yii::$app->db;
+        $total = (float)$db->createCommand(
+            'SELECT COALESCE(SUM(amount*qty),0) FROM price_entry WHERE user_id=:u AND session_id=:sid',
+            [':u'=>Yii::$app->user->id, ':sid'=>$ps->id]
+        )->queryScalar();
 
-            // категория может быть пустой (NULL)
-            if ($category === '') {
-                $q->andWhere(['category' => null]);
-            } else {
-                $q->andWhere(['category' => $category]);
-            }
-
-            $entries = $q->all();
-
-            // тотал только по текущей сессии
-            $db = Yii::$app->db;
-            if ($category === '') {
-                $total = (float)$db->createCommand(
-                    'SELECT COALESCE(SUM(amount*qty),0) 
-                 FROM price_entry 
-                 WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
-                    [':u' => Yii::$app->user->id, ':s' => $store, ':from' => $startedAt]
-                )->queryScalar();
-            } else {
-                $total = (float)$db->createCommand(
-                    'SELECT COALESCE(SUM(amount*qty),0) 
-                 FROM price_entry 
-                 WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
-                    [':u' => Yii::$app->user->id, ':s' => $store, ':c' => $category, ':from' => $startedAt]
-                )->queryScalar();
-            }
-        }
+        // подправим "живость"
+        $ps->updateAttributes(['updated_at'=>time()]);
 
         return $this->render('scan', [
-            'store'        => $store,
-            'category'     => $category,
-            'entries'      => $entries,
-            'total'        => $total,
-            'needPrompt'   => $needPrompt,
+            'store'      => $ps->shop,
+            'category'   => $ps->category,
+            'entries'    => $entries,
+            'total'      => $total,
+            'needPrompt' => false, // активная есть
         ]);
     }
 
-    // GET: статусы таймеров
+
     public function actionSessionStatus()
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-        $sess = Yii::$app->session->get('shopSession', [
-            'store' => '', 'category' => '', 'started_at' => 0, 'last_scan_at' => 0
-        ]);
-
-        $now  = time();
-        $idle = $now - (int)$sess['last_scan_at'];
-
-        $needPrompt = false;
-        if (!empty($sess['store'])) {
-            if ($idle >= self::RESET_THRESHOLD_SEC) $needPrompt = true;      // >2ч — точно спросить
-            elseif ($idle >= self::ASK_THRESHOLD_SEC) $needPrompt = true;    // 45–120 мин — спросить
-        } else {
-            $needPrompt = true; // нет активной сессии — просим ввести
+        if (Yii::$app->user->isGuest) {
+            return ['ok'=>false, 'needPrompt'=>true];
         }
 
+        $ps = $this->getActivePurchaseSession();
+        if (!$ps) {
+            return [
+                'ok'         => true,
+                'needPrompt' => true,
+                'store'      => '',
+                'category'   => '',
+                'idle'       => null,
+            ];
+        }
+
+        $lastTs = $this->getLastActivityTs($ps);
         return [
-            'ok'        => true,
-            'store'     => (string)($sess['store'] ?? ''),
-            'category'  => (string)($sess['category'] ?? ''),
-            'needPrompt'=> $needPrompt,
-            'idle'      => $idle,
+            'ok'         => true,
+            'needPrompt' => false,
+            'store'      => (string)$ps->shop,
+            'category'   => (string)$ps->category,
+            'idle'       => time() - $lastTs,
         ];
     }
 
-// POST: установить/сменить магазин+категорию (AJAX)
+
     public function actionBeginAjax()
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        if (Yii::$app->user->isGuest) {
+            return ['ok'=>false, 'error'=>'Требуется вход'];
+        }
 
         $store    = trim((string)Yii::$app->request->post('store', ''));
         $category = trim((string)Yii::$app->request->post('category', ''));
         if ($store === '') return ['ok' => false, 'error' => 'Укажите магазин'];
 
-        $now = time();
-        Yii::$app->session->set('shopSession', [
-            'store'        => $store,
-            'category'     => $category,
-            'started_at'   => $now,
-            'last_scan_at' => $now,
-        ]);
+        // Закрываем любую активную — одна активная на юзера
+        PurchaseSession::updateAll(
+            ['status'=>PurchaseSession::STATUS_CLOSED, 'updated_at'=>time()],
+            ['user_id'=>Yii::$app->user->id, 'status'=>PurchaseSession::STATUS_ACTIVE]
+        );
 
-        return ['ok' => true, 'store' => $store, 'category' => $category];
+        $ps = new PurchaseSession([
+            'user_id'  => Yii::$app->user->id,
+            'shop'     => $store,
+            'category' => $category,
+            'status'   => PurchaseSession::STATUS_ACTIVE,
+        ]);
+        $ps->save(false);
+
+        Yii::$app->session->set('purchase_session_id', $ps->id);
+
+        return ['ok'=>true, 'store'=>$store, 'category'=>$category];
+    }
+
+
+    /** Берём активную сессию из БД (восстанавливаем даже если PHP-сессия умерла) */
+    private function getActivePurchaseSession(): ?PurchaseSession
+    {
+        if (Yii::$app->user->isGuest) return null;
+
+        $sid = Yii::$app->session->get('purchase_session_id');
+        if ($sid) {
+            $ps = PurchaseSession::findOne([
+                'id' => $sid,
+                'user_id' => Yii::$app->user->id,
+                'status' => PurchaseSession::STATUS_ACTIVE
+            ]);
+            if ($ps) { $this->autoCloseIfStale($ps); return $ps->status === PurchaseSession::STATUS_ACTIVE ? $ps : null; }
+        }
+
+        $ps = PurchaseSession::find()
+            ->where(['user_id'=>Yii::$app->user->id, 'status'=>PurchaseSession::STATUS_ACTIVE])
+            ->orderBy(['updated_at'=>SORT_DESC])->limit(1)->one();
+
+        if ($ps) {
+            Yii::$app->session->set('purchase_session_id', $ps->id);
+            $this->autoCloseIfStale($ps);
+            return $ps->status === PurchaseSession::STATUS_ACTIVE ? $ps : null;
+        }
+        return null;
+    }
+
+    /** Последняя активность: последний чек в сессии, иначе старт */
+    private function getLastActivityTs(PurchaseSession $ps): int
+    {
+        $last = (new \yii\db\Query())
+            ->from('price_entry')
+            ->where(['session_id'=>$ps->id, 'user_id'=>Yii::$app->user->id])
+            ->max('created_at');
+        return (int)($last ?: $ps->started_at);
+    }
+
+    /** Автозакрытие по 3ч неактивности */
+    private function autoCloseIfStale(PurchaseSession $ps): void
+    {
+        $lastTs = $this->getLastActivityTs($ps);
+        if (time() - $lastTs >= self::INACTIVITY_AUTOCLOSE_SEC) {
+            $ps->updateAttributes(['status'=>PurchaseSession::STATUS_CLOSED, 'updated_at'=>time()]);
+            Yii::$app->session->remove('purchase_session_id');
+        }
+    }
+
+
+    public function actionCloseSession()
+    {
+        if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
+        $ps = $this->getActivePurchaseSession();
+        if ($ps) {
+            $ps->updateAttributes(['status'=>PurchaseSession::STATUS_CLOSED, 'updated_at'=>time()]);
+            Yii::$app->session->remove('purchase_session_id');
+            Yii::$app->session->setFlash('success','Покупка закрыта.');
+        }
+        return $this->redirect(['site/index']);
+    }
+
+    public function actionDeleteSession()
+    {
+        if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
+        $ps = $this->getActivePurchaseSession();
+        if ($ps) {
+            PriceEntry::deleteAll(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id]);
+            PurchaseSession::deleteAll(['id'=>$ps->id, 'user_id'=>Yii::$app->user->id]);
+            Yii::$app->session->remove('purchase_session_id');
+            Yii::$app->session->setFlash('success','Покупка удалена.');
+        }
+        return $this->redirect(['site/index']);
     }
 
 }
