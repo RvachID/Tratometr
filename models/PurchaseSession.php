@@ -27,4 +27,13 @@ class PurchaseSession extends ActiveRecord
         $this->updated_at = $now;
         return parent::beforeSave($insert);
     }
+
+    public static function activeForUser(int $userId): ?self
+    {
+        return static::find()
+            ->where(['user_id'=>$userId, 'status'=>self::STATUS_ACTIVE])
+            ->orderBy(['updated_at'=>SORT_DESC])
+            ->limit(1)->one();
+    }
+
 }

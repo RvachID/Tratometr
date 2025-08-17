@@ -459,26 +459,21 @@ class ScanController extends Controller
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
         try {
-            $amount   = Yii::$app->request->post('amount');
-            $qty      = Yii::$app->request->post('qty', 1);
-            $note     = (string)Yii::$app->request->post('note', '');
-            $text     = (string)Yii::$app->request->post('parsed_text', '');
-            $store    = (string)Yii::$app->request->post('store', '');
-            $category = Yii::$app->request->post('category', null);
+            if (Yii::$app->user->isGuest) {
+                return ['success' => false, 'error' => 'Требуется вход'];
+            }
 
-            // --- подстраховка из сессии ---
-            $sess = Yii::$app->session->get('shopSession', [
-                'store'        => '',
-                'category'     => '',
-                'started_at'   => 0,
-                'last_scan_at' => 0,
-            ]);
-            if ($store === '' && !empty($sess['store'])) {
-                $store = (string)$sess['store'];
+            // Активная серверная сессия покупки
+            $ps = $this->getActivePurchaseSession();
+            if (!$ps) {
+                return ['success' => false, 'error' => 'Нет активной покупки. Начните или возобновите сессию.'];
             }
-            if (($category === null || $category === '') && !empty($sess['category'])) {
-                $category = (string)$sess['category'];
-            }
+
+            // --- входные данные ---
+            $amount = Yii::$app->request->post('amount');
+            $qty    = Yii::$app->request->post('qty', 1);
+            $note   = (string)Yii::$app->request->post('note', '');
+            $text   = (string)Yii::$app->request->post('parsed_text', '');
 
             // --- базовая валидация ---
             if (!is_numeric($amount) || (float)$amount <= 0) {
@@ -488,13 +483,14 @@ class ScanController extends Controller
                 $qty = 1;
             }
 
-            // --- сохранение записи ---
+            // --- сохранение записи (жёстко привязываем к серверной сессии) ---
             $entry = new \app\models\PriceEntry();
             $entry->user_id           = Yii::$app->user->id;
+            $entry->session_id        = $ps->id;                    // <— ВАЖНО
             $entry->amount            = (float)$amount;
             $entry->qty               = (float)$qty;
-            $entry->store             = trim($store);
-            $entry->category          = $category ?: null;   // пустую строку превращаем в NULL
+            $entry->store             = $ps->shop;                  // из сессии, а не из POST
+            $entry->category          = $ps->category ?: null;      // пустую строку → NULL
             $entry->note              = $note;
             $entry->recognized_text   = $text;
             $entry->recognized_amount = (float)$amount;
@@ -502,47 +498,17 @@ class ScanController extends Controller
             $entry->created_at        = time();
             $entry->updated_at        = time();
 
-            // временный лог
-            Yii::info('STORE_DEBUG POST store=' . $store . ' category=' . $category, __METHOD__);
-
-            // сохраняем без валидации (исключаем фильтры правил, которые могут терять значение)
             if (!$entry->save(false)) {
-                return ['success' => false, 'error' => 'Ошибка сохранения (save false)'];
+                return ['success' => false, 'error' => 'Ошибка сохранения'];
             }
 
-            // --- обновим last_scan_at у сессии ---
-            if (!empty($sess)) {
-                $sess['last_scan_at'] = time();
-                Yii::$app->session->set('shopSession', $sess);
-            }
+            // «пульс» активной сессии (для анти-автозакрытия)
+            $ps->updateAttributes(['updated_at' => time()]);
 
-            // --- пересчёт total ТОЛЬКО по текущей сессии ---
-            $storeSess   = (string)($sess['store'] ?? $store);
-            $catSess     = (string)($sess['category'] ?? ($category ?? ''));
-            $startedSess = (int)($sess['started_at'] ?? 0);
-
-            $db    = Yii::$app->db;
-            $total = 0.0;
-
-            if ($storeSess !== '' && $startedSess > 0) {
-                if ($catSess === '') {
-                    // категория не задана (NULL)
-                    $total = (float)$db->createCommand(
-                        'SELECT COALESCE(SUM(amount*qty),0)
-                     FROM price_entry
-                     WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
-                        [':u' => Yii::$app->user->id, ':s' => $storeSess, ':from' => $startedSess]
-                    )->queryScalar();
-                } else {
-                    // категория задана
-                    $total = (float)$db->createCommand(
-                        'SELECT COALESCE(SUM(amount*qty),0)
-                     FROM price_entry
-                     WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
-                        [':u' => Yii::$app->user->id, ':s' => $storeSess, ':c' => $catSess, ':from' => $startedSess]
-                    )->queryScalar();
-                }
-            }
+            // --- пересчёт total ТОЛЬКО по текущей серверной сессии ---
+            $total = (float)\app\models\PriceEntry::find()
+                ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
+                ->sum('amount * qty');
 
             return [
                 'success' => true,
@@ -554,7 +520,7 @@ class ScanController extends Controller
                     'store'    => (string)$entry->store,
                     'category' => $entry->category,
                 ],
-                'total'   => $total,
+                'total'   => $total, // число; на фронте форматируешь как раньше
             ];
 
         } catch (\Throwable $e) {
@@ -568,57 +534,43 @@ class ScanController extends Controller
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-        $m = \app\models\PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
-        if (!$m) {
-            Yii::$app->response->statusCode = 404;
-            return ['success' => false, 'error' => 'Запись не найдена'];
+        $ps = \app\models\PurchaseSession::activeForUser(Yii::$app->user->id);
+        if (!$ps) return ['success'=>false, 'error'=>'Нет активной покупки.'];
+
+        $model = \app\models\PriceEntry::findOne([
+            'id' => (int)$id,
+            'user_id' => Yii::$app->user->id,
+            // редактировать позволяем только в рамках активной сессии
+            // 'session_id' => $ps->id, // можно включить, если записи уже все с сессией
+        ]);
+        if (!$model) return ['success'=>false, 'error'=>'Запись не найдена'];
+
+        $model->load(Yii::$app->request->post(), '');
+
+        // Жёстко фиксируем владельца и привязку к сессии
+        $model->user_id    = Yii::$app->user->id;
+        if ((int)$model->session_id !== (int)$ps->id) {
+            $model->session_id = $ps->id;
+            // на всякий — синхронизируем контекст
+            $model->store    = $ps->shop;
+            $model->category = $ps->category ?: null;
         }
 
-        $amount = Yii::$app->request->post('amount', null);
-        $qty    = Yii::$app->request->post('qty', null);
-
-        if ($amount !== null) $m->amount = (float)$amount;
-        if ($qty    !== null) $m->qty    = (float)$qty;
-
-        $m->updated_at = time();
-
-        if (!$m->save(false, ['amount', 'qty', 'updated_at'])) {
-            return ['success' => false, 'error' => 'Не удалось сохранить', 'details' => $m->errors];
+        if (!$model->validate()) {
+            return ['success'=>false, 'error'=>current($model->firstErrors) ?: 'Ошибка валидации'];
         }
+        $model->save(false);
 
-        // ---- ТОТАЛ ТОЛЬКО ПО ТЕКУЩЕЙ СЕССИИ ----
-        $sess        = Yii::$app->session->get('shopSession', []);
-        $storeSess   = (string)($sess['store'] ?? '');
-        $catSess     = (string)($sess['category'] ?? '');
-        $startedSess = (int)($sess['started_at'] ?? 0);
+        // total только по текущей сессии
+        $total = (float)\app\models\PriceEntry::find()
+            ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
+            ->sum('amount * qty');
 
-        $db    = Yii::$app->db;
-        $total = 0.0;
+        $ps->updateAttributes(['updated_at'=>time()]);
 
-        if ($storeSess !== '' && $startedSess > 0) {
-            if ($catSess === '') {
-                $total = (float)$db->createCommand(
-                    'SELECT COALESCE(SUM(amount*qty),0)
-                 FROM price_entry
-                 WHERE user_id=:u AND store=:s AND category IS NULL AND created_at>=:from',
-                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':from' => $startedSess]
-                )->queryScalar();
-            } else {
-                $total = (float)$db->createCommand(
-                    'SELECT COALESCE(SUM(amount*qty),0)
-                 FROM price_entry
-                 WHERE user_id=:u AND store=:s AND category=:c AND created_at>=:from',
-                    [':u' => Yii::$app->user->id, ':s' => $storeSess, ':c' => $catSess, ':from' => $startedSess]
-                )->queryScalar();
-            }
-        }
-
-        return [
-            'success' => true,
-            'entry'   => ['id' => $m->id, 'amount' => $m->amount, 'qty' => $m->qty],
-            'total'   => $total,
-        ];
+        return ['success'=>true, 'total'=>number_format($total, 2, '.', '')];
     }
+
 
 
     public function actionDelete($id)
