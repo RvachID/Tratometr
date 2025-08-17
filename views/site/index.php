@@ -1,6 +1,13 @@
 <?php
 use yii\helpers\Url;
+use yii\helpers\Html;
+
+/** @var array|null $quote */
+/** @var array|null $psInfo */
+/** @var yii\web\View $this */
+
 $this->title = 'Тратометр';
+$fmt = Yii::$app->formatter;
 ?>
 <div class="quote container mt-3 text-center">
     <?php if (!empty($quote)): ?>
@@ -11,7 +18,48 @@ $this->title = 'Тратометр';
             <?php endif; ?>
         </div>
     <?php endif; ?>
+
     <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary w-100 mb-2">🛒 За покупками</a>
+
+    <?php if (!empty($psInfo)): ?>
+        <div class="card border-0 shadow-sm mt-2 text-start">
+            <div class="card-body">
+                <div class="small text-muted mb-1">Открытая сессия</div>
+
+                <div class="row">
+                    <div class="col-12 col-md-4 mb-1">
+                        <strong>Магазин:</strong> <?= Html::encode($psInfo['shop']) ?>
+                    </div>
+                    <div class="col-12 col-md-4 mb-1">
+                        <strong>Категория:</strong> <?= Html::encode($psInfo['category']) ?>
+                    </div>
+                    <div class="col-12 col-md-4 mb-1">
+                        <strong>Время:</strong> <?= $fmt->asDatetime($psInfo['lastTs'], 'php:H:i d.m.Y') ?>
+                    </div>
+                </div>
+
+                <?php if (!empty($psInfo['limit'])): ?>
+                    <div class="mt-1">
+                        <strong>Лимит:</strong> <?= number_format($psInfo['limit'], 2, '.', ' ') ?>
+                    </div>
+                <?php endif; ?>
+
+                <div class="d-flex flex-column flex-sm-row gap-2 mt-3">
+                    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary">Продолжить</a>
+
+                    <?= Html::beginForm(['site/close-session'], 'post') ?>
+                    <?= Html::submitButton('Закончить', ['class' => 'btn btn-outline-secondary']) ?>
+                    <?= Html::endForm() ?>
+
+                    <?= Html::beginForm(['site/delete-session'], 'post', [
+                        'onsubmit' => "return confirm('Удалить сессию и все позиции? Это действие необратимо.')"
+                    ]) ?>
+                    <?= Html::submitButton('Удалить', ['class' => 'btn btn-danger']) ?>
+                    <?= Html::endForm() ?>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <!-- тут потом появятся История/Статистика
     <div class="d-grid gap-2">
