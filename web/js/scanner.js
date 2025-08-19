@@ -15,7 +15,7 @@
 
     // ===== Модалка =====
     const scanModalEl   = document.getElementById('scanModal');
-    const mAmountEl     = document.getElementById('m-amount');
+    const mAmountEl = document.getElementById('m-amount');
     const mQtyEl        = document.getElementById('m-qty');
     const mQtyMinusEl   = document.getElementById('m-qty-minus');
     const mQtyPlusEl    = document.getElementById('m-qty-plus');
@@ -27,6 +27,40 @@
     const mSaveBtn      = document.getElementById('m-save');
 
     let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
+// ===== Денежная маска =====
+    function moneyFromDigits(digs) {
+        digs = (digs || '').replace(/\D/g, '');
+        if (!digs) return '0.00';
+        if (digs.length === 1) digs = '0' + digs;
+        if (digs.length === 2) digs = '0' + digs;
+        const intPart = digs.slice(0, -2);
+        const frac = digs.slice(-2);
+        const withGroups = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        return `${withGroups}.${frac}`;
+    }
+    function normalizeMoneyForPost(masked) {
+        // "12 345.67" | "12345,67" | "12345" -> "12345.67"
+        let s = String(masked).replace(/\s/g, '').replace(',', '.');
+        if (/^\d+(\.\d{1,2})?$/.test(s)) {
+            const f = parseFloat(s);
+            return isFinite(f) ? f.toFixed(2) : '0.00';
+        }
+        return moneyFromDigits(s).replace(/\s/g,''); // "12 345.67" -> "12 345.67" -> "12345.67"
+    }
+
+// форматируем при наборе: только цифры, точка добавляется сама
+    mAmountEl?.addEventListener('input', (e) => {
+        e.target.value = moneyFromDigits(e.target.value);
+    });
+
+// авто-нормализация + авто-выделение текста при открытии модалки
+// bootstrapModal — как у тебя уже есть
+    bootstrapModal?._element.addEventListener('shown.bs.modal', () => {
+        if (!mAmountEl) return;
+        mAmountEl.value = moneyFromDigits(mAmountEl.value);
+        mAmountEl.focus();
+        mAmountEl.select(); // выделяем всё
+    });
 
     // ===== Состояние =====
     let currentStream = null;
@@ -286,7 +320,7 @@
         mSaveBtn.onclick = async () => {
             const csrf = getCsrf();
             const fd = new FormData();
-            fd.append('amount', mAmountEl.value);
+            fd.append('amount', normalizeMoneyForPost(mAmountEl.value)); // "123.45"
             fd.append('qty', mQtyEl.value);
             fd.append('note', mNoteEl.value);
             fd.append('parsed_text', lastParsedText);
@@ -380,6 +414,7 @@
             alert(e.message);
         }
     });
+
 })();
 
 

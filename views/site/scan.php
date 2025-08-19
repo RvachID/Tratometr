@@ -73,10 +73,18 @@ $entries = $entries ?? [];
                         </div>
                         <div class="modal-body">
 
-                            <div class="mb-2 text-start">
-                                <label class="form-label">Цена</label>
-                                <input type="number" step="0.01" class="form-control" id="m-amount">
+                            <div class="mb-3 text-center">
+                                <label for="m-amount" class="form-label mb-1">Цена</label>
+                                <input id="m-amount"
+                                       type="text"
+                                       class="form-control form-control-lg amount-input text-center"
+                                       inputmode="numeric"
+                                       autocomplete="off"
+                                       placeholder="0.00"
+                                       value="0.00">
+                                <div class="form-text">Вводи только цифры — копейки добавятся автоматически</div>
                             </div>
+
 
                             <div class="mb-2 text-start">
                                 <label class="form-label">Количество</label>
