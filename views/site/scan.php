@@ -82,10 +82,7 @@ $entries = $entries ?? [];
                                        autocomplete="off"
                                        placeholder="0.00"
                                        value="0.00">
-                                <div class="form-text">Вводи только цифры — копейки добавятся автоматически</div>
                             </div>
-
-
                             <div class="mb-2 text-start">
                                 <label class="form-label">Количество</label>
                                 <div class="input-group">
@@ -99,7 +96,7 @@ $entries = $entries ?? [];
                             </div>
 
                             <div class="mb-2 text-start">
-                                <label class="form-label">Заметка (опц.)</label>
+                                <label class="form-label">Заметка или название товара (опц.)</label>
                                 <input type="text" class="form-control" id="m-note">
                             </div>
 
@@ -108,11 +105,17 @@ $entries = $entries ?? [];
                             </div>
 
                         </div>
-                        <div class="modal-footer">
-                            <button class="btn btn-outline-secondary" id="m-show-photo" type="button">Скан</button>
-                            <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>
-                            <button class="btn btn-outline-secondary" id="m-save" type="button">Сохранить</button>
+                        <div class="modal-footer d-flex justify-content-between flex-wrap gap-2">
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary" id="m-show-photo" type="button">📸 Скан</button>
+                                <button class="btn btn-outline-secondary d-none" id="m-ocr-cancel" type="button">✖ Отмена</button>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>
+                                <button class="btn btn-outline-secondary" id="m-save" type="button">Сохранить</button>
+                            </div>
                         </div>
+
                     </div>
                 </div>
             </div>
