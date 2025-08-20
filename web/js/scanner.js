@@ -383,7 +383,8 @@
                 // Если на странице есть список, обновим его
                 if (res.entry && typeof window.addEntryToTop === 'function') window.addEntryToTop(res.entry);
                 if (typeof res.total !== 'undefined' && typeof window.updateTotal === 'function') window.updateTotal(res.total);
-
+                // закрываем камеру сразу после сохранения
+                await closeCameraUI();
                 wasSaved = true;
                 bootstrapModal?.hide();
 
@@ -494,5 +495,15 @@
         }
     });
 
+    async function closeCameraUI() {
+        // Остановить стрим
+        await stopStream();
+        // Спрятать обёртку камеры
+        if (wrap) wrap.style.display = 'none';
+        // Обновить флаги/кнопки
+        cameraActive = false;
+        if (startBtn) startBtn.textContent = '📷 Открыть камеру';
+        manualBtn?.classList.remove('d-none');
+    }
 
 })();
