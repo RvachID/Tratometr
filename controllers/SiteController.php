@@ -99,29 +99,51 @@ class SiteController extends Controller
     /** Страница сканера */
     public function actionScan()
     {
-        if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
-
-        $ps = Yii::$app->ps->active(Yii::$app->user->id);
-        if (!$ps) {
-            return $this->render('scan', [
-                'store' => '', 'category' => '', 'entries' => [], 'total' => 0.0, 'needPrompt' => true,
-            ]);
+        if (Yii::$app->user->isGuest) {
+            return $this->redirect(['auth/login']);
         }
 
-        $entries = PriceEntry::find()
-            ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
-            ->orderBy(['id'=>SORT_DESC])->limit(200)->all();
+        // Активная покупка (серверная сессия)
+        $ps = Yii::$app->ps->active(Yii::$app->user->id);
 
-        $total = (float) PriceEntry::find()
-            ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
-            ->sum('amount * qty');
+        $needPrompt = $ps === null; // если сессии нет — покажем модалку выбора магазина
+        $store     = $ps ? (string)$ps->shop      : '';
+        $category  = $ps ? (string)$ps->category  : '';
+        $limit     = ($ps && $ps->limit_amount !== null)
+            ? round(((int)$ps->limit_amount) / 100, 2) // копейки → рубли
+            : null;
+
+        // Данные текущей сессии
+        $entries = [];
+        $total   = 0.0;
+
+        if ($ps) {
+            $entries = \app\models\PriceEntry::find()
+                ->where([
+                    'user_id'    => Yii::$app->user->id,
+                    'session_id' => $ps->id,
+                ])
+                ->orderBy(['id' => SORT_DESC])
+                ->limit(200)
+                ->all();
+
+            $sum = \app\models\PriceEntry::find()
+                ->where([
+                    'user_id'    => Yii::$app->user->id,
+                    'session_id' => $ps->id,
+                ])
+                ->sum('amount * qty');
+
+            $total = (float)($sum ?? 0);
+        }
 
         return $this->render('scan', [
-            'store' => $ps->shop,
-            'category' => $ps->category,
-            'entries' => $entries,
-            'total' => $total,
-            'needPrompt' => false,
+            'store'      => $store,
+            'category'   => $category,
+            'entries'    => $entries,
+            'total'      => $total,
+            'needPrompt' => $needPrompt,
+            'limit'      => $limit,   // в рублях (float|null)
         ]);
     }
 
@@ -175,7 +197,7 @@ class SiteController extends Controller
             'shop'         => $store,
             'category'     => $category,
             'status'       => PurchaseSession::STATUS_ACTIVE,
-            'limit' => $limitCents,           // <- сохраняем
+            'limit_amount' => $limitCents,           // <- сохраняем
             'started_at'   => time(),
             'updated_at'   => time(),
         ]);
