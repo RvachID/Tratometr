@@ -21,10 +21,11 @@ $entries = $entries ?? [];
 
             <div id="camera-wrapper" style="display:none;">
                 <video id="camera" autoplay playsinline width="100%" style="max-width:400px;"></video>
-                <button id="capture" class="btn btn-outline-secondary mt-2" type="button">
+                <button id="capture" class="btn btn-outline-secondary">
+                    <span class="spinner d-none spinner-border spinner-border-sm me-1"></span>
                     <span class="btn-text">📸 Сканировать</span>
-                    <span class="spinner" style="display:none;"></span>
                 </button>
+                <button id="ocr-cancel-btn" class="btn btn-outline-secondary d-none" type="button">✖ Отмена</button>
             </div>
             <!-- Модалка выбора магазина/категории -->
             <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -108,7 +109,6 @@ $entries = $entries ?? [];
                         <div class="modal-footer d-flex justify-content-between flex-wrap gap-2">
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-secondary" id="m-show-photo" type="button">📸 Скан</button>
-                                <button class="btn btn-outline-secondary d-none" id="m-ocr-cancel" type="button">✖ Отмена</button>
                             </div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>

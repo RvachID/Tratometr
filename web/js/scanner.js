@@ -7,6 +7,7 @@
     const wrap       = document.getElementById('camera-wrapper');
     const video      = document.getElementById('camera');
     const captureBtn = document.getElementById('capture');
+    const cancelBtn  = document.getElementById('ocr-cancel-btn'); // КНОПКА ОТМЕНЫ РЯДОМ С "Сканировать"
     const previewImg = document.getElementById('preview-image');
     const manualBtn  = document.getElementById('manual-add');
 
@@ -22,29 +23,25 @@
     const mNoteEl       = document.getElementById('m-note');
 
     // Кнопки модалки
-    const mScanBtn      = document.getElementById('m-show-photo'); // теперь это "📸 Скан"
-    const mCancelBtn    = document.getElementById('m-ocr-cancel'); // "✖ Отмена" (скрыта по умолчанию)
+    const mShowPhotoBtn = document.getElementById('m-show-photo'); // ПОКАЗАТЬ/СКРЫТЬ СКАН (БЕЗ OCR)
     const mPhotoWrap    = document.getElementById('m-photo-wrap');
     const mPhotoImg     = document.getElementById('m-photo');
     const mRetakeBtn    = document.getElementById('m-retake');
     const mSaveBtn      = document.getElementById('m-save');
 
     let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
-    let selectOnFocusNext = false;
 
-// помечаем, что следующий focus произошёл из тапа/клика
+    // Выделение суммы только по клику/тапу (без автопоказа клавиатуры при открытии модалки)
+    let selectOnFocusNext = false;
     mAmountEl?.addEventListener('pointerdown', () => { selectOnFocusNext = true; });
     mAmountEl?.addEventListener('mousedown',   () => { selectOnFocusNext = true; });
     mAmountEl?.addEventListener('touchstart',  () => { selectOnFocusNext = true; }, { passive: true });
-
-// при самом фокусе — выделяем всё и сбрасываем флаг
     mAmountEl?.addEventListener('focus', (e) => {
         if (selectOnFocusNext) {
-            e.target.select();           // вся сумма выделена → первая цифра сразу заменит значение
+            e.target.select();
             selectOnFocusNext = false;
         }
     });
-
 
     // ===== Состояние =====
     let currentStream = null;
@@ -53,7 +50,7 @@
     let lastParsedText = '';
     let wasSaved = false;
     let cameraActive = false;
-    // для повторного OCR будем хранить blob снимка
+    // снимок для модалки/повторного показа
     window.mPhotoBlob = null;
 
     const scanRoot  = document.getElementById('scan-root');
@@ -103,7 +100,7 @@
                     startBtn.textContent = '✖ Закрыть камеру';
                     manualBtn?.classList.add('d-none');
 
-                    // При запуске камеры снова показываем кнопки
+                    // При запуске камеры снова показываем кнопки модалки
                     document.getElementById('m-show-photo')?.removeAttribute('style');
                     document.getElementById('m-retake')?.removeAttribute('style');
 
@@ -140,11 +137,11 @@
             lastParsedText = '';
             window.mPhotoBlob = null;
 
-            // Скрыть «Скан» и «Переснять» в ручном режиме
+            // Скрыть «Показать скан» и «Переснять» в ручном режиме
             document.getElementById('m-show-photo')?.setAttribute('style','display:none');
             document.getElementById('m-retake')?.setAttribute('style','display:none');
 
-            resetPhotoPreview(mPhotoWrap, mScanBtn, mPhotoImg);
+            resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
             bootstrapModal?.show();
         };
     }
@@ -173,7 +170,7 @@
 
     // Закрытие модалки
     scanModalEl?.addEventListener('hidden.bs.modal', async () => {
-        resetPhotoPreview(mPhotoWrap, mScanBtn, mPhotoImg);
+        resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
         if (wasSaved) {
             if (wrap) wrap.style.display = 'none';
             await stopStream();
@@ -184,18 +181,72 @@
         }
     });
 
-    // ===== Скан с камеры + OCR (кнопка основная на странице)
+    // ===== Управление UI "Сканировать"/"Отмена" (СТРАНИЦА)
+    const OCR_TIMEOUT_MS = 12000; // 12 сек
+    let ocrAbortCtrlPage = null;
+    let ocrTimerPage     = null;
+
+    function setPageOcrPending(pending) {
+        if (!captureBtn) return;
+        if (pending) {
+            captureBtn.disabled = true;
+            captureBtn.dataset._text = captureBtn.textContent;
+            if (btnSpinnerEl) btnSpinnerEl.style.display = 'inline-block';
+            if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = 'Сканируем…';
+            else captureBtn.textContent = 'Сканируем…';
+            cancelBtn?.classList.remove('d-none');
+            cancelBtn && (cancelBtn.disabled = false);
+        } else {
+            captureBtn.disabled = false;
+            if (btnSpinnerEl) btnSpinnerEl.style.display = 'none';
+            if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сканировать';
+            else captureBtn.textContent = '📸 Сканировать';
+            cancelBtn?.classList.add('d-none');
+        }
+    }
+
+    // Отмена на странице
+    cancelBtn && (cancelBtn.onclick = () => {
+        if (ocrAbortCtrlPage) {
+            ocrAbortCtrlPage.abort('user-cancel');
+        }
+    });
+
+    /** fetch с AbortController и таймаутом (СТРАНИЦА) */
+    async function ocrFetchPage(url, opts = {}) {
+        if (!navigator.onLine) throw new Error('Нет сети. Проверьте подключение.');
+
+        const ctrl = new AbortController();
+        ocrAbortCtrlPage = ctrl;
+        opts.signal = ctrl.signal;
+
+        setPageOcrPending(true);
+
+        ocrTimerPage = setTimeout(() => {
+            try { ctrl.abort('timeout'); } catch (_) {}
+        }, OCR_TIMEOUT_MS);
+
+        try {
+            const res = await fetch(url, opts);
+            return res;
+        } finally {
+            clearTimeout(ocrTimerPage); ocrTimerPage = null;
+            ocrAbortCtrlPage = null;
+            setPageOcrPending(false);
+        }
+    }
+
+    // ===== Скан с камеры + OCR (кнопка на странице)
     async function captureAndRecognize() {
         if (scanBusy) return;
         scanBusy = true;
-        if (captureBtn) captureBtn.disabled = true;
-        if (btnSpinnerEl) btnSpinnerEl.style.display = 'inline-block';
-        if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = 'Сканируем…';
-        else if (captureBtn) captureBtn.textContent = 'Сканируем…';
 
         try {
             if (!video.videoWidth || !video.videoHeight) { alert('Камера ещё не готова'); return; }
 
+            setPageOcrPending(true);
+
+            // снимок
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
@@ -212,60 +263,60 @@
             }
             ctx.putImageData(img,0,0);
 
-            await new Promise((resolve)=>{
-                canvas.toBlob((blob)=>{
-                    try{
-                        if(!blob){ alert('Не удалось получить изображение'); return resolve(false); }
+            // получаем Blob и отправляем
+            const blob = await new Promise((resolve) => {
+                canvas.toBlob((b) => resolve(b || null), 'image/jpeg', 0.9);
+            });
+            if (!blob) { alert('Не удалось получить изображение'); return; }
 
-                        // сохраним blob и objectURL для повторного OCR в модалке
-                        window.mPhotoBlob = blob;
-                        if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
-                        lastPhotoURL = URL.createObjectURL(blob);
+            // сохраним снимок для показа «Показать скан»
+            window.mPhotoBlob = blob;
+            if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
+            lastPhotoURL = URL.createObjectURL(blob);
 
-                        const formData = new FormData();
-                        formData.append('image', blob, 'scan.jpg');
+            const formData = new FormData();
+            formData.append('image', blob, 'scan.jpg');
 
-                        const csrf = getCsrf();
-                        if (!csrf){ alert('CSRF-токен не найден'); return resolve(false); }
+            const csrf = getCsrf();
+            if (!csrf) { alert('CSRF-токен не найден'); return; }
 
-                        fetch('/index.php?r=scan/recognize', {
-                            method:'POST', headers:{'X-CSRF-Token':csrf}, body:formData, credentials:'include'
-                        })
-                            .then(async r=>{
-                                if (r.status===429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
-                                const ct=r.headers.get('content-type')||'';
-                                if (!ct.includes('application/json')) { throw new Error('Сервер вернул не JSON.'); }
-                                return r.json();
-                            })
-                            .then(res=>{
-                                if (!res.success) {
-                                    const msg = (res.error||'').toLowerCase();
-                                    if (previewImg && (msg.includes('не удалось извлечь цену') || msg.includes('цена не распознана') || res.reason==='no_amount')) {
-                                        previewImg.src = lastPhotoURL;
-                                    }
-                                    throw new Error(res.error || 'Не удалось распознать цену');
-                                }
-                                // Подготовка модалки
-                                mAmountEl.value = fmt2(res.recognized_amount);
-                                mQtyEl.value = 1;
-                                mNoteEl.value = '';
-                                mPhotoWrap.style.display = 'none';
-                                lastParsedText = res.parsed_text || '';
-                                resetPhotoPreview(mPhotoWrap, mScanBtn, mPhotoImg);
-                                bootstrapModal?.show();
-                                resolve(true);
-                            })
-                            .catch(err=>{ alert(err.message); resolve(false); });
-                    } catch(e){ resolve(false); }
-                }, 'image/jpeg', 0.9);
+            const r = await ocrFetchPage('/index.php?r=scan/recognize', {
+                method:'POST', headers:{'X-CSRF-Token':csrf}, body:formData, credentials:'include'
             });
 
+            if (r.status === 429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
+            const ct = r.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) { throw new Error('Сервер вернул не JSON.'); }
+            const res = await r.json();
+
+            if (!res.success) {
+                const msg = (res.error||'').toLowerCase();
+                if (previewImg && (msg.includes('не удалось извлечь цену') || msg.includes('цена не распознана') || res.reason==='no_amount')) {
+                    previewImg.src = lastPhotoURL;
+                }
+                throw new Error(res.error || 'Не удалось распознать цену');
+            }
+
+            // Подготовка модалки
+            mAmountEl.value = fmt2(res.recognized_amount);
+            mQtyEl.value = 1;
+            mNoteEl.value = '';
+            mPhotoWrap.style.display = 'none';
+            lastParsedText = res.parsed_text || '';
+            resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
+            bootstrapModal?.show();
+
+        } catch (e) {
+            if (e?.name === 'AbortError') {
+                const msg = String(e?.message || '');
+                if (msg.includes('timeout')) alert('OCR: истек таймаут. Попробуйте ещё раз.');
+                else alert('Отменено.');
+            } else {
+                alert(e?.message || 'Ошибка OCR-запроса');
+            }
         } finally {
+            setPageOcrPending(false);
             scanBusy = false;
-            if (captureBtn) captureBtn.disabled = false;
-            if (btnSpinnerEl) btnSpinnerEl.style.display = 'none';
-            if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сканировать';
-            else if (captureBtn) captureBtn.textContent = '📸 Сканировать';
         }
     }
 
@@ -284,6 +335,23 @@
     }
     if (mAmountEl) {
         mAmountEl.addEventListener('blur', () => { mAmountEl.value = fmt2(mAmountEl.value); });
+    }
+
+    // Показать/скрыть скан в модалке (только превью)
+    if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
+        mShowPhotoBtn.onclick = (e) => {
+            e.preventDefault();
+            const isHidden = mPhotoWrap.style.display !== 'block';
+            if (isHidden) {
+                mPhotoWrap.style.display = 'block';
+                mPhotoImg.src = lastPhotoURL || '';
+                mShowPhotoBtn.textContent = 'Скрыть скан';
+            } else {
+                mPhotoWrap.style.display = 'none';
+                mShowPhotoBtn.textContent = 'Показать скан';
+                mPhotoImg.src = '';
+            }
+        };
     }
 
     // Переснять = закрыть модалку и вернуться к камере
@@ -320,140 +388,10 @@
                 bootstrapModal?.hide();
 
                 if (lastPhotoURL) { URL.revokeObjectURL(lastPhotoURL); lastPhotoURL = null; }
+                window.mPhotoBlob = null;
             } catch (e) { alert(e.message); }
         };
     }
-
-    // ===== OCR в модалке: отмена/таймаут/сброс UI =====
-    const OCR_TIMEOUT_MS = 12000; // 12 сек
-
-    let ocrAbortCtrl = null;
-    let ocrTimer     = null;
-
-    function setModalOcrPending(pending) {
-        if (!mScanBtn) return;
-        if (pending) {
-            mScanBtn.disabled = true;
-            mRetakeBtn && (mRetakeBtn.disabled = true);
-            mSaveBtn   && (mSaveBtn.disabled   = true);
-            mScanBtn.dataset._text = mScanBtn.textContent;
-            mScanBtn.innerHTML =
-                '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Сканируем…';
-            mCancelBtn && mCancelBtn.classList.remove('d-none');
-        } else {
-            mScanBtn.disabled = false;
-            mRetakeBtn && (mRetakeBtn.disabled = false);
-            mSaveBtn   && (mSaveBtn.disabled   = false);
-            mScanBtn.innerHTML = mScanBtn.dataset._text || '📸 Скан';
-            mCancelBtn && mCancelBtn.classList.add('d-none');
-        }
-    }
-
-    /** Обёртка вокруг fetch с AbortController и хард-таймаутом */
-    async function ocrFetch(url, opts = {}) {
-        if (!navigator.onLine) throw new Error('Нет сети. Проверьте подключение.');
-
-        const ctrl = new AbortController();
-        ocrAbortCtrl = ctrl;
-        opts.signal = ctrl.signal;
-
-        setModalOcrPending(true);
-
-        ocrTimer = setTimeout(() => {
-            try { ctrl.abort('timeout'); } catch (_) {}
-        }, OCR_TIMEOUT_MS);
-
-        try {
-            const res = await fetch(url, opts);
-            return res;
-        } finally {
-            clearTimeout(ocrTimer); ocrTimer = null;
-            ocrAbortCtrl = null;
-            setModalOcrPending(false);
-        }
-    }
-
-    // Получить Blob снимка для OCR: приоритет — последний снимок, иначе кадр из видео
-    async function getPhotoBlobForOcr() {
-        if (window.mPhotoBlob instanceof Blob) {
-            return window.mPhotoBlob;
-        }
-        if (lastPhotoURL) {
-            try {
-                const resp = await fetch(lastPhotoURL);
-                return await resp.blob();
-            } catch (_) {}
-        }
-        // если камеры кадра нет — вернуть null
-        if (!video || !video.videoWidth || !video.videoHeight) return null;
-
-        // снимем кадр из видео
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        return await new Promise((resolve) => {
-            canvas.toBlob((b) => resolve(b || null), 'image/jpeg', 0.9);
-        });
-    }
-
-    // Кнопка «Отмена» (в модалке)
-    mCancelBtn && (mCancelBtn.onclick = () => {
-        if (ocrAbortCtrl) ocrAbortCtrl.abort('user-cancel');
-    });
-
-    // Кнопка «📸 Скан» в модалке — повторный OCR по текущему снимку
-    mScanBtn && (mScanBtn.onclick = async () => {
-        try {
-            const blob = await getPhotoBlobForOcr();
-            if (!(blob instanceof Blob)) {
-                alert('Нет снимка для распознавания. Нажмите «Переснять».');
-                return;
-            }
-
-            const fd = new FormData();
-            fd.append('image', blob, 'scan.jpg');
-
-            const csrf = getCsrf();
-            const r = await ocrFetch('/index.php?r=scan/recognize', {
-                method: 'POST',
-                headers: csrf ? {'X-CSRF-Token': csrf} : {},
-                body: fd,
-                credentials: 'include'
-            });
-
-            const ct = r.headers.get('content-type') || '';
-            if (!ct.includes('application/json')) {
-                const text = await r.text();
-                throw new Error('OCR: не-JSON ответ сервера: ' + text.slice(0, 200));
-            }
-            const data = await r.json();
-
-            if (!data?.success) {
-                throw new Error(data?.error || 'OCR: ошибка распознавания');
-            }
-
-            // Успех: обновим поля модалки
-            if (typeof data.recognized_amount !== 'undefined' && mAmountEl) {
-                const val = Number(data.recognized_amount);
-                mAmountEl.value = isFinite(val) ? fmt2(val) : String(data.recognized_amount);
-            }
-            if (data.parsed_text) {
-                lastParsedText = String(data.parsed_text);
-            }
-            // при желании — показать превью: mPhotoWrap.style.display='block'; mPhotoImg.src = lastPhotoURL || mPhotoImg.src;
-
-        } catch (e) {
-            if (e?.name === 'AbortError') {
-                const msg = String(e?.message || '');
-                if (msg.includes('timeout')) alert('OCR: истек таймаут. Попробуйте ещё раз.');
-                else alert('Отменено.');
-            } else {
-                alert(e?.message || 'Ошибка OCR-запроса');
-            }
-        }
-    });
 
     // init: основная кнопка «Сканировать» на странице
     if (captureBtn) captureBtn.onclick = captureAndRecognize;
