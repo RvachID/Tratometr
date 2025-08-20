@@ -202,7 +202,11 @@
             manualBtn?.classList.remove('d-none');
         }
     });
-
+    const USE_CLIENT_BW = false;
+    const MAX_W = 1600;
+    const scale = Math.min(1, MAX_W / video.videoWidth);
+    canvas.width  = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
     // Скан + OCR
     async function captureAndRecognize() {
         if (scanBusy) return;
@@ -224,14 +228,19 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // простая бинаризация
-            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = img.data;
-            for (let i=0;i<data.length;i+=4){
-                const avg=(data[i]+data[i+1]+data[i+2])/3;
-                const bw=avg>128?255:0;
-                data[i]=data[i+1]=data[i+2]=bw;
+            // простая бинаризация (опционально)
+            if (USE_CLIENT_BW) {
+                const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = img.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    const bw = avg > 128 ? 255 : 0;
+                    data[i] = data[i + 1] = data[i + 2] = bw;
+                    // data[i+3] оставляем как есть (альфа)
+                }
+                ctx.putImageData(img, 0, 0);
             }
+// если USE_CLIENT_BW=false — уходит цветной кадр как есть
             ctx.putImageData(img,0,0);
 
             await new Promise((resolve)=>{
