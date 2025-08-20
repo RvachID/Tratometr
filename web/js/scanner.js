@@ -30,16 +30,21 @@
     const mSaveBtn      = document.getElementById('m-save');
 
     let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
+    let selectOnFocusNext = false;
 
-    // Автофокус + авто-выделение текста при открытии модалки
-    scanModalEl?.addEventListener('shown.bs.modal', () => {
-        if (!mAmountEl) return;
-        // без маски — просто выделяем текущее значение
-        setTimeout(() => {
-            mAmountEl.focus({ preventScroll: true });
-            mAmountEl.select();
-        }, 50);
+// помечаем, что следующий focus произошёл из тапа/клика
+    mAmountEl?.addEventListener('pointerdown', () => { selectOnFocusNext = true; });
+    mAmountEl?.addEventListener('mousedown',   () => { selectOnFocusNext = true; });
+    mAmountEl?.addEventListener('touchstart',  () => { selectOnFocusNext = true; }, { passive: true });
+
+// при самом фокусе — выделяем всё и сбрасываем флаг
+    mAmountEl?.addEventListener('focus', (e) => {
+        if (selectOnFocusNext) {
+            e.target.select();           // вся сумма выделена → первая цифра сразу заменит значение
+            selectOnFocusNext = false;
+        }
     });
+
 
     // ===== Состояние =====
     let currentStream = null;
