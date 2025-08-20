@@ -10,6 +10,9 @@
     const previewImg = document.getElementById('preview-image');
     const manualBtn  = document.getElementById('manual-add');
 
+    // [NEW] Кнопка отмены рядом со "Сканировать" (добавь в вёрстку id="ocr-cancel-btn")
+    const cancelBtn  = document.getElementById('ocr-cancel-btn');
+
     const btnTextEl    = captureBtn?.querySelector('.btn-text') || captureBtn;
     const btnSpinnerEl = captureBtn?.querySelector('.spinner');
 
@@ -46,6 +49,35 @@
     const shopBeginBtn = document.getElementById('shop-begin');
     let   shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
 
+    // [NEW] Управление отменой OCR
+    const OCR_TIMEOUT_MS = 12000;
+    let ocrAbortCtrl = null;
+    let ocrTimer = null;
+    function ocrUi(pending) {
+        if (!captureBtn) return;
+        if (pending) {
+            captureBtn.disabled = true;
+            if (btnSpinnerEl) btnSpinnerEl.style.display = 'inline-block';
+            if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = 'Сканируем…';
+            else captureBtn.textContent = 'Сканируем…';
+            if (cancelBtn) { cancelBtn.classList.remove('d-none'); cancelBtn.disabled = false; }
+        } else {
+            captureBtn.disabled = false;
+            if (btnSpinnerEl) btnSpinnerEl.style.display = 'none';
+            if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сканировать';
+            else captureBtn.textContent = '📸 Сканировать';
+            if (cancelBtn) cancelBtn.classList.add('d-none');
+        }
+    }
+    function ocrCleanup() {
+        if (ocrTimer) { clearTimeout(ocrTimer); ocrTimer = null; }
+        ocrAbortCtrl = null;
+        ocrUi(false);
+    }
+    cancelBtn && (cancelBtn.onclick = () => {
+        if (ocrAbortCtrl) ocrAbortCtrl.abort('user-cancel');
+    });
+
     const needPrompt = scanRoot?.dataset.needPrompt === '1';
     if (needPrompt && shopModal) {
         if (metaStore)    shopStoreEl.value = metaStore;     // префилл, если есть
@@ -65,6 +97,16 @@
         }
     }
     updateScanTitle();
+
+    // ===== [NEW] Выделение суммы по клику (без автофокуса при открытии)
+    let selectOnFocusNext = false;
+    mAmountEl?.addEventListener('pointerdown', () => { selectOnFocusNext = true; });
+    mAmountEl?.addEventListener('mousedown',   () => { selectOnFocusNext = true; });
+    mAmountEl?.addEventListener('touchstart',  () => { selectOnFocusNext = true; }, { passive: true });
+    mAmountEl?.addEventListener('focus', (e) => {
+        if (selectOnFocusNext) { e.target.select(); selectOnFocusNext = false; }
+    });
+
     // Переключатель камеры
     if (startBtn) {
         startBtn.onclick = async () => {
@@ -73,8 +115,7 @@
                 wrap?.setAttribute('style','display:block');
                 try {
                     if (!navigator.mediaDevices?.getUserMedia) {
-                        alert('Доступ к камере не поддерживается в этом браузере');
-                        return;
+                        alert('Доступ к камере не поддерживается в этом браузере'); return;
                     }
                     await initCamera();
                     cameraActive = true;
@@ -102,7 +143,6 @@
         };
     }
 
-
     // Ручной ввод
     if (manualBtn) {
         manualBtn.onclick = async () => {
@@ -126,7 +166,6 @@
             bootstrapModal?.show();
         };
     }
-
 
     // ===== Камера =====
     async function stopStream() {
@@ -173,6 +212,9 @@
         if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = 'Сканируем…';
         else if (captureBtn) captureBtn.textContent = 'Сканируем…';
 
+        // [NEW] включаем UI отмены
+        ocrUi(true);
+
         try {
             if (!video.videoWidth || !video.videoHeight) { alert('Камера ещё не готова'); return; }
 
@@ -205,8 +247,16 @@
                         const csrf = getCsrf();
                         if (!csrf){ alert('CSRF-токен не найден'); return resolve(false); }
 
+                        // [NEW] AbortController + таймаут
+                        ocrAbortCtrl = new AbortController();
+                        ocrTimer = setTimeout(()=>{ try{ ocrAbortCtrl.abort('timeout'); }catch(_){} }, OCR_TIMEOUT_MS);
+
                         fetch('/index.php?r=scan/recognize', {
-                            method:'POST', headers:{'X-CSRF-Token':csrf}, body:formData, credentials:'include'
+                            method:'POST',
+                            headers:{'X-CSRF-Token':csrf},
+                            body:formData,
+                            credentials:'include',
+                            signal: ocrAbortCtrl.signal
                         })
                             .then(async r=>{
                                 if (r.status===429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
@@ -232,8 +282,24 @@
                                 bootstrapModal?.show();
                                 resolve(true);
                             })
-                            .catch(err=>{ alert(err.message); resolve(false); });
-                    } catch(e){ resolve(false); }
+                            .catch(err=>{
+                                // [NEW] обработка отмены
+                                if (err?.name === 'AbortError') {
+                                    const msg = String(err?.message||'');
+                                    if (msg.includes('timeout')) alert('OCR: истек таймаут. Попробуйте ещё раз.');
+                                    else alert('Отменено.');
+                                } else {
+                                    alert(err.message || 'Ошибка OCR-запроса');
+                                }
+                                resolve(false);
+                            })
+                            .finally(()=>{
+                                ocrCleanup();
+                            });
+                    } catch(e){
+                        ocrCleanup();
+                        resolve(false);
+                    }
                 }, 'image/jpeg', 0.9);
             });
 
@@ -243,6 +309,8 @@
             if (btnSpinnerEl) btnSpinnerEl.style.display = 'none';
             if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = '📸 Сканировать';
             else if (captureBtn) captureBtn.textContent = '📸 Сканировать';
+            // [NEW] на всякий — сброс UI
+            ocrCleanup();
         }
     }
 
@@ -347,7 +415,6 @@
         metaCategory = scanRoot?.dataset.category || metaCategory;
         updateScanTitle();
     });
-
 
     shopBeginBtn && (shopBeginBtn.onclick = async () => {
         const store = (shopStoreEl.value || '').trim();
