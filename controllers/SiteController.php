@@ -235,7 +235,7 @@ class SiteController extends Controller
 
         $userId = Yii::$app->user->id;
 
-        // Агрегируем по сессиям: последняя активность и сумма по позициям
+        // last_ts = последний скан (MAX pe.created_at), иначе updated_at, иначе started_at
         $rows = (new \yii\db\Query())
             ->select([
                 'ps.id',
@@ -243,9 +243,8 @@ class SiteController extends Controller
                 'ps.category',
                 'ps.status',
                 'ps.limit_amount',
-                // последний скан: MAX(pe.created_at), иначе updated_at/created_at сессии
-                'last_ts'   => new \yii\db\Expression('COALESCE(MAX(pe.created_at), ps.updated_at, ps.created_at)'),
-                'total_sum' => new \yii\db\Expression('COALESCE(SUM(pe.amount * pe.qty), 0)'),
+                new \yii\db\Expression('COALESCE(MAX(pe.created_at), ps.updated_at, ps.started_at) AS last_ts'),
+                new \yii\db\Expression('COALESCE(SUM(pe.amount * pe.qty), 0) AS total_sum'),
             ])
             ->from(['ps' => 'purchase_session'])
             ->leftJoin(['pe' => 'price_entry'], 'pe.session_id = ps.id AND pe.user_id = ps.user_id')
