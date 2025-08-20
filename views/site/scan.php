@@ -128,7 +128,7 @@ $entries = $entries ?? [];
 
             <?php $limitRub = $limitRub ?? ($limit ?? null); ?>
             <?php
-            $label   = $limitRub !== null ? 'До лимита:' : ($totalLabel ?? 'Общая сумма:');
+            $label   = $limitRub !== null ? 'Лимит:' : ($totalLabel ?? 'Общая сумма:');
             $value   = $limitRub !== null ? ($limitRub - ($total ?? 0)) : ($total ?? 0);
             $isOver  = $limitRub !== null && $value < 0;
             $dataLim = $limitRub !== null ? number_format($limitRub, 2, '.', '') : '';

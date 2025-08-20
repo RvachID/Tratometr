@@ -421,7 +421,7 @@
                     metaLimit = res.limit;
                     scanRoot?.setAttribute('data-limit', String(metaLimit));
                     if (totalWrap) totalWrap.dataset.limit = String(metaLimit);
-                    if (totalLabelEl) totalLabelEl.textContent = 'До лимита:';
+                    if (totalLabelEl) totalLabelEl.textContent = 'Лимит:';
                 } else {
                     metaLimit = null;
                     scanRoot?.setAttribute('data-limit', '');
@@ -482,9 +482,9 @@
             const totalWrap    = document.getElementById('total-wrap');
             const totalLabelEl = document.getElementById('scan-total-label');
             if (totalWrap) totalWrap.dataset.limit = metaLimit !== null ? String(metaLimit) : '';
-            if (totalLabelEl) totalLabelEl.textContent = metaLimit !== null ? 'До лимита:' : 'Общая сумма:';
+            if (totalLabelEl) totalLabelEl.textContent = metaLimit !== null ? 'Лимит:' : 'Общая сумма:';
 
-            // новая сессия — текущая сумма 0; сразу корректно отрисуем «До лимита»
+            // новая сессия — текущая сумма 0; сразу корректно отрисуем «Лимит»
             if (typeof window.updateTotal === 'function') window.updateTotal(0);
 
             updateScanTitle();

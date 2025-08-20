@@ -202,7 +202,7 @@
         const limit = limAttr === '' ? NaN : parseFloat(limAttr);
 
         let out = Number(total || 0), over = false;
-        if (!isNaN(limit)) { out = limit - out; over = out < 0; labelEl.textContent = 'До лимита:'; }
+        if (!isNaN(limit)) { out = limit - out; over = out < 0; labelEl.textContent = 'Лимит:'; }
         else { labelEl.textContent = 'Общая сумма:'; }
 
         valueEl.textContent = out.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
