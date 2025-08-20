@@ -27,7 +27,7 @@ $fmt = Yii::$app->formatter;
                 $hasLimit   = $limitCents !== null;
                 $limitRub   = $hasLimit ? ((int)$limitCents)/100 : null;
                 $value      = $hasLimit ? ($limitRub - $sum) : $sum;  // остаток / итого
-                $label      = $hasLimit ? 'До лимита' : 'Итого';
+                $label      = $hasLimit ? 'Лимит' : 'Итого';
                 $isOver     = $hasLimit && $value < 0;
                 $ts         = (int)$r['last_ts'];
                 ?>
@@ -56,7 +56,7 @@ $fmt = Yii::$app->formatter;
             $hasLimit   = $limitCents !== null;
             $limitRub   = $hasLimit ? ((int)$limitCents)/100 : null;
             $value      = $hasLimit ? ($limitRub - $sum) : $sum;
-            $label      = $hasLimit ? 'До лимита' : 'Итого';
+            $label      = $hasLimit ? 'Лимит' : 'Итого';
             $isOver     = $hasLimit && $value < 0;
             $ts         = (int)$r['last_ts'];
             ?>

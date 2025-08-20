@@ -126,12 +126,11 @@ $entries = $entries ?? [];
                 </div>
             </div>
 
-            <?php $limitRub = $limitRub ?? ($limit ?? null); ?>
             <?php
-            $label   = $limitRub !== null ? 'Лимит:' : ($totalLabel ?? 'Общая сумма:');
-            $value   = $limitRub !== null ? ($limitRub - ($total ?? 0)) : ($total ?? 0);
-            $isOver  = $limitRub !== null && $value < 0;
-            $dataLim = $limitRub !== null ? number_format($limitRub, 2, '.', '') : '';
+            $label   = $limit !== null ? 'Лимит:' : ($totalLabel ?? 'Общая сумма:');
+            $value   = $limit !== null ? ($limit - ($total ?? 0)) : ($total ?? 0);
+            $isOver  = $limit !== null && $value < 0;
+            $dataLim = $limit !== null ? number_format($limit, 2, '.', '') : '';
             ?>
             <div class="total mt-3" id="total-wrap" data-limit="<?= $dataLim ?>">
                 <span class="me-1"><strong id="scan-total-label"><?= $label ?></strong></span>

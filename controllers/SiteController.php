@@ -136,15 +136,15 @@ class SiteController extends Controller
 
             $total = (float)($sum ?? 0);
         }
-        $limitRub = ($ps && $ps->limit_amount !== null) ? round(((int)$ps->limit_amount)/100, 2) : null;
+        $limit = ($ps && $ps->limit_amount !== null) ? round(((int)$ps->limit_amount)/100, 2) : null;
+
         return $this->render('scan', [
             'store'      => $store,
             'category'   => $category,
             'entries'    => $entries,
             'total'      => $total,
             'needPrompt' => $needPrompt,
-            'limit'    => $limitRub,   // для нового кода
-            'limitRub' => $limitRub,   // алиас для старого шаблона
+            'limit'    => $limit,
         ]);
     }
 
