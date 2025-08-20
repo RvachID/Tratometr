@@ -175,7 +175,7 @@ class SiteController extends Controller
             'shop'         => $store,
             'category'     => $category,
             'status'       => PurchaseSession::STATUS_ACTIVE,
-            'limit_amount' => $limitCents,           // <- сохраняем
+            'limit' => $limitCents,           // <- сохраняем
             'started_at'   => time(),
             'updated_at'   => time(),
         ]);
@@ -190,7 +190,6 @@ class SiteController extends Controller
             'limit'    => $limitFloat, // <- отдадим фронту в рублях
         ];
     }
-
 
     public function actionCloseSession()
     {
