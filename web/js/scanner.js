@@ -430,16 +430,17 @@
 
     shopBeginBtn && (shopBeginBtn.onclick = async () => {
         const store = (shopStoreEl.value || '').trim();
-        const cat   = (shopCatEl.value || '').trim();
-        const lim = (shopLimitEl?.value || '').trim();
-        fd.append('limit', lim);
+        const cat   = (shopCatEl.value   || '').trim();
+        const lim   = (shopLimitEl?.value || '').trim(); // может быть пусто
+
         if (!store) { shopStoreEl.focus(); return; }
 
         const csrf = getCsrf();
-        const fd = new FormData();
+        const fd   = new FormData();            // <-- объявляем ДО append
         fd.append('store', store);
         fd.append('category', cat);
-        if (lim !== '') fd.append('limit', lim);
+        if (lim !== '') fd.append('limit', lim); // <-- добавляем лимит только если введён
+
         try {
             const r = await fetch('/index.php?r=site/begin-ajax', {
                 method: 'POST',
@@ -448,21 +449,22 @@
                 credentials: 'include'
             });
             const res = await r.json();
-            if (!res.ok) throw new Error('Не удалось начать сессию');
+            if (!res.ok) throw new Error(res.error || 'Не удалось начать сессию');
 
-            // обновляем метаданные для сохранений
+            // обновляем метаданные
             metaStore    = res.store || store;
             metaCategory = res.category || cat;
-
-            metaLimit = (typeof res.limit === 'number') ? res.limit : null;
-            scanRoot?.setAttribute('data-limit', metaLimit !== null ? String(metaLimit) : '');
+            metaLimit    = (typeof res.limit === 'number') ? res.limit : null;
 
             scanRoot?.setAttribute('data-store', metaStore);
             scanRoot?.setAttribute('data-category', metaCategory);
+            scanRoot?.setAttribute('data-limit', metaLimit !== null ? String(metaLimit) : '');
+
             updateScanTitle();
             shopModal?.hide();
         } catch (e) {
             alert(e.message);
         }
     });
+
 })();
