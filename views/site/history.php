@@ -1,68 +1,87 @@
 <?php
-/** @var yii\web\View $this */
 /** @var array $items */
-
 use yii\helpers\Html;
 
 $this->title = 'История';
 $fmt = Yii::$app->formatter;
 ?>
 <div class="container mt-3">
-    <h2 class="mb-3">📜 История</h2>
+    <h1 class="h4 mb-3">📜 История</h1>
 
-    <?php if (empty($items)): ?>
-        <div class="alert alert-light border">Записей пока нет.</div>
-        <a href="<?= \yii\helpers\Url::to(['site/index']) ?>" class="btn btn-outline-secondary">← На главную</a>
-    <?php else: ?>
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
+    <!-- ≥ sm: таблица -->
+    <div class="d-none d-sm-block">
+        <table class="table table-sm align-middle">
+            <thead>
+            <tr>
+                <th style="width:160px;">Дата и время</th>
+                <th>Магазин</th>
+                <th>Категория</th>
+                <th style="width:110px;">Тип</th>
+                <th class="text-end" style="width:140px;">Сумма</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($items as $r):
+                $sum        = (float)$r['total_sum'];                 // сумма по записям
+                $limitCents = $r['limit_amount'];                     // NULL или целое (копейки)
+                $hasLimit   = $limitCents !== null;
+                $limitRub   = $hasLimit ? ((int)$limitCents)/100 : null;
+                $value      = $hasLimit ? ($limitRub - $sum) : $sum;  // остаток / итого
+                $label      = $hasLimit ? 'До лимита' : 'Итого';
+                $isOver     = $hasLimit && $value < 0;
+                $ts         = (int)$r['last_ts'];
+                ?>
                 <tr>
-                    <th style="width: 180px;">Дата и время</th>
-                    <th>Магазин</th>
-                    <th>Категория</th>
-                    <th class="text-end" style="width: 220px;">Итого / До лимита</th>
+                    <td>
+                        <?= $fmt->asTime($ts, 'php:H:i') ?><br>
+                        <span class="text-muted small"><?= $fmt->asDate($ts, 'php:d.m.Y') ?></span>
+                    </td>
+                    <td><?= Html::encode($r['shop']) ?></td>
+                    <td><?= Html::encode($r['category']) ?></td>
+                    <td><?= $label ?></td>
+                    <td class="text-end <?= $isOver ? 'text-danger fw-bold' : '' ?>">
+                        <?= number_format($value, 2, '.', ' ') ?>
+                    </td>
                 </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($items as $it): ?>
-                    <?php
-                    $lastTs   = (int)($it['last_ts'] ?? 0);
-                    $dtStr    = $lastTs ? $fmt->asDatetime($lastTs, 'php:H:i d.m.Y') : '—';
-                    $shop     = (string)($it['shop'] ?? '');
-                    $cat      = (string)($it['category'] ?? '');
-                    $total    = (float)($it['total_sum'] ?? 0);
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
 
-                    // лимит хранится в копейках
-                    $limitRub = isset($it['limit_amount']) && $it['limit_amount'] !== null
-                        ? ((int)$it['limit_amount']) / 100
-                        : null;
+    <!-- < sm: карточки -->
+    <div class="d-sm-none">
+        <?php foreach ($items as $r):
+            $sum        = (float)$r['total_sum'];
+            $limitCents = $r['limit_amount'];
+            $hasLimit   = $limitCents !== null;
+            $limitRub   = $hasLimit ? ((int)$limitCents)/100 : null;
+            $value      = $hasLimit ? ($limitRub - $sum) : $sum;
+            $label      = $hasLimit ? 'До лимита' : 'Итого';
+            $isOver     = $hasLimit && $value < 0;
+            $ts         = (int)$r['last_ts'];
+            ?>
+            <div class="card border-0 shadow-sm mb-2">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="fw-semibold"><?= $fmt->asTime($ts, 'php:H:i') ?></div>
+                            <div class="text-muted small"><?= $fmt->asDate($ts, 'php:d.m.Y') ?></div>
+                            <div class="small mt-1">
+                                <span class="fw-semibold"><?= Html::encode($r['shop']) ?></span>
+                                <span class="text-muted"> · <?= Html::encode($r['category']) ?></span>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="small text-muted"><?= $label ?></div>
+                            <div class="<?= $isOver ? 'text-danger fw-bold' : 'fw-semibold' ?>">
+                                <?= number_format($value, 2, '.', ' ') ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
 
-                    if ($limitRub !== null) {
-                        $val   = $limitRub - $total; // остаток до лимита
-                        $label = 'До лимита';
-                        $class = $val < 0 ? 'text-danger fw-bold' : '';
-                        $valStr = number_format($val, 2, '.', ' ');
-                    } else {
-                        $label = 'Итого';
-                        $class = '';
-                        $valStr = number_format($total, 2, '.', ' ');
-                    }
-                    ?>
-                    <tr>
-                        <td><?= Html::encode($dtStr) ?></td>
-                        <td><?= Html::encode($shop) ?></td>
-                        <td><?= Html::encode($cat) ?></td>
-                        <td class="text-end">
-                            <span class="text-muted me-1"><?= $label ?>:</span>
-                            <strong class="<?= $class ?>"><?= $valStr ?></strong>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-
-        <a href="<?= \yii\helpers\Url::to(['site/index']) ?>" class="btn btn-outline-secondary mt-2">← На главную</a>
-    <?php endif; ?>
+    <a class="btn btn-outline-secondary mt-3" href="<?= Html::encode(Yii::$app->homeUrl) ?>">← На главную</a>
 </div>
