@@ -8,6 +8,8 @@ use yii\helpers\Html;
 
 $this->title = 'Тратометр';
 $fmt = Yii::$app->formatter;
+$historyUrl = \yii\helpers\Url::to(['site/history']);
+
 ?>
 <div class="quote container mt-3 text-center">
     <?php if (!empty($quote)): ?>
@@ -75,6 +77,10 @@ $fmt = Yii::$app->formatter;
             </div>
         </div>
     <?php endif; ?>
+    <div class="mt-3">
+        <a href="<?= $historyUrl ?>" class="btn btn-outline-secondary w-100">📜 История</a>
+    </div>
+
 
     <!-- тут потом появятся История/Статистика
     <div class="d-grid gap-2">

@@ -227,6 +227,37 @@ class SiteController extends Controller
         return $this->redirect(['site/index']);
     }
 
+    public function actionHistory()
+    {
+        if (Yii::$app->user->isGuest) {
+            return $this->redirect(['auth/login']);
+        }
+
+        $userId = Yii::$app->user->id;
+
+        // Агрегируем по сессиям: последняя активность и сумма по позициям
+        $rows = (new \yii\db\Query())
+            ->select([
+                'ps.id',
+                'ps.shop',
+                'ps.category',
+                'ps.status',
+                'ps.limit_amount',
+                // последний скан: MAX(pe.created_at), иначе updated_at/created_at сессии
+                'last_ts'   => new \yii\db\Expression('COALESCE(MAX(pe.created_at), ps.updated_at, ps.created_at)'),
+                'total_sum' => new \yii\db\Expression('COALESCE(SUM(pe.amount * pe.qty), 0)'),
+            ])
+            ->from(['ps' => 'purchase_session'])
+            ->leftJoin(['pe' => 'price_entry'], 'pe.session_id = ps.id AND pe.user_id = ps.user_id')
+            ->where(['ps.user_id' => $userId])
+            ->groupBy(['ps.id'])
+            ->orderBy(['last_ts' => SORT_DESC, 'ps.id' => SORT_DESC])
+            ->limit(500)
+            ->all();
+
+        return $this->render('history', ['items' => $rows]);
+    }
+
     private function parseMoney($raw): ?float {
         $s = trim((string)$raw);
         if ($s === '') return null;
