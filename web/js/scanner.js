@@ -439,7 +439,7 @@
         const fd = new FormData();
         fd.append('store', store);
         fd.append('category', cat);
-
+        if (lim !== '') fd.append('limit', lim);
         try {
             const r = await fetch('/index.php?r=site/begin-ajax', {
                 method: 'POST',

@@ -54,13 +54,13 @@ $entries = $entries ?? [];
                                     <option>Другое</option>
                                 </select>
                             </div>
-                            <small class="text-muted">Эти поля сохранятся к каждой позиции из текущих покупок.</small>
+
                             <div class="mb-2">
                                 <label for="shop-limit" class="form-label">Лимит (опц.)</label>
                                 <input id="shop-limit" type="number" step="0.01" inputmode="decimal" class="form-control"
                                        placeholder="например, 5000.00">
                             </div>
-
+                            <small class="text-muted">При указании лимита предупредим о его превышении.</small>
                         </div>
                         <div class="modal-footer">
                             <button class="btn btn-outline-secondary" id="shop-begin">Начать</button>
