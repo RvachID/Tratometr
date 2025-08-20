@@ -193,29 +193,23 @@
     }
 
     function updateTotal(total) {
-        const root    = document.getElementById('scan-root');
-        const labelEl = document.getElementById('total-label');
-        const valueEl = document.getElementById('total-value');
-        if (!valueEl) return;
+        const wrap = document.getElementById('total-wrap');
+        const labelEl = document.getElementById('scan-total-label');
+        const valueEl = document.getElementById('scan-total');
+        if (!wrap || !valueEl) return;
 
-        const limAttr = root?.dataset.limit || '';
-        const limit   = limAttr === '' ? NaN : parseFloat(limAttr);
+        const limAttr = wrap.dataset.limit || '';
+        const limit = limAttr === '' ? NaN : parseFloat(limAttr);
 
-        let out = Number(total || 0);
-        let negative = false;
+        let out = Number(total || 0), over = false;
+        if (!isNaN(limit)) { out = limit - out; over = out < 0; labelEl.textContent = 'До лимита:'; }
+        else { labelEl.textContent = 'Общая сумма:'; }
 
-        if (!isNaN(limit)) {
-            out = limit - out;
-            negative = out < 0;
-            labelEl && (labelEl.textContent = 'До лимита');
-        } else {
-            labelEl && (labelEl.textContent = 'Итого');
-        }
-
-        valueEl.textContent = Number(out).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        valueEl.classList.toggle('text-danger', negative);
-        valueEl.classList.toggle('fw-bold', negative);
+        valueEl.textContent = out.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        valueEl.classList.toggle('text-danger', over);
+        valueEl.classList.toggle('fw-bold', over);
     }
+
 
     // Инициализация на странице списка
     document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));
