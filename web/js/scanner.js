@@ -50,6 +50,8 @@
     let   shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
 
     // [NEW] Управление отменой OCR
+    const USE_CLIENT_BW = false;
+    const MAX_W = 1600;
     const OCR_TIMEOUT_MS = 12000;
     let ocrAbortCtrl = null;
     let ocrTimer = null;
