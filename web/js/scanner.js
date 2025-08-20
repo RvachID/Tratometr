@@ -51,6 +51,8 @@
     const shopCatEl    = document.getElementById('shop-category');
     const shopBeginBtn = document.getElementById('shop-begin');
     let   shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
+    const totalWrap = document.getElementById('total-wrap');
+    const totalLabelEl = document.getElementById('scan-total-label');
 
     // [NEW] Управление отменой OCR
     const USE_CLIENT_BW = false;
@@ -393,31 +395,46 @@
     // init
     if (captureBtn) captureBtn.onclick = captureAndRecognize;
 
+    // --- checkShopSession: тянем лимит, обновляем data-атрибуты и подпись тотала
     async function checkShopSession() {
         try {
             const r = await fetch('/index.php?r=site/session-status', { credentials: 'include' });
             const res = await r.json();
             if (!res.ok) return;
 
-            // если нет активной сессии или таймеры вышли — показываем модалку
+            // элементы тотала берём локально, чтобы не плодить глобалы
+            const totalWrap   = document.getElementById('total-wrap');
+            const totalLabelEl= document.getElementById('scan-total-label');
+
+            // если нет активной сессии — показываем модалку выбора
             if (res.needPrompt && shopModal) {
-                // префилл, если есть старые значения (полезно для 45–120 минут)
-                if (res.store)     shopStoreEl.value = res.store;
-                if (res.category)  shopCatEl.value   = res.category;
+                if (res.store)    shopStoreEl.value = res.store;
+                if (res.category) shopCatEl.value   = res.category;
                 shopModal.show();
             } else {
-                // обновим локальные метаданные из ответа (на случай рефреша)
+                // обновим локальные метаданные (store/category)
                 metaStore    = res.store     || metaStore;
                 metaCategory = res.category  || metaCategory;
 
-                if (typeof res.limit === 'number') metaLimit = res.limit; else metaLimit = null;
-                scanRoot?.setAttribute('data-limit', metaLimit !== null ? String(metaLimit) : '');
+                // лимит от бэка (в рублях, число или null)
+                if (typeof res.limit === 'number') {
+                    metaLimit = res.limit;
+                    scanRoot?.setAttribute('data-limit', String(metaLimit));
+                    if (totalWrap) totalWrap.dataset.limit = String(metaLimit);
+                    if (totalLabelEl) totalLabelEl.textContent = 'До лимита:';
+                } else {
+                    metaLimit = null;
+                    scanRoot?.setAttribute('data-limit', '');
+                    if (totalWrap) totalWrap.dataset.limit = '';
+                    if (totalLabelEl) totalLabelEl.textContent = 'Общая сумма:';
+                }
 
                 scanRoot?.setAttribute('data-store', metaStore);
                 scanRoot?.setAttribute('data-category', metaCategory);
             }
-        } catch (e) { /* молча */ }
+        } catch (e) { /* тихо */ }
     }
+
     document.addEventListener('DOMContentLoaded', checkShopSession);
 
     // После закрытия модалки — обновляем заголовок на всякий случай
@@ -428,18 +445,19 @@
         updateScanTitle();
     });
 
+    // --- shopBeginBtn.onclick: создаём сессию с опциональным лимитом и сразу синхронизируем UI
     shopBeginBtn && (shopBeginBtn.onclick = async () => {
-        const store = (shopStoreEl.value || '').trim();
-        const cat   = (shopCatEl.value   || '').trim();
-        const lim   = (shopLimitEl?.value || '').trim(); // может быть пусто
+        const store = (shopStoreEl.value   || '').trim();
+        const cat   = (shopCatEl.value     || '').trim();
+        const lim   = (shopLimitEl?.value  || '').trim(); // может быть пусто
 
         if (!store) { shopStoreEl.focus(); return; }
 
         const csrf = getCsrf();
-        const fd   = new FormData();            // <-- объявляем ДО append
+        const fd   = new FormData();
         fd.append('store', store);
         fd.append('category', cat);
-        if (lim !== '') fd.append('limit', lim); // <-- добавляем лимит только если введён
+        if (lim !== '') fd.append('limit', lim); // передаём лимит, только если введён
 
         try {
             const r = await fetch('/index.php?r=site/begin-ajax', {
@@ -456,9 +474,18 @@
             metaCategory = res.category || cat;
             metaLimit    = (typeof res.limit === 'number') ? res.limit : null;
 
-            scanRoot?.setAttribute('data-store', metaStore);
+            scanRoot?.setAttribute('data-store',    metaStore);
             scanRoot?.setAttribute('data-category', metaCategory);
-            scanRoot?.setAttribute('data-limit', metaLimit !== null ? String(metaLimit) : '');
+            scanRoot?.setAttribute('data-limit',    metaLimit !== null ? String(metaLimit) : '');
+
+            // синхронизируем «тотал» на странице (лейбл + data-limit у контейнера)
+            const totalWrap    = document.getElementById('total-wrap');
+            const totalLabelEl = document.getElementById('scan-total-label');
+            if (totalWrap) totalWrap.dataset.limit = metaLimit !== null ? String(metaLimit) : '';
+            if (totalLabelEl) totalLabelEl.textContent = metaLimit !== null ? 'До лимита:' : 'Общая сумма:';
+
+            // новая сессия — текущая сумма 0; сразу корректно отрисуем «До лимита»
+            if (typeof window.updateTotal === 'function') window.updateTotal(0);
 
             updateScanTitle();
             shopModal?.hide();
@@ -466,5 +493,6 @@
             alert(e.message);
         }
     });
+
 
 })();

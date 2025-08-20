@@ -136,33 +136,30 @@ class SiteController extends Controller
 
             $total = (float)($sum ?? 0);
         }
-
+        $limitRub = ($ps && $ps->limit_amount !== null) ? round(((int)$ps->limit_amount)/100, 2) : null;
         return $this->render('scan', [
             'store'      => $store,
             'category'   => $category,
             'entries'    => $entries,
             'total'      => $total,
             'needPrompt' => $needPrompt,
-            'limit'      => $limit,   // в рублях (float|null)
+            'limit'    => $limitRub,   // для нового кода
+            'limitRub' => $limitRub,   // алиас для старого шаблона
         ]);
     }
 
     /** Для фронта: есть ли активная покупка и сколько простаиваем */
     public function actionSessionStatus()
     {
-        Yii::$app->response->format = Response::FORMAT_JSON;
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-        if (Yii::$app->user->isGuest) {
-            return ['ok' => false, 'needPrompt' => true];
-        }
+        if (Yii::$app->user->isGuest) return ['ok'=>false,'needPrompt'=>true];
 
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
-        if (!$ps) {
-            return ['ok' => true, 'needPrompt' => true, 'store' => '', 'category' => '', 'idle' => null, 'limit' => null];
-        }
+        if (!$ps) return ['ok'=>true,'needPrompt'=>true,'store'=>'','category'=>'','idle'=>null,'limit'=>null];
 
-        $idle  = time() - Yii::$app->ps->lastActivityTs($ps);
-        $limit = $ps->limit_amount !== null ? round(((int)$ps->limit_amount) / 100, 2) : null; // <- РУБЛИ
+        $idle = time() - Yii::$app->ps->lastActivityTs($ps);
+        $limitRub = $ps->limit_amount !== null ? round(((int)$ps->limit_amount)/100, 2) : null;
 
         return [
             'ok'         => true,
@@ -170,47 +167,42 @@ class SiteController extends Controller
             'store'      => (string)$ps->shop,
             'category'   => (string)$ps->category,
             'idle'       => $idle,
-            'limit'      => $limit, // <- добавили
+            'limit'      => $limitRub, // <—
         ];
     }
 
     /** Создание новой серверной сессии из модалки */
     public function actionBeginAjax()
     {
-        Yii::$app->response->format = Response::FORMAT_JSON;
-        if (Yii::$app->user->isGuest) return ['ok'=>false, 'error'=>'Требуется вход'];
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        if (Yii::$app->user->isGuest) return ['ok'=>false,'error'=>'Требуется вход'];
 
-        $store     = trim((string)Yii::$app->request->post('store', ''));
-        $category  = trim((string)Yii::$app->request->post('category', ''));
-        $limitRaw  = Yii::$app->request->post('limit', null); // <- НОВОЕ
-        if ($store === '') return ['ok'=>false, 'error'=>'Укажите магазин'];
+        $store    = trim((string)Yii::$app->request->post('store',''));
+        $category = trim((string)Yii::$app->request->post('category',''));
+        $limitStr = Yii::$app->request->post('limit', ''); // может быть пусто
 
-        // парсим лимит "3 000,50" -> float рубли, затем в копейки (int)
-        $limitFloat = $this->parseMoney($limitRaw);                    // float|null
-        $limitCents = $limitFloat !== null ? (int)round($limitFloat * 100) : null;
+        if ($store === '') return ['ok'=>false,'error'=>'Укажите магазин'];
 
-        // ровно одна активная
         Yii::$app->ps->closeActive(Yii::$app->user->id);
 
-        $ps = new PurchaseSession([
-            'user_id'      => Yii::$app->user->id,
-            'shop'         => $store,
-            'category'     => $category,
-            'status'       => PurchaseSession::STATUS_ACTIVE,
-            'limit_amount' => $limitCents,           // <- сохраняем
-            'started_at'   => time(),
-            'updated_at'   => time(),
+        $ps = new \app\models\PurchaseSession([
+            'user_id'  => Yii::$app->user->id,
+            'shop'     => $store,
+            'category' => $category,
+            'status'   => \app\models\PurchaseSession::STATUS_ACTIVE,
         ]);
-        $ps->save(false);
 
+        // лимит (в копейках в БД)
+        $limitRub = null;
+        if (($v = $this->parseMoney($limitStr)) !== null) {
+            $limitRub = $v;
+            $ps->limit_amount = (int)round($v * 100);
+        }
+
+        $ps->save(false);
         Yii::$app->session->set('purchase_session_id', $ps->id);
 
-        return [
-            'ok'       => true,
-            'store'    => $store,
-            'category' => $category,
-            'limit'    => $limitFloat, // <- отдадим фронту в рублях
-        ];
+        return ['ok'=>true, 'store'=>$store, 'category'=>$category, 'limit'=>$limitRub];
     }
 
     public function actionCloseSession()
