@@ -55,6 +55,12 @@ $entries = $entries ?? [];
                                 </select>
                             </div>
                             <small class="text-muted">Эти поля сохранятся к каждой позиции из текущих покупок.</small>
+                            <div class="mb-2">
+                                <label for="shop-limit" class="form-label">Лимит (опц.)</label>
+                                <input id="shop-limit" type="number" step="0.01" inputmode="decimal" class="form-control"
+                                       placeholder="например, 5000.00">
+                            </div>
+
                         </div>
                         <div class="modal-footer">
                             <button class="btn btn-outline-secondary" id="shop-begin">Начать</button>
@@ -120,9 +126,17 @@ $entries = $entries ?? [];
                 </div>
             </div>
 
-            <div class="total mt-3">
-                <span class="me-1"><strong><?= $totalLabel ?? 'Общая сумма:' ?></strong></span>
-                <strong id="scan-total"><?= number_format($total ?? 0, 2, '.', ' ') ?></strong>
+            <?php
+            $label   = $limitRub !== null ? 'До лимита:' : ($totalLabel ?? 'Общая сумма:');
+            $value   = $limitRub !== null ? ($limitRub - ($total ?? 0)) : ($total ?? 0);
+            $isOver  = $limitRub !== null && $value < 0;
+            $dataLim = $limitRub !== null ? number_format($limitRub, 2, '.', '') : '';
+            ?>
+            <div class="total mt-3" id="total-wrap" data-limit="<?= $dataLim ?>">
+                <span class="me-1"><strong id="scan-total-label"><?= $label ?></strong></span>
+                <strong id="scan-total" class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
+                    <?= number_format($value, 2, '.', ' ') ?>
+                </strong>
             </div>
 
             <div class="mt-3 text-start">

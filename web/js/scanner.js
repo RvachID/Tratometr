@@ -31,6 +31,9 @@
 
     let bootstrapModal = scanModalEl ? new bootstrap.Modal(scanModalEl) : null;
 
+    const shopLimitEl = document.getElementById('shop-limit');
+    let   metaLimit   = null;
+
     // ===== Состояние =====
     let currentStream = null;
     let scanBusy = false;
@@ -406,6 +409,10 @@
                 // обновим локальные метаданные из ответа (на случай рефреша)
                 metaStore    = res.store     || metaStore;
                 metaCategory = res.category  || metaCategory;
+
+                if (typeof res.limit === 'number') metaLimit = res.limit; else metaLimit = null;
+                scanRoot?.setAttribute('data-limit', metaLimit !== null ? String(metaLimit) : '');
+
                 scanRoot?.setAttribute('data-store', metaStore);
                 scanRoot?.setAttribute('data-category', metaCategory);
             }
@@ -424,6 +431,8 @@
     shopBeginBtn && (shopBeginBtn.onclick = async () => {
         const store = (shopStoreEl.value || '').trim();
         const cat   = (shopCatEl.value || '').trim();
+        const lim = (shopLimitEl?.value || '').trim();
+        fd.append('limit', lim);
         if (!store) { shopStoreEl.focus(); return; }
 
         const csrf = getCsrf();
@@ -444,6 +453,10 @@
             // обновляем метаданные для сохранений
             metaStore    = res.store || store;
             metaCategory = res.category || cat;
+
+            metaLimit = (typeof res.limit === 'number') ? res.limit : null;
+            scanRoot?.setAttribute('data-limit', metaLimit !== null ? String(metaLimit) : '');
+
             scanRoot?.setAttribute('data-store', metaStore);
             scanRoot?.setAttribute('data-category', metaCategory);
             updateScanTitle();

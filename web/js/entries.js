@@ -193,12 +193,28 @@
     }
 
     function updateTotal(total) {
-        const el = document.getElementById('scan-total');
-        if (el) {
-            el.textContent = Number(total).toLocaleString('ru-RU', {
-                minimumFractionDigits: 2, maximumFractionDigits: 2
-            });
+        const root    = document.getElementById('scan-root');
+        const labelEl = document.getElementById('total-label');
+        const valueEl = document.getElementById('total-value');
+        if (!valueEl) return;
+
+        const limAttr = root?.dataset.limit || '';
+        const limit   = limAttr === '' ? NaN : parseFloat(limAttr);
+
+        let out = Number(total || 0);
+        let negative = false;
+
+        if (!isNaN(limit)) {
+            out = limit - out;
+            negative = out < 0;
+            labelEl && (labelEl.textContent = 'До лимита');
+        } else {
+            labelEl && (labelEl.textContent = 'Итого');
         }
+
+        valueEl.textContent = Number(out).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        valueEl.classList.toggle('text-danger', negative);
+        valueEl.classList.toggle('fw-bold', negative);
     }
 
     // Инициализация на странице списка

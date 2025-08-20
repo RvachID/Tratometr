@@ -130,18 +130,25 @@ class SiteController extends Controller
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        if (Yii::$app->user->isGuest) return ['ok'=>false, 'needPrompt'=>true];
+        if (Yii::$app->user->isGuest) {
+            return ['ok' => false, 'needPrompt' => true];
+        }
 
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
-        if (!$ps) return ['ok'=>true, 'needPrompt'=>true, 'store'=>'', 'category'=>'', 'idle'=>null];
+        if (!$ps) {
+            return ['ok' => true, 'needPrompt' => true, 'store' => '', 'category' => '', 'idle' => null, 'limit' => null];
+        }
 
-        $idle = time() - Yii::$app->ps->lastActivityTs($ps);
+        $idle  = time() - Yii::$app->ps->lastActivityTs($ps);
+        $limit = $ps->limit_amount !== null ? round(((int)$ps->limit_amount) / 100, 2) : null; // <- РУБЛИ
+
         return [
-            'ok' => true,
+            'ok'         => true,
             'needPrompt' => false,
-            'store' => (string)$ps->shop,
-            'category' => (string)$ps->category,
-            'idle' => $idle,
+            'store'      => (string)$ps->shop,
+            'category'   => (string)$ps->category,
+            'idle'       => $idle,
+            'limit'      => $limit, // <- добавили
         ];
     }
 
@@ -151,25 +158,39 @@ class SiteController extends Controller
         Yii::$app->response->format = Response::FORMAT_JSON;
         if (Yii::$app->user->isGuest) return ['ok'=>false, 'error'=>'Требуется вход'];
 
-        $store    = trim((string)Yii::$app->request->post('store', ''));
-        $category = trim((string)Yii::$app->request->post('category', ''));
+        $store     = trim((string)Yii::$app->request->post('store', ''));
+        $category  = trim((string)Yii::$app->request->post('category', ''));
+        $limitRaw  = Yii::$app->request->post('limit', null); // <- НОВОЕ
         if ($store === '') return ['ok'=>false, 'error'=>'Укажите магазин'];
+
+        // парсим лимит "3 000,50" -> float рубли, затем в копейки (int)
+        $limitFloat = $this->parseMoney($limitRaw);                    // float|null
+        $limitCents = $limitFloat !== null ? (int)round($limitFloat * 100) : null;
 
         // ровно одна активная
         Yii::$app->ps->closeActive(Yii::$app->user->id);
 
         $ps = new PurchaseSession([
-            'user_id'  => Yii::$app->user->id,
-            'shop'     => $store,
-            'category' => $category,
-            'status'   => PurchaseSession::STATUS_ACTIVE,
+            'user_id'      => Yii::$app->user->id,
+            'shop'         => $store,
+            'category'     => $category,
+            'status'       => PurchaseSession::STATUS_ACTIVE,
+            'limit_amount' => $limitCents,           // <- сохраняем
+            'started_at'   => time(),
+            'updated_at'   => time(),
         ]);
         $ps->save(false);
 
         Yii::$app->session->set('purchase_session_id', $ps->id);
 
-        return ['ok'=>true, 'store'=>$store, 'category'=>$category];
+        return [
+            'ok'       => true,
+            'store'    => $store,
+            'category' => $category,
+            'limit'    => $limitFloat, // <- отдадим фронту в рублях
+        ];
     }
+
 
     public function actionCloseSession()
     {
@@ -191,5 +212,14 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('success','Закупка удалена.');
         }
         return $this->redirect(['site/index']);
+    }
+
+    private function parseMoney($raw): ?float {
+        $s = trim((string)$raw);
+        if ($s === '') return null;
+        // допускаем "3 000,50" и "3000.50"
+        $s = str_replace([' ', ','], ['', '.'], $s);
+        if (!is_numeric($s)) return null;
+        return round((float)$s, 2);
     }
 }
