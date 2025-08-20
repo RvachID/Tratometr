@@ -19,7 +19,13 @@ $fmt = Yii::$app->formatter;
         </div>
     <?php endif; ?>
 
-    <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary w-100 mb-2">🛒 За покупками</a>
+    <?php
+
+    $hasOpen = !empty($psInfo) && (!isset($psInfo['status']) || (int)$psInfo['status'] === 1);
+    ?>
+    <?php if (!$hasOpen): ?>
+        <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary w-100 mb-2">🛒 За покупками</a>
+    <?php endif; ?>
 
     <?php if (!empty($psInfo)): ?>
         <div class="card border-0 shadow-sm mt-2 text-start">
