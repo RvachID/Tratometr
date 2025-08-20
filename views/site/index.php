@@ -38,13 +38,15 @@ $fmt = Yii::$app->formatter;
                     </div>
                 </div>
 
-                <?php if (!empty($psInfo['limit'])): ?>
+                <?php if (array_key_exists('limit', $psInfo) && $psInfo['limit'] !== null): ?>
                     <div class="mt-1">
-                        <strong>Лимит:</strong> <?= number_format($psInfo['limit'], 2, '.', ' ') ?>
+                        <strong>Лимит:</strong>
+                        <?= number_format($psInfo['limit'] / 100, 2, '.', ' ') ?>
                     </div>
                 <?php endif; ?>
 
-                <!-- Продолжить — одна длинная кнопка -->
+
+                <!-- Продолжить — одна линная кнопка -->
                 <div class="mt-3">
                     <a href="<?= Url::to(['site/scan']) ?>" class="btn btn-outline-secondary w-100">▶️ Продолжить</a>
                 </div>
