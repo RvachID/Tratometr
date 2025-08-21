@@ -98,5 +98,4 @@ $fmt = Yii::$app->formatter;
             </div>
         <?php endforeach; ?>
     </div>
-
 </div>
