@@ -85,23 +85,45 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 </footer>
 <script>
     (function() {
-        const LIFETIME = 3000;
+        const LIFETIME = 3000;  // мс
+        const STAGGER  = 150;   // «лесенка» между несколькими алертами
 
-        document.querySelectorAll('.alert').forEach((el, i) => {
-            // на всякий случай гарантируем анимацию
-            el.classList.add('fade','show');
-
+        function closeAlert(el, delay) {
             setTimeout(() => {
                 if (window.bootstrap && bootstrap.Alert) {
-                    bootstrap.Alert.getOrCreateInstance(el).close(); // корректно удалит
+                    bootstrap.Alert.getOrCreateInstance(el).close();
                 } else {
-                    // фолбэк без Bootstrap JS
+                    el.classList.remove('show');
                     el.style.transition = 'opacity .25s ease';
                     el.style.opacity = '0';
                     setTimeout(() => el.remove(), 250);
                 }
-            }, LIFETIME + i * STAGGER);
+            }, delay);
+        }
+
+        // закрываем все уже отображённые
+        document.querySelectorAll('.alert').forEach((el, i) => {
+            el.classList.add('fade','show');
+            closeAlert(el, LIFETIME + i * STAGGER);
         });
+
+        // если алерт появится позже (ajax/pjax) — тоже закроем
+        const mo = new MutationObserver(muts => {
+            muts.forEach(m => {
+                m.addedNodes.forEach(n => {
+                    if (!(n instanceof HTMLElement)) return;
+                    if (n.classList && n.classList.contains('alert')) {
+                        n.classList.add('fade','show');
+                        closeAlert(n, LIFETIME);
+                    }
+                    n.querySelectorAll?.('.alert').forEach(el => {
+                        el.classList.add('fade','show');
+                        closeAlert(el, LIFETIME);
+                    });
+                });
+            });
+        });
+        mo.observe(document.body, { childList: true, subtree: true });
     })();
 </script>
 
