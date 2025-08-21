@@ -99,5 +99,4 @@ $fmt = Yii::$app->formatter;
         <?php endforeach; ?>
     </div>
 
-    <a class="btn btn-outline-secondary mt-3" href="<?= Html::encode(Yii::$app->homeUrl) ?>">← На главную</a>
 </div>
