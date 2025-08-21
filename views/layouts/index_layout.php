@@ -44,6 +44,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         'options' => ['class' => 'navbar-nav'],
         'items' => [
             ['label' => 'История',  'url' => ['/site/history']],
+            ['label' => 'Статистика',  'url' => ['/site/stats']],
             ['label' => 'О проекте','url' => ['/site/about']],
             Yii::$app->user->isGuest
                 ? ['label' => 'Авторизоваться', 'url' => ['/auth/login']]
