@@ -68,7 +68,6 @@ $this->title = 'Статистика';
             const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // index.php?r=site%2Fstats-data
             const url = new URL(api, window.location.origin);
 
-            // добавляем параметры формы (даты + categories[]), r не трогаем
             const fd = new FormData(form);
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
 
@@ -86,16 +85,16 @@ $this->title = 'Статистика';
 
                 const total = json.values.reduce((a, b) => a + b, 0);
 
-                // брендовая палитра (бронза/песок/кофе)
-                const base  = ['#7C4F35','#B08D57','#C19A6B','#A98467','#D1B280','#8C5A3C','#E3C59B','#9C6B45'];
+                // палитра от САМЫХ СВЕТЛЫХ к ТЁМНЫМ (тёмный — в последнюю очередь)
+                const base  = ['#E3C59B','#D1B280','#C19A6B','#A98467','#B08D57','#9C6B45','#8C5A3C','#7C4F35'];
                 const fill  = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.95));
                 const hover = json.values.map((_, i) => hexToRgba(base[i % base.length], 1.00));
 
                 const data = {
-                    labels: json.labels,        // категории
+                    labels: json.labels,
                     datasets: [{
                         label: 'Расходы, ₽',
-                        data: json.values,        // суммы по категориям (₽)
+                        data: json.values,
                         backgroundColor: fill,
                         hoverBackgroundColor: hover,
                         borderColor: '#FFFFFF',
@@ -120,7 +119,8 @@ $this->title = 'Статистика';
                 };
 
                 if (chart) chart.destroy();
-                chart = new Chart(ctx, { type: 'pie', data, options: opts }); // <-- 'pie' вместо 'doughnut'
+                chart = new Chart(ctx, { type: 'pie', data, options: opts });
+
                 if (total === 0) console.info('Нет данных за выбранный период');
             } catch (err) {
                 console.error('Failed to load stats:', err);
@@ -135,6 +135,7 @@ $this->title = 'Статистика';
                 return `rgba(${r},${g},${b},${a})`;
             }
         }
+
 
         form.addEventListener('submit', function (e) {
             e.preventDefault();
