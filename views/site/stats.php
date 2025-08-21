@@ -50,10 +50,13 @@ $this->title = 'Статистика';
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <canvas id="statsChart" height="150"></canvas>
+            <canvas id="statsChart" height="150" class="d-none"></canvas>
+            <div id="statsEmpty" class="text-center py-5 small">
+                <div class="fw-semibold" style="color:#7C4F35">Нет данных за выбранный период</div>
+                <div class="text-muted" style="color:#A98467">Учитываются только завершённые сессии</div>
+            </div>
         </div>
     </div>
-    <small class="text-muted">Учитываются только завершенные сессии</small>
 </div>
 
 <!-- Chart.js -->
@@ -61,15 +64,33 @@ $this->title = 'Статистика';
 <script>
     (function () {
         const form = document.getElementById('stats-form');
-        const ctx  = document.getElementById('statsChart').getContext('2d');
+        const ctx = document.getElementById('statsChart').getContext('2d');
         let chart;
 
         async function loadAndRender() {
+            const formEl   = document.getElementById('stats-form');
+            const canvasEl = document.getElementById('statsChart');
+            const emptyEl  = document.getElementById('statsEmpty');
+
             const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // index.php?r=site%2Fstats-data
             const url = new URL(api, window.location.origin);
 
-            const fd = new FormData(form);
+            // параметры формы (даты + categories[]), r не трогаем
+            const fd = new FormData(formEl);
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
+
+            // локальные помощники
+            function showEmpty(msgMain = 'Нет данных за выбранный период', msgSub = 'Учитываются только завершённые сессии') {
+                canvasEl.classList.add('d-none');
+                emptyEl.classList.remove('d-none');
+                emptyEl.innerHTML =
+                    `<div class="fw-semibold" style="color:#7C4F35">${msgMain}</div>` +
+                    `<div class="text-muted" style="color:#A98467">${msgSub}</div>`;
+            }
+            function showChart() {
+                emptyEl.classList.add('d-none');
+                canvasEl.classList.remove('d-none');
+            }
 
             try {
                 const res  = await fetch(url.toString(), {
@@ -80,12 +101,17 @@ $this->title = 'Статистика';
                 const text = await res.text();
                 let json;
                 try { json = JSON.parse(text); }
-                catch (e) { console.error('stats-data вернул не JSON:', text.slice(0, 300)); return; }
-                if (!json.ok) { console.warn('stats-data not ok', json); return; }
+                catch { showEmpty('Ошибка данных', 'Ответ сервера не в формате JSON'); return; }
+                if (!json.ok) { showEmpty('Нет доступа', 'Войдите в систему и повторите'); return; }
 
-                const total = json.values.reduce((a, b) => a + b, 0);
+                const total = (json.values || []).reduce((a, b) => a + b, 0);
+                if (!json.values || json.values.length === 0 || total === 0) {
+                    if (window.chart) { window.chart.destroy(); window.chart = null; }
+                    showEmpty();
+                    return;
+                }
 
-                // палитра от САМЫХ СВЕТЛЫХ к ТЁМНЫМ (тёмный — в последнюю очередь)
+                // палитра от светлого к тёмному
                 const base  = ['#E3C59B','#D1B280','#C19A6B','#A98467','#B08D57','#9C6B45','#8C5A3C','#7C4F35'];
                 const fill  = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.95));
                 const hover = json.values.map((_, i) => hexToRgba(base[i % base.length], 1.00));
@@ -118,12 +144,14 @@ $this->title = 'Статистика';
                     }
                 };
 
-                if (chart) chart.destroy();
-                chart = new Chart(ctx, { type: 'pie', data, options: opts });
+                // рисуем
+                showChart();
+                if (window.chart) window.chart.destroy();
+                window.chart = new Chart(canvasEl.getContext('2d'), { type: 'pie', data, options: opts });
 
-                if (total === 0) console.info('Нет данных за выбранный период');
             } catch (err) {
                 console.error('Failed to load stats:', err);
+                showEmpty('Не удалось загрузить данные', 'Проверьте соединение и попробуйте ещё раз');
             }
 
             // helper: #RRGGBB -> rgba(...)
@@ -136,17 +164,15 @@ $this->title = 'Статистика';
             }
         }
 
-
         form.addEventListener('submit', function (e) {
             e.preventDefault();
             loadAndRender();
             // обновляем адрес (но не уходим со страницы)
-            const base   = '<?= \yii\helpers\Url::to(['site/stats']) ?>';
+            const base = '<?= \yii\helpers\Url::to(['site/stats']) ?>';
             const params = new URLSearchParams(new FormData(form)).toString();
             history.replaceState(null, '', base + (params ? '?' + params : ''));
         });
 
-        // первый рендер
         loadAndRender();
     })();
 </script>
