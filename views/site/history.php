@@ -18,6 +18,7 @@ $fmt = Yii::$app->formatter;
                 <th>Категория</th>
                 <th style="width:110px;">Тип</th>
                 <th class="text-end" style="width:140px;">Сумма</th>
+                <th class="text-end" style="width:90px;">Действия</th>
             </tr>
             </thead>
             <tbody>
@@ -41,6 +42,13 @@ $fmt = Yii::$app->formatter;
                     <td><?= $label ?></td>
                     <td class="text-end <?= $isOver ? 'text-danger fw-bold' : '' ?>">
                         <?= number_format($value, 2, '.', ' ') ?>
+                    </td>
+                    <td class="text-end">
+                        <?= Html::beginForm(['site/delete-session', 'id' => (int)$r['id']], 'post', [
+                            'onsubmit' => "return confirm('Удалить сессию и все её позиции? Это действие необратимо.');"
+                        ]) ?>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">🗑 Удалить</button>
+                        <?= Html::endForm() ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -77,6 +85,14 @@ $fmt = Yii::$app->formatter;
                                 <?= number_format($value, 2, '.', ' ') ?>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-2">
+                        <?= Html::beginForm(['site/delete-session', 'id' => (int)$r['id']], 'post', [
+                            'onsubmit' => "return confirm('Удалить сессию и все её позиции? Это действие необратимо.');"
+                        ]) ?>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">🗑 Удалить</button>
+                        <?= Html::endForm() ?>
                     </div>
                 </div>
             </div>

@@ -213,18 +213,47 @@ class SiteController extends Controller
         return $this->redirect(['site/index']);
     }
 
-    public function actionDeleteSession()
+    public function actionDeleteSession($id = null)
     {
         if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
 
-        $ps = Yii::$app->ps->active(Yii::$app->user->id);
-        if ($ps) {
-            PriceEntry::deleteAll(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id]);
-            PurchaseSession::deleteAll(['id'=>$ps->id, 'user_id'=>$ps->user_id]);
-            Yii::$app->session->remove('purchase_session_id');
-            Yii::$app->session->setFlash('success','Закупка удалена.');
+        $userId = Yii::$app->user->id;
+        $ps = null;
+
+        if ($id === null) {
+            // удалить активную
+            $ps = Yii::$app->ps->active($userId);
+        } else {
+            // удалить конкретную из истории
+            $ps = \app\models\PurchaseSession::findOne(['id' => (int)$id, 'user_id' => $userId]);
         }
-        return $this->redirect(['site/index']);
+
+        if (!$ps) {
+            Yii::$app->session->setFlash('error', 'Сессия не найдена или недоступна.');
+            return $id === null ? $this->redirect(['site/index']) : $this->redirect(['site/history']);
+        }
+
+        $db = Yii::$app->db;
+        $tx = $db->beginTransaction();
+        try {
+            \app\models\PriceEntry::deleteAll(['user_id' => $userId, 'session_id' => $ps->id]);
+            $ps->delete(false);
+
+            // если удалили активную — очистим маркер
+            if ((int)Yii::$app->session->get('purchase_session_id') === (int)$ps->id) {
+                Yii::$app->session->remove('purchase_session_id');
+            }
+
+            $tx->commit();
+            Yii::$app->session->setFlash('success', 'Сессия удалена.');
+        } catch (\Throwable $e) {
+            $tx->rollBack();
+            Yii::error($e->getMessage() . "\n" . $e->getTraceAsString(), __METHOD__);
+            Yii::$app->session->setFlash('error', 'Не удалось удалить сессию.');
+        }
+
+        // возвращаем туда, откуда удаляли
+        return $id === null ? $this->redirect(['site/index']) : $this->redirect(['site/history']);
     }
 
     public function actionHistory()
