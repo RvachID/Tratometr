@@ -1,6 +1,7 @@
 <?php
 namespace app\models;
 
+use Yii;
 use yii\db\ActiveRecord;
 
 class PurchaseSession extends ActiveRecord
@@ -26,5 +27,44 @@ class PurchaseSession extends ActiveRecord
         if ($insert && !$this->started_at) $this->started_at = $now;
         $this->updated_at = $now;
         return parent::beforeSave($insert);
+    }
+    /**
+     * Финализировать сессию: посчитать total_amount/limit_left и закрыть.
+     * Безопасно вызывать повторно — посчитает заново.
+     */
+    public function finalize(): bool
+    {
+        if ($this->isNewRecord) return false;
+
+        $tx = Yii::$app->db->beginTransaction();
+        try {
+            $sum = (new \yii\db\Query())
+                ->from('{{%price_entry}}')
+                ->where(['session_id' => $this->id])
+                ->select(new \yii\db\Expression('ROUND(SUM(amount*qty), 2)'))
+                ->scalar();
+            $sum = $sum !== null ? (float)$sum : 0.0;
+
+            $this->total_amount = $sum;
+
+            if ($this->limit_amount === null) {
+                $this->limit_left = null;
+            } else {
+                $left = (float)$this->limit_amount - $sum;
+                $this->limit_left = $left > 0 ? round($left, 2) : 0.00;
+            }
+
+            $this->status     = self::STATUS_CLOSED;
+            $this->closed_at  = time();
+            $this->updated_at = $this->closed_at;
+
+            $this->save(false, ['total_amount','limit_left','status','closed_at','updated_at']);
+            $tx->commit();
+            return true;
+        } catch (\Throwable $e) {
+            $tx->rollBack();
+            Yii::error($e->getMessage(), __METHOD__);
+            return false;
+        }
     }
 }

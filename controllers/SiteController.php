@@ -208,11 +208,36 @@ class SiteController extends Controller
 
     public function actionCloseSession()
     {
-        if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
-        Yii::$app->ps->closeActive(Yii::$app->user->id);
-        Yii::$app->session->setFlash('success','Покупка закрыта.');
+        if (Yii::$app->user->isGuest) {
+            return $this->redirect(['auth/login']);
+        }
+
+        $uid = Yii::$app->user->id;
+
+        // Берём активную сессию пользователя (если их гарантированно одна — ок)
+        $session = \app\models\PurchaseSession::find()
+            ->where(['user_id' => $uid, 'status' => \app\models\PurchaseSession::STATUS_ACTIVE])
+            ->orderBy(['started_at' => SORT_DESC])
+            ->one();
+
+        if (!$session) {
+            Yii::$app->session->setFlash('warning', 'Активная сессия не найдена.');
+            return $this->redirect(['site/index']);
+        }
+
+        if ($session->finalize()) {
+            // Красиво покажем итог
+            $fmt = Yii::$app->formatter;
+            $total  = $fmt->asDecimal($session->total_amount, 2);
+            $left   = $session->limit_left === null ? '—' : $fmt->asDecimal($session->limit_left, 2);
+            Yii::$app->session->setFlash('success', "Сессия закрыта. Итог: {$total}. Остаток по лимиту: {$left}.");
+        } else {
+            Yii::$app->session->setFlash('error', 'Не удалось закрыть сессию. Повторите позже.');
+        }
+
         return $this->redirect(['site/index']);
     }
+
 
     public function actionDeleteSession($id = null)
     {
@@ -265,19 +290,28 @@ class SiteController extends Controller
 
         $userId = Yii::$app->user->id;
 
-        // last_ts = последний скан (MAX pe.created_at), иначе updated_at, иначе started_at
+        // LEFT JOIN только для активных сессий — закрытые не утяжеляем
         $rows = (new \yii\db\Query())
             ->select([
                 'ps.id',
                 'ps.shop',
                 'ps.category',
                 'ps.status',
-                'ps.limit_amount',
-                new \yii\db\Expression('COALESCE(MAX(pe.created_at), ps.updated_at, ps.started_at) AS last_ts'),
-                new \yii\db\Expression('COALESCE(SUM(pe.amount * pe.qty), 0) AS total_sum'),
+                'ps.limit_amount',          // в копейках (как было)
+                'ps.total_amount',          // ₽ DECIMAL(12,2), кэш
+                'ps.limit_left',            // ₽ DECIMAL(12,2) или NULL, кэш
+                // last_ts: closed_at если есть, иначе последний скан/обновление/старт
+                new \yii\db\Expression(
+                    'COALESCE(ps.closed_at, MAX(pe.created_at), ps.updated_at, ps.started_at) AS last_ts'
+                ),
+                // Сумма "вживую" считаем только для активных (через условный JOIN ниже)
+                new \yii\db\Expression('COALESCE(SUM(pe.amount * pe.qty), 0) AS sum_live'),
             ])
             ->from(['ps' => 'purchase_session'])
-            ->leftJoin(['pe' => 'price_entry'], 'pe.session_id = ps.id AND pe.user_id = ps.user_id')
+            ->leftJoin(
+                ['pe' => 'price_entry'],
+                'pe.session_id = ps.id AND pe.user_id = ps.user_id AND ps.status <> 9' // только активные
+            )
             ->where(['ps.user_id' => $userId])
             ->groupBy(['ps.id'])
             ->orderBy(['last_ts' => SORT_DESC, 'ps.id' => SORT_DESC])
@@ -286,6 +320,7 @@ class SiteController extends Controller
 
         return $this->render('history', ['items' => $rows]);
     }
+
 
     private function parseMoney($raw): ?float {
         $s = trim((string)$raw);

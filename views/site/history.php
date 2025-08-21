@@ -4,6 +4,35 @@ use yii\helpers\Html;
 
 $this->title = 'История';
 $fmt = Yii::$app->formatter;
+
+function rowValueAndLabel(array $r): array {
+    $hasLimit = $r['limit_amount'] !== null;
+    $limitRub = $hasLimit ? ((int)$r['limit_amount'])/100 : null;
+
+    if ((int)$r['status'] === 9) { // закрытая сессия — берём кэш
+        if ($hasLimit) {
+            $value = (float)$r['limit_left'];
+            $label = 'Лимит';
+        } else {
+            $value = (float)$r['total_amount'];
+            $label = 'Итого';
+        }
+    } else { // активная — как раньше, "вживую"
+        $sumLive = (float)$r['sum_live'];
+        if ($hasLimit) {
+            $value = $limitRub - $sumLive;
+            $label = 'Лимит';
+        } else {
+            $value = $sumLive;
+            $label = 'Итого';
+        }
+    }
+
+    $isOver = $hasLimit && $value < 0;
+    $ts     = (int)$r['last_ts'];
+
+    return [$value, $label, $isOver, $ts];
+}
 ?>
 <div class="container mt-3">
     <h1 class="h4 mb-3">📜 История</h1>
@@ -23,14 +52,7 @@ $fmt = Yii::$app->formatter;
             </thead>
             <tbody>
             <?php foreach ($items as $r):
-                $sum        = (float)$r['total_sum'];                 // сумма по записям
-                $limitCents = $r['limit_amount'];                     // NULL или целое (копейки)
-                $hasLimit   = $limitCents !== null;
-                $limitRub   = $hasLimit ? ((int)$limitCents)/100 : null;
-                $value      = $hasLimit ? ($limitRub - $sum) : $sum;  // остаток / итого
-                $label      = $hasLimit ? 'Лимит' : 'Итого';
-                $isOver     = $hasLimit && $value < 0;
-                $ts         = (int)$r['last_ts'];
+                [$value, $label, $isOver, $ts] = rowValueAndLabel($r);
                 ?>
                 <tr>
                     <td>
@@ -59,14 +81,7 @@ $fmt = Yii::$app->formatter;
     <!-- < sm: карточки -->
     <div class="d-sm-none">
         <?php foreach ($items as $r):
-            $sum        = (float)$r['total_sum'];
-            $limitCents = $r['limit_amount'];
-            $hasLimit   = $limitCents !== null;
-            $limitRub   = $hasLimit ? ((int)$limitCents)/100 : null;
-            $value      = $hasLimit ? ($limitRub - $sum) : $sum;
-            $label      = $hasLimit ? 'Лимит' : 'Итого';
-            $isOver     = $hasLimit && $value < 0;
-            $ts         = (int)$r['last_ts'];
+            [$value, $label, $isOver, $ts] = rowValueAndLabel($r);
             ?>
             <div class="card border-0 shadow-sm mb-2">
                 <div class="card-body py-2">
