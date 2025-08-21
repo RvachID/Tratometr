@@ -34,7 +34,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 <header id="header">
     <?php
     NavBar::begin([
-        'brandLabel' => '← На главную',
+        'brandLabel' => '<span class="brand-arrow">⟵</span> На главную',
         'brandUrl'   => '/site/index',
         'options'    => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
     ]);
