@@ -60,7 +60,7 @@ $this->title = 'Статистика';
     </div>
 
     <p class="text-center mt-2 small" style="color:#000;">
-        Нажмите на диаграмму для большей информации
+        Нажмите на диаграмму для информации
     </p>
 
 </div>
@@ -201,11 +201,18 @@ $this->title = 'Статистика';
         form.addEventListener('submit', function (e) {
             e.preventDefault();
             loadAndRender();
-            // обновляем адрес (но не уходим со страницы)
-            const base = '<?= \yii\helpers\Url::to(['site/stats']) ?>';
-            const params = new URLSearchParams(new FormData(form)).toString();
-            history.replaceState(null, '', base + (params ? '?' + params : ''));
+
+            const baseHref = '<?= \yii\helpers\Url::to(['site/stats']) ?>';
+            const u = new URL(baseHref, window.location.origin);
+
+            const fd = new FormData(form);
+            for (const [k, v] of fd.entries()) {
+                u.searchParams.append(k, v);
+            }
+
+            history.replaceState(null, '', u.toString());
         });
+
 
         loadAndRender();
     })();
