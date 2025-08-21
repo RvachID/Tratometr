@@ -47,6 +47,9 @@ $this->title = 'Статистика';
             <button class="btn btn-outline-secondary w-100 btn-sm">Применить</button>
         </div>
     </form>
+    <p class="text-center mt-2 small" style="color:#000;">
+        Нажмите на диаграмму для большей информации
+    </p>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
@@ -107,7 +110,7 @@ $this->title = 'Статистика';
                     showEmpty(); return;
                 }
 
-                // Палитра от САМЫХ СВЕТЛЫХ к тёмным (чтобы «какашечный» уходил в конец)
+                // Палитра от САМЫХ СВЕТЛЫХ к тёмным
                 const base = ['#F0DAB7','#E3C59B','#D1B280','#C19A6B','#B08D57','#A98467','#9C6B45','#8C5A3C','#7C4F35','#5E3B29'];
                 const fill  = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.95));
                 const hover = json.values.map((_, i) => hexToRgba(base[i % base.length], 1.00));
