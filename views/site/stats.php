@@ -47,22 +47,20 @@ $this->title = 'Статистика';
             <button class="btn btn-outline-secondary w-100 btn-sm">Применить</button>
         </div>
     </form>
-    <p class="text-center mt-2 small" style="color:#000;">
-        Нажмите на диаграмму для большей информации
-    </p>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <!-- Показываем одно из: график или заглушку -->
+            <!-- canvas и заглушка: показываем один из них -->
             <canvas id="statsChart" height="150" class="d-none"></canvas>
             <div id="statsEmpty" class="text-center py-5 small">
                 <div class="fw-semibold" style="color:#7C4F35">Нет данных за выбранный период</div>
+                <div class="text-muted" style="color:#A98467">Учитываются только завершённые сессии</div>
             </div>
         </div>
     </div>
 
     <p class="text-center mt-2 small" style="color:#000;">
-        Учитываются только завершённые сессии
+        Нажмите на диаграмму для большей информации
     </p>
 
 </div>
@@ -88,10 +86,13 @@ $this->title = 'Статистика';
             const fd = new FormData(formEl);
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
 
-            function showEmpty(msg = 'Нет данных за выбранный период') {
+            // локальные помощники
+            function showEmpty(msgMain = 'Нет данных за выбранный период', msgSub = 'Учитываются только завершённые сессии') {
                 canvasEl.classList.add('d-none');
                 emptyEl.classList.remove('d-none');
-                emptyEl.innerHTML = `<div class="fw-semibold" style="color:#7C4F35">${msg}</div>`;
+                emptyEl.innerHTML =
+                    `<div class="fw-semibold" style="color:#7C4F35">${msgMain}</div>` +
+                    `<div class="text-muted" style="color:#A98467">${msgSub}</div>`;
             }
             function showChart() { emptyEl.classList.add('d-none'); canvasEl.classList.remove('d-none'); }
 
