@@ -6,24 +6,24 @@ $this->title = 'История';
 $fmt = Yii::$app->formatter;
 
 function rowValueAndLabel(array $r): array {
-    $hasLimit = $r['limit_amount'] !== null;                  // копейки или NULL
-    $limitRub = $hasLimit ? ((int)$r['limit_amount'])/100 : null;
+    $hasLimit = $r['limit_amount'] !== null;
+    $limitRub = $hasLimit ? ((int)$r['limit_amount']) / 100 : null;
 
-    if ((int)$r['status'] === 9) { // закрытая сессия — берём кэш
+    if ((int)$r['status'] === 9) { // ЗАКРЫТА: кэш в КОПЕЙКАХ -> переводим в рубли
         if ($hasLimit) {
-            $value = (float)$r['limit_left'];                 // ₽ уже посчитано и сохранено
+            $value = ((int)$r['limit_left']) / 100;   // копейки -> ₽
             $label = 'Лимит';
         } else {
-            $value = (float)$r['total_amount'];               // ₽ уже посчитано и сохранено
+            $value = ((int)$r['total_amount']) / 100; // копейки -> ₽
             $label = 'Итого';
         }
-    } else { // активная — как раньше, "вживую"
-        $sumLive = (float)$r['sum_live'];                     // ₽
+    } else { // АКТИВНА: считаем как раньше (sum_live в рублях)
+        $sumLive = (float)$r['sum_live']; // ₽
         if ($hasLimit) {
-            $value = $limitRub - $sumLive;
+            $value = $limitRub - $sumLive; // ₽
             $label = 'Лимит';
         } else {
-            $value = $sumLive;
+            $value = $sumLive;             // ₽
             $label = 'Итого';
         }
     }
@@ -33,6 +33,7 @@ function rowValueAndLabel(array $r): array {
 
     return [$value, $label, $isOver, $ts];
 }
+
 ?>
 <div class="container mt-3">
     <h1 class="h4 mb-3">📜 История</h1>
