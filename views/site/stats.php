@@ -50,13 +50,18 @@ $this->title = 'Статистика';
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
+            <!-- Показываем одно из: график или заглушку -->
             <canvas id="statsChart" height="150" class="d-none"></canvas>
             <div id="statsEmpty" class="text-center py-5 small">
                 <div class="fw-semibold" style="color:#7C4F35">Нет данных за выбранный период</div>
             </div>
         </div>
     </div>
-    <small class="text-muted" style="text-align: center">Учитываются только завершенные сессии</small>
+
+    <p class="text-center mt-2 small" style="color:#000;">
+        Учитываются только завершённые сессии
+    </p>
+
 </div>
 
 <!-- Chart.js -->
@@ -80,12 +85,11 @@ $this->title = 'Статистика';
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
 
             // локальные помощники
-            function showEmpty(msgMain = 'Нет данных за выбранный период', msgSub = 'Учитываются только завершённые сессии') {
+            function showEmpty(msgMain = 'Нет данных за выбранный период') {
                 canvasEl.classList.add('d-none');
                 emptyEl.classList.remove('d-none');
                 emptyEl.innerHTML =
-                    `<div class="fw-semibold" style="color:#7C4F35">${msgMain}</div>` +
-                    `<div class="text-muted" style="color:#A98467">${msgSub}</div>`;
+                    `<div class="fw-semibold" style="color:#7C4F35">${msgMain}</div>`;
             }
             function showChart() {
                 emptyEl.classList.add('d-none');
