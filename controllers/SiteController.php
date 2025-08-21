@@ -52,6 +52,8 @@ class SiteController extends Controller
 
     public function actionLogin()
     {
+        $this->layout = '@app/views/layouts/guest';
+
         if (!Yii::$app->user->isGuest) return $this->goHome();
         $model = new \app\models\LoginForm();
         if ($model->load(Yii::$app->request->post()) && $model->login()) return $this->goBack();
@@ -66,7 +68,8 @@ class SiteController extends Controller
     }
 
     public function actionIndex()
-    {$this->layout = '@app/views/layouts/index_layout';
+    {
+        $this->layout = '@app/views/layouts/index_layout';
 
         if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
 
