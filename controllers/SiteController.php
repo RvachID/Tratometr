@@ -443,6 +443,10 @@ class SiteController extends Controller
         ]);
     }
 
+    public function actionAbout()
+    {
+        return $this->render('about');
+    }
 
 
 }
