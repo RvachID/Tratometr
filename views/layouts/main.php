@@ -35,30 +35,46 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
     <?php
     NavBar::begin([
         'brandLabel' => Yii::$app->name,
-        'brandUrl' => Yii::$app->homeUrl,
-        'options' => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top']
+        'brandUrl'   => Yii::$app->homeUrl,
+        'options'    => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
     ]);
+
+    // Левое меню (как было)
     echo Nav::widget([
         'options' => ['class' => 'navbar-nav'],
         'items' => [
-            ['label' => 'Главная', 'url' => ['/site/index']],
-            ['label' => 'История', 'url' => ['/site/history']],
-            ['label' => 'О проекте', 'url' => ['/site/about']],
+            ['label' => 'Главная',  'url' => ['/site/index']],
+            ['label' => 'История',  'url' => ['/site/history']],
+            ['label' => 'О проекте','url' => ['/site/about']],
             Yii::$app->user->isGuest
                 ? ['label' => 'Авторизоваться', 'url' => ['/auth/login']]
                 : '<li class="nav-item">'
-                . Html::beginForm(['/site/logout'])
+                . Html::beginForm(['/site/logout'], 'post', ['class' => 'd-inline'])
                 . Html::submitButton(
                     'Выйти (' . explode('@', Yii::$app->user->identity->email)[0] . ')',
                     ['class' => 'nav-link btn btn-link logout']
                 )
                 . Html::endForm()
-                . '</li>'
-        ]
+                . '</li>',
+        ],
     ]);
+
+    // Правая часть: «← На главную» (показываем только если не на главной)
+    if (Yii::$app->controller->route !== 'site/index') {
+        echo Html::tag(
+            'div',
+            Html::a('← На главную', ['/site/index'], [
+                'class' => 'btn btn-outline-secondary btn-sm',
+                'title' => 'Вернуться на главную',
+            ]),
+            ['class' => 'ms-auto d-flex align-items-center']  // выравниваем вправо
+        );
+    }
+
     NavBar::end();
     ?>
 </header>
+
 
 <main id="main" class="flex-shrink-0" role="main">
     <div class="container">
