@@ -148,7 +148,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         // Клик по ссылке в меню — закрыть (после перехода)
         collapseEl.addEventListener('click', (e) => {
             const a = e.target.closest('.nav-link, .dropdown-item, a[href]');
-            if (a) closeMenu();
+            if (a) closeMenu(); // закроем после клика по ссылке
         });
 
         // Свайп вверх на подложке — закрыть
@@ -174,6 +174,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         mo.observe(collapseEl, { attributes:true, attributeFilter:['class'] });
 
     })();
+
 </script>
 
 <?php $this->endBody() ?>
