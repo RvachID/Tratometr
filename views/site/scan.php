@@ -42,14 +42,15 @@ $entries = $entries ?? [];
                             <div class="mb-2">
                                 <label class="form-label">Категория</label>
                                 <select class="form-select" id="shop-category">
-                                    <option>Еда</option>
+                                    <option>Продукты питания</option>
+                                    <option>Овощи/фрукты</option>
+                                    <option>Бытовая химия</option>
+                                    <option>Косметика</option>
                                     <option>Одежда</option>
                                     <option>Детское</option>
-                                    <option>Дом</option>
                                     <option>Аптека</option>
                                     <option>Техника</option>
                                     <option>Транспорт</option>
-                                    <option>Развлечения</option>
                                     <option>Питомцы</option>
                                     <option>Другое</option>
                                 </select>
