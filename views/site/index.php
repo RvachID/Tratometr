@@ -81,6 +81,6 @@ $historyUrl = \yii\helpers\Url::to(['site/history']);
         <a href="<?= $historyUrl ?>" class="btn btn-outline-secondary w-100">📜 История</a>
     </div>
 
-    <a href="<?= \yii\helpers\Url::to(['site/stats']) ?>" class="btn btn-outline-primary w-100 mt-2">📈 Статистика</a>
+    <a href="<?= \yii\helpers\Url::to(['site/stats']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">📈 Статистика</a>
 
 </div>

@@ -1,8 +1,9 @@
 <?php
 /** @var string $dateFrom */
 /** @var string $dateTo */
-/** @var array  $allCats */
-/** @var array  $selectedCats */
+/** @var array $allCats */
+
+/** @var array $selectedCats */
 
 use yii\helpers\Html;
 use yii\helpers\Url;
@@ -43,7 +44,7 @@ $this->title = 'Статистика';
         </div>
 
         <div class="col-12 col-sm-2">
-            <button class="btn btn-primary btn-sm w-100">Применить</button>
+            <button class="btn btn-outline-secondary w-100 btn-sm">Применить</button>
         </div>
     </form>
 
@@ -57,58 +58,61 @@ $this->title = 'Статистика';
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-    (function() {
+    (function () {
         const form = document.getElementById('stats-form');
-        const ctx  = document.getElementById('statsChart').getContext('2d');
+        const ctx = document.getElementById('statsChart').getContext('2d');
         let chart;
 
         async function loadAndRender() {
-            const url = new URL('<?= Url::to(['site/stats-data'], true) ?>');
-            const fd  = new FormData(form);
+            // используем ОТНОСИТЕЛЬНЫЙ URL, чтобы не было http/https микса
+            const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>';
+            const url = new URL(api, window.location.origin);
+
+            const fd = new FormData(form);
+            // чистим параметры и заполняем заново
+            url.search = '';
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
 
-            const res = await fetch(url.toString(), {headers: {'Accept': 'application/json'}});
-            const json = await res.json();
-            if (!json.ok) return;
+            try {
+                const res = await fetch(url.toString(), {headers: {'Accept': 'application/json'}});
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                if (!json.ok) throw new Error(json.error || 'bad response');
 
-            const data = {
-                labels: json.labels,
-                datasets: [{
-                    label: 'Расходы, ₽',
-                    data: json.values,
-                    borderWidth: 2,
-                    tension: 0.25,
-                    fill: true
-                }]
-            };
-            const opts = {
-                responsive: true,
-                scales: {
-                    y: {beginAtZero: true}
-                },
-                plugins: {
-                    legend: {display: false},
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => ' ' + (ctx.parsed.y ?? 0).toFixed(2) + ' ₽'
-                        }
+                const data = {
+                    labels: json.labels,
+                    datasets: [{
+                        label: 'Расходы, ₽',
+                        data: json.values,
+                        borderWidth: 2,
+                        tension: 0.25,
+                        fill: true
+                    }]
+                };
+                const opts = {
+                    responsive: true,
+                    scales: {y: {beginAtZero: true}},
+                    plugins: {
+                        legend: {display: false},
+                        tooltip: {callbacks: {label: (ctx) => ' ' + (ctx.parsed.y ?? 0).toFixed(2) + ' ₽'}}
                     }
-                }
-            };
+                };
 
-            if (chart) chart.destroy();
-            chart = new Chart(ctx, {type: 'line', data, options: opts});
+                if (chart) chart.destroy();
+                chart = new Chart(ctx, {type: 'line', data, options: opts});
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
         }
 
-        form.addEventListener('submit', function(e) {
+        form.addEventListener('submit', function (e) {
             e.preventDefault();
             loadAndRender();
-            // и обновим URL (чтобы шарился фильтр)
             const params = new URLSearchParams(new FormData(form)).toString();
-            window.history.replaceState(null, '', '<?= Url::to(['site/stats']) ?>' + (params ? '?' + params : ''));
+            history.replaceState(null, '', '<?= \yii\helpers\Url::to(['site/stats']) ?>' + (params ? '?' + params : ''));
         });
 
-        // первый рендер
         loadAndRender();
     })();
 </script>
+
