@@ -11,6 +11,7 @@ use yii\db\Query;
 use app\models\PriceEntry;
 use app\models\PurchaseSession;
 
+
 class SiteController extends Controller
 {
     public function behaviors()
@@ -245,7 +246,6 @@ class SiteController extends Controller
         return $this->redirect(['site/index']);
     }
 
-
     public function actionDeleteSession($id = null)
     {
         if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
@@ -328,8 +328,6 @@ class SiteController extends Controller
         return $this->render('history', ['items' => $rows]);
     }
 
-
-
     private function parseMoney($raw): ?float {
         $s = trim((string)$raw);
         if ($s === '') return null;
@@ -338,4 +336,110 @@ class SiteController extends Controller
         if (!is_numeric($s)) return null;
         return round((float)$s, 2);
     }
+
+    public function actionStats()
+    {
+        if (Yii::$app->user->isGuest) {
+            return $this->redirect(['auth/login']);
+        }
+
+        $uid = Yii::$app->user->id;
+
+        // Период по умолчанию: последние 7 дней (включая сегодня)
+        $dateTo   = Yii::$app->request->get('date_to', date('Y-m-d'));
+        $dateFrom = Yii::$app->request->get('date_from', date('Y-m-d', strtotime('-6 days', strtotime($dateTo))));
+
+        // Достаём НЕ пустые категории пользователя в этом диапазоне из закрытых сессий
+        $tsFrom = strtotime($dateFrom . ' 00:00:00');
+        $tsTo   = strtotime($dateTo   . ' 23:59:59');
+
+        $allCats = (new Query())
+            ->select('category')
+            ->from('purchase_session')
+            ->where([
+                'user_id' => $uid,
+                'status'  => \app\models\PurchaseSession::STATUS_CLOSED,
+            ])
+            ->andWhere(['between', 'closed_at', $tsFrom, $tsTo])
+            ->andWhere("category IS NOT NULL AND category <> ''")
+            ->groupBy('category')
+            ->orderBy('category ASC')
+            ->column();
+
+        // Выбранные категории из GET (по умолчанию — все найденные)
+        $selectedCats = Yii::$app->request->get('categories', $allCats);
+        if (!is_array($selectedCats)) $selectedCats = [$selectedCats];
+        // Отфильтруем мусор
+        $selectedCats = array_values(array_intersect($selectedCats, $allCats));
+
+        return $this->render('stats', [
+            'dateFrom'     => $dateFrom,
+            'dateTo'       => $dateTo,
+            'allCats'      => $allCats,
+            'selectedCats' => $selectedCats,
+        ]);
+    }
+
+    /** JSON-данные для диаграммы: сумма по дням в рублях */
+    public function actionStatsData(): array
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        if (Yii::$app->user->isGuest) {
+            return ['ok' => false, 'error' => 'auth'];
+        }
+
+        $uid      = Yii::$app->user->id;
+        $dateTo   = Yii::$app->request->get('date_to', date('Y-m-d'));
+        $dateFrom = Yii::$app->request->get('date_from', date('Y-m-d', strtotime('-6 days', strtotime($dateTo))));
+    $cats     = Yii::$app->request->get('categories', []);
+    if (!is_array($cats)) $cats = [$cats];
+
+    $tsFrom = strtotime($dateFrom . ' 00:00:00');
+    $tsTo   = strtotime($dateTo   . ' 23:59:59');
+
+    // Суммы по дням (берём ТОЛЬКО закрытые сессии; total_amount в копейках)
+    $q = (new Query())
+        ->select([
+            new Expression("FROM_UNIXTIME(closed_at, '%Y-%m-%d') AS d"),
+            new Expression('SUM(total_amount) AS sum_k'),
+        ])
+        ->from('purchase_session')
+        ->where([
+            'user_id' => $uid,
+            'status'  => \app\models\PurchaseSession::STATUS_CLOSED,
+        ])
+        ->andWhere(['between', 'closed_at', $tsFrom, $tsTo]);
+
+    if (!empty($cats)) {
+        $q->andWhere(['in', 'category', $cats]);
+    }
+
+    $rows = $q->groupBy(['d'])->orderBy(['d' => SORT_ASC])->all();
+
+    // Собираем по дням с нулями
+    $labels = [];
+    $data   = [];
+    for ($t = strtotime($dateFrom); $t <= strtotime($dateTo); $t += 86400) {
+        $d = date('Y-m-d', $t);
+        $labels[] = date('d.m', $t);
+        $data[$d] = 0;
+    }
+    foreach ($rows as $r) {
+        $d = $r['d'];
+        $data[$d] = isset($data[$d]) ? (int)$r['sum_k'] : 0;
+    }
+
+    // Перевод в рубли для фронта
+    $valuesRub = array_map(fn($k) => round($k / 100, 2), array_values($data));
+
+    return [
+        'ok'     => true,
+        'labels' => $labels,
+        'values' => $valuesRub,
+        'period' => [$dateFrom, $dateTo],
+    ];
+}
+
+
 }

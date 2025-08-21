@@ -81,10 +81,6 @@ $historyUrl = \yii\helpers\Url::to(['site/history']);
         <a href="<?= $historyUrl ?>" class="btn btn-outline-secondary w-100">📜 История</a>
     </div>
 
+    <a href="<?= \yii\helpers\Url::to(['site/stats']) ?>" class="btn btn-outline-primary w-100 mt-2">📈 Статистика</a>
 
-    <!-- тут потом появятся История/Статистика
-    <div class="d-grid gap-2">
-        <a href="#" class="btn btn-outline-secondary disabled">📜 История (скоро)</a>
-        <a href="#" class="btn btn-outline-secondary disabled">📈 Статистика (скоро)</a>
-    </div>-->
 </div>
