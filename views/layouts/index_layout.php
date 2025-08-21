@@ -62,6 +62,8 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 
     NavBar::end();
     ?>
+    <!-- Невидимая подложка для клика/свайпа вне меню -->
+    <div id="navOverlay" class="nav-overlay" hidden></div>
 </header>
 
 
@@ -86,7 +88,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 </footer>
 <script>
     (function() {
-        const LIFETIME = 5000;              // 3 сек
+        const LIFETIME = 7000;              // 3 сек
         const STAGGER  = 150;               // лёгкая «лесенка» при множестве алертов
 
         document.querySelectorAll('.alert').forEach((el, i) => {
@@ -104,6 +106,73 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
                 }
             }, LIFETIME + i * STAGGER);
         });
+    })();
+    (function() {
+        // Находим элементы
+        const toggler = document.querySelector('.navbar-toggler');
+        if (!toggler) return;
+
+        // Определяем целевой collapse по data-bs-target у тогглера
+        const targetSel = toggler.getAttribute('data-bs-target') || toggler.getAttribute('data-target');
+        const collapseEl = targetSel ? document.querySelector(targetSel) : document.querySelector('.navbar-collapse');
+        if (!collapseEl) return;
+
+        const overlay = document.getElementById('navOverlay');
+        const bsCollapse = (window.bootstrap && window.bootstrap.Collapse)
+            ? bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle:false })
+            : null;
+
+        const isOpen = () => collapseEl.classList.contains('show');
+        const openUI  = () => { overlay.hidden = false; document.body.classList.add('nav-open'); };
+        const closeUI = () => { overlay.hidden = true;  document.body.classList.remove('nav-open'); };
+
+        function closeMenu() {
+            if (!isOpen()) return;
+            if (bsCollapse) bsCollapse.hide();
+            else collapseEl.classList.remove('show'); // фолбэк без bootstrap.js
+            closeUI();
+        }
+
+        // Поддержка событий Bootstrap (если JS подключён)
+        collapseEl.addEventListener('shown.bs.collapse', openUI);
+        collapseEl.addEventListener('hidden.bs.collapse', closeUI);
+
+        // Клик по подложке закрывает меню
+        overlay.addEventListener('click', closeMenu);
+
+        // Закрываем по ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeMenu();
+        });
+
+        // Клик по ссылке в меню — закрыть (после перехода)
+        collapseEl.addEventListener('click', (e) => {
+            const a = e.target.closest('.nav-link, .dropdown-item, a[href]');
+            if (a) closeMenu();
+        });
+
+        // Свайп вверх на подложке — закрыть
+        let touchY0 = null, touchX0 = null, t0 = 0;
+        overlay.addEventListener('touchstart', (e) => {
+            const t = e.touches[0]; touchY0 = t.clientY; touchX0 = t.clientX; t0 = Date.now();
+        }, {passive:true});
+        overlay.addEventListener('touchend', (e) => {
+            if (touchY0 === null) return;
+            const t = e.changedTouches[0];
+            const dy = touchY0 - t.clientY; // >0 — свайп вверх
+            const dx = Math.abs((touchX0 ?? t.clientX) - t.clientX);
+            const dt = Date.now() - t0;
+            const isSwipeUp = dy > 50 && dx < 40 && dt < 600; // пороги
+            touchY0 = touchX0 = null;
+            if (isSwipeUp) closeMenu();
+        }, {passive:true});
+
+        // Фолбэк: если bootstrap события недоступны — отслеживаем класс show сами
+        const mo = new MutationObserver(() => {
+            if (isOpen()) openUI(); else closeUI();
+        });
+        mo.observe(collapseEl, { attributes:true, attributeFilter:['class'] });
+
     })();
 </script>
 

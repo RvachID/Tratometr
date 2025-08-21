@@ -203,5 +203,12 @@ a:hover {
     box-shadow: 0 0 0 .25rem rgba(233,167,174,.10);
 }
 
+.nav-overlay{
+    position:fixed; inset:0; z-index:1040; /* выше .navbar-collapse (z≈1030), ниже .modal */
+    background:transparent;                /* можно rgba(0,0,0,.05) если хочется лёгкое затемнение */
+}
+/* когда меню открыто, фиксируем скролл страницы по желанию */
+body.nav-open { overflow:hidden; }
+
 
 
