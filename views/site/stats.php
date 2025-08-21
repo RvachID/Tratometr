@@ -82,30 +82,29 @@ $this->title = 'Статистика';
                 let json;
                 try { json = JSON.parse(text); }
                 catch (e) { console.error('stats-data вернул не JSON:', text.slice(0, 300)); return; }
-                if (!json.ok) { console.warn('stats-data not ok:', json); return; }
+                if (!json.ok) { console.warn('stats-data not ok', json); return; }
 
                 const total = json.values.reduce((a, b) => a + b, 0);
 
                 // брендовая палитра (бронза/песок/кофе)
                 const base  = ['#7C4F35','#B08D57','#C19A6B','#A98467','#D1B280','#8C5A3C','#E3C59B','#9C6B45'];
-                const fill  = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.90));
+                const fill  = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.95));
                 const hover = json.values.map((_, i) => hexToRgba(base[i % base.length], 1.00));
 
                 const data = {
                     labels: json.labels,        // категории
                     datasets: [{
-                        label: 'Доли расходов, ₽',
+                        label: 'Расходы, ₽',
                         data: json.values,        // суммы по категориям (₽)
                         backgroundColor: fill,
                         hoverBackgroundColor: hover,
                         borderColor: '#FFFFFF',
-                        borderWidth: 2
+                        borderWidth: 1
                     }]
                 };
 
                 const opts = {
                     responsive: true,
-                    cutout: '55%',              // donut
                     plugins: {
                         legend: { position: 'bottom', labels: { color: '#7C4F35' } },
                         tooltip: {
@@ -121,8 +120,7 @@ $this->title = 'Статистика';
                 };
 
                 if (chart) chart.destroy();
-                chart = new Chart(ctx, { type: 'doughnut', data, options: opts });
-
+                chart = new Chart(ctx, { type: 'pie', data, options: opts }); // <-- 'pie' вместо 'doughnut'
                 if (total === 0) console.info('Нет данных за выбранный период');
             } catch (err) {
                 console.error('Failed to load stats:', err);
