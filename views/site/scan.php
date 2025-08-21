@@ -132,7 +132,7 @@ $entries = $entries ?? [];
             $isOver  = $limit !== null && $value < 0;
             $dataLim = $limit !== null ? number_format($limit, 2, '.', '') : '';
             ?>
-            <div class="total mt-3" id="total-wrap" data-limit="<?= $dataLim ?>">
+            <div class="total-total mt-3" id="total-wrap" data-limit="<?= $dataLim ?>">
                 <span class="me-1"><strong id="scan-total-label"><?= $label ?></strong></span>
                 <strong id="scan-total" class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
                     <?= number_format($value, 2, '.', ' ') ?>

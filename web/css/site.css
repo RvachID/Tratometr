@@ -162,8 +162,9 @@ a:hover {
     letter-spacing: .5px;
 }
 
-#total_wrap{
+.total-total{
     font-size: 28px;
+    color: #3498db;
 }
 
 

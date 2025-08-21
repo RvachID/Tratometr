@@ -34,8 +34,8 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 <header id="header">
     <?php
     NavBar::begin([
-        'brandLabel' => '← На главную',
-        'brandUrl'   => '/site/index',
+        'brandLabel' => Yii::$app->name,
+        'brandUrl'   => Yii::$app->homeUrl,
         'options'    => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
     ]);
 
@@ -58,6 +58,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
                 . '</li>',
         ],
     ]);
+
 
     NavBar::end();
     ?>

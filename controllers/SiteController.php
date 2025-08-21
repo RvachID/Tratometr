@@ -56,7 +56,8 @@ class SiteController extends Controller
     }
 
     public function actionIndex()
-    {
+    {$this->layout = '@app/views/layouts/index_layout';
+
         if (Yii::$app->user->isGuest) return $this->redirect(['auth/login']);
 
         $entries = PriceEntry::find()
