@@ -38,20 +38,20 @@ class PurchaseSession extends ActiveRecord
 
         $tx = Yii::$app->db->beginTransaction();
         try {
-            $sum = (new \yii\db\Query())
+            // Сумма по записям в КОПЕЙКАХ
+            $sumK = (new \yii\db\Query())
                 ->from('{{%price_entry}}')
                 ->where(['session_id' => $this->id])
-                ->select(new \yii\db\Expression('ROUND(SUM(amount*qty), 2)'))
+                ->select(new \yii\db\Expression('COALESCE(SUM(CAST(ROUND(amount * qty * 100) AS SIGNED)),0)'))
                 ->scalar();
-            $sum = $sum !== null ? (float)$sum : 0.0;
+            $sumK = (int)$sumK;
 
-            $this->total_amount = $sum;
-
+            $this->total_amount = $sumK;
             if ($this->limit_amount === null) {
                 $this->limit_left = null;
             } else {
-                $left = (float)$this->limit_amount - $sum;
-                $this->limit_left = $left > 0 ? round($left, 2) : 0.00;
+                $left = (int)$this->limit_amount - $sumK;
+                $this->limit_left = $left > 0 ? $left : 0;
             }
 
             $this->status     = self::STATUS_CLOSED;
@@ -67,4 +67,5 @@ class PurchaseSession extends ActiveRecord
             return false;
         }
     }
+
 }

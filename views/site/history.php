@@ -6,19 +6,19 @@ $this->title = 'История';
 $fmt = Yii::$app->formatter;
 
 function rowValueAndLabel(array $r): array {
-    $hasLimit = $r['limit_amount'] !== null;
+    $hasLimit = $r['limit_amount'] !== null;                  // копейки или NULL
     $limitRub = $hasLimit ? ((int)$r['limit_amount'])/100 : null;
 
     if ((int)$r['status'] === 9) { // закрытая сессия — берём кэш
         if ($hasLimit) {
-            $value = (float)$r['limit_left'];
+            $value = (float)$r['limit_left'];                 // ₽ уже посчитано и сохранено
             $label = 'Лимит';
         } else {
-            $value = (float)$r['total_amount'];
+            $value = (float)$r['total_amount'];               // ₽ уже посчитано и сохранено
             $label = 'Итого';
         }
     } else { // активная — как раньше, "вживую"
-        $sumLive = (float)$r['sum_live'];
+        $sumLive = (float)$r['sum_live'];                     // ₽
         if ($hasLimit) {
             $value = $limitRub - $sumLive;
             $label = 'Лимит';
