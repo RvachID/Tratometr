@@ -21,6 +21,8 @@ class AuthController extends Controller
 
     public function actionLogin()
     {
+        $this->layout = '@app/views/layouts/guest';
+
         if (Yii::$app->request->isPost) {
             $email = Yii::$app->request->post('email');
             $password = Yii::$app->request->post('password');
