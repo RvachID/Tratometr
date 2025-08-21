@@ -64,9 +64,10 @@ $this->title = 'Статистика';
         let chart;
 
         async function loadAndRender() {
-            // используем ОТНОСИТЕЛЬНЫЙ URL, чтобы не было http/https микса
-            const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>';
+
+            const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // ОТНОСИТЕЛЬНЫЙ
             const url = new URL(api, window.location.origin);
+
 
             const fd = new FormData(form);
             // чистим параметры и заполняем заново
@@ -74,10 +75,15 @@ $this->title = 'Статистика';
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
 
             try {
-                const res = await fetch(url.toString(), {headers: {'Accept': 'application/json'}});
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const json = await res.json();
-                if (!json.ok) throw new Error(json.error || 'bad response');
+                const res  = await fetch(url.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }});
+                const text = await res.text();
+                let json;
+                try { json = JSON.parse(text); }
+                catch (e) {
+                    console.error('Failed to load stats: got non-JSON', text.slice(0, 200));
+                    return;
+                }
+                if (!json.ok) { console.warn('stats-data not ok:', json); return; }
 
                 const data = {
                     labels: json.labels,

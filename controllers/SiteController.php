@@ -18,16 +18,25 @@ class SiteController extends Controller
     {
         return [
             'access' => [
-                'class' => AccessControl::class,
-                'only'  => ['logout'],
-                'rules' => [[ 'actions' => ['logout'], 'allow' => true, 'roles' => ['@'] ]],
+                'class' => \yii\filters\AccessControl::class,
+                // ограничиваем только эти экшены
+                'only'  => ['logout', 'stats', 'stats-data'],
+                'rules' => [
+                    [
+                        'actions' => ['logout', 'stats', 'stats-data'],
+                        'allow'   => true,
+                        'roles'   => ['@'], // только авторизованные
+                    ],
+                ],
             ],
             'verbs' => [
-                'class' => VerbFilter::class,
+                'class' => \yii\filters\VerbFilter::class,
                 'actions' => [
                     'logout'         => ['post'],
                     'close-session'  => ['post'],
                     'delete-session' => ['post'],
+                    'stats'          => ['get'],
+                    'stats-data'     => ['get'],
                 ],
             ],
         ];
@@ -383,8 +392,9 @@ class SiteController extends Controller
     /** JSON-данные для диаграммы: сумма по дням в рублях */
     public function actionStatsData()
     {
-        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
-        if (Yii::$app->user->isGuest) return ['ok' => false, 'error' => 'auth'];
+        if (Yii::$app->user->isGuest) {
+            return $this->asJson(['ok' => false, 'error' => 'auth']);
+        }
 
         $uid      = Yii::$app->user->id;
         $dateTo   = Yii::$app->request->get('date_to', date('Y-m-d'));
@@ -413,10 +423,12 @@ class SiteController extends Controller
 
         $rows = $q->groupBy(['d'])->orderBy(['d' => SORT_ASC])->all();
 
-        // заполняем все дни нулями
+        // заполнение всех дней
         $labels = [];
         $map = [];
-        for ($t = strtotime($dateFrom); $t <= strtotime($dateTo); $t += 86400) {
+        $t0 = strtotime($dateFrom);
+        $t1 = strtotime($dateTo);
+        for ($t = $t0; $t <= $t1; $t += 86400) {
             $d = date('Y-m-d', $t);
             $labels[] = date('d.m', $t);
             $map[$d] = 0;
@@ -425,10 +437,10 @@ class SiteController extends Controller
             $map[$r['d']] = (int)$r['sum_k']; // копейки
         }
 
-        // в рубли
-        $values = array_map(function ($v) { return round($v / 100, 2); }, array_values($map));
+        $values = array_map(fn($v) => round($v / 100, 2), array_values($map)); // → ₽
 
-        return ['ok' => true, 'labels' => $labels, 'values' => $values, 'period' => [$dateFrom, $dateTo]];
+        return $this->asJson(['ok' => true, 'labels' => $labels, 'values' => $values, 'period' => [$dateFrom, $dateTo]]);
     }
+
 
 }
