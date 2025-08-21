@@ -53,6 +53,7 @@ $this->title = 'Статистика';
             <canvas id="statsChart" height="150"></canvas>
         </div>
     </div>
+    <small class="text-muted">Учитываются только завершенные сессии</small>
 </div>
 
 <!-- Chart.js -->
@@ -67,7 +68,7 @@ $this->title = 'Статистика';
             const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // index.php?r=site%2Fstats-data
             const url = new URL(api, window.location.origin);
 
-            // добавляем параметры формы (даты + категории[]), r не трогаем
+            // добавляем параметры формы (даты + categories[]), r не трогаем
             const fd = new FormData(form);
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
 
@@ -81,24 +82,32 @@ $this->title = 'Статистика';
                 let json;
                 try { json = JSON.parse(text); }
                 catch (e) { console.error('stats-data вернул не JSON:', text.slice(0, 300)); return; }
-
-                if (!json.ok) { console.warn('stats-data not ok', json); return; }
+                if (!json.ok) { console.warn('stats-data not ok:', json); return; }
 
                 const total = json.values.reduce((a, b) => a + b, 0);
+
+                // брендовая палитра (бронза/песок/кофе)
+                const base  = ['#7C4F35','#B08D57','#C19A6B','#A98467','#D1B280','#8C5A3C','#E3C59B','#9C6B45'];
+                const fill  = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.90));
+                const hover = json.values.map((_, i) => hexToRgba(base[i % base.length], 1.00));
 
                 const data = {
                     labels: json.labels,        // категории
                     datasets: [{
                         label: 'Доли расходов, ₽',
-                        data: json.values         // суммы по категориям в ₽
+                        data: json.values,        // суммы по категориям (₽)
+                        backgroundColor: fill,
+                        hoverBackgroundColor: hover,
+                        borderColor: '#FFFFFF',
+                        borderWidth: 2
                     }]
                 };
 
                 const opts = {
                     responsive: true,
-                    cutout: '55%',              // делает donut
+                    cutout: '55%',              // donut
                     plugins: {
-                        legend: { position: 'bottom' },
+                        legend: { position: 'bottom', labels: { color: '#7C4F35' } },
                         tooltip: {
                             callbacks: {
                                 label: (ctx) => {
@@ -118,8 +127,16 @@ $this->title = 'Статистика';
             } catch (err) {
                 console.error('Failed to load stats:', err);
             }
-        }
 
+            // helper: #RRGGBB -> rgba(...)
+            function hexToRgba(hex, a) {
+                const h = hex.replace('#','');
+                const r = parseInt(h.slice(0,2),16);
+                const g = parseInt(h.slice(2,4),16);
+                const b = parseInt(h.slice(4,6),16);
+                return `rgba(${r},${g},${b},${a})`;
+            }
+        }
 
         form.addEventListener('submit', function (e) {
             e.preventDefault();
