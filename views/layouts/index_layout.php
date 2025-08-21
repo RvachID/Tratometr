@@ -86,7 +86,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 </footer>
 <script>
     (function() {
-        const LIFETIME = 3000;              // 3 сек
+        const LIFETIME = 5000;              // 3 сек
         const STAGGER  = 150;               // лёгкая «лесенка» при множестве алертов
 
         document.querySelectorAll('.alert').forEach((el, i) => {
