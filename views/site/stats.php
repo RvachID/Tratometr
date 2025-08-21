@@ -64,61 +64,59 @@ $this->title = 'Статистика';
         let chart;
 
         async function loadAndRender() {
-
-            const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // ОТНОСИТЕЛЬНЫЙ
+            const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // 'index.php?r=site%2Fstats-data'
             const url = new URL(api, window.location.origin);
 
-
             const fd = new FormData(form);
-            // чистим параметры и заполняем заново
-            url.search = '';
-            for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
+            // ВАЖНО: не очищаем url.search — сохраняем r=...
+            for (const [k, v] of fd.entries()) {
+                url.searchParams.append(k, v); // добавляем date_from, date_to, categories[]
+            }
 
             try {
-                const res  = await fetch(url.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }});
+                const res  = await fetch(url.toString(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
                 const text = await res.text();
                 let json;
-                try { json = JSON.parse(text); }
-                catch (e) {
+                try { json = JSON.parse(text); } catch (e) {
                     console.error('Failed to load stats: got non-JSON', text.slice(0, 200));
                     return;
                 }
-                if (!json.ok) { console.warn('stats-data not ok:', json); return; }
+                if (!json.ok) return;
 
                 const data = {
                     labels: json.labels,
-                    datasets: [{
-                        label: 'Расходы, ₽',
-                        data: json.values,
-                        borderWidth: 2,
-                        tension: 0.25,
-                        fill: true
-                    }]
+                    datasets: [{ label: 'Расходы, ₽', data: json.values, borderWidth: 2, tension: 0.25, fill: true }]
                 };
-                const opts = {
-                    responsive: true,
-                    scales: {y: {beginAtZero: true}},
-                    plugins: {
-                        legend: {display: false},
-                        tooltip: {callbacks: {label: (ctx) => ' ' + (ctx.parsed.y ?? 0).toFixed(2) + ' ₽'}}
-                    }
-                };
+                const opts = { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } };
 
                 if (chart) chart.destroy();
-                chart = new Chart(ctx, {type: 'line', data, options: opts});
+                chart = new Chart(ctx, { type: 'line', data, options: opts });
             } catch (e) {
                 console.error('Failed to load stats:', e);
             }
         }
 
-        form.addEventListener('submit', function (e) {
+
+        form.addEventListener('submit', function(e) {
             e.preventDefault();
             loadAndRender();
+            const base = '<?= \yii\helpers\Url::to(['site/stats']) ?>'; // только страница
             const params = new URLSearchParams(new FormData(form)).toString();
-            history.replaceState(null, '', '<?= \yii\helpers\Url::to(['site/stats']) ?>' + (params ? '?' + params : ''));
+            history.replaceState(null, '', base + (params ? '?' + params : ''));
         });
-
         loadAndRender();
     })();
+
+    const res = await fetch(url.toString(), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        cache: 'no-store'
+    });
+
+    if (json.values.every(v => v === 0)) {
+        console.info('Нет данных за выбранный период');
+    }
+
 </script>
 
