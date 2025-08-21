@@ -49,7 +49,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
             Yii::$app->user->isGuest
                 ? ['label' => 'Авторизоваться', 'url' => ['/auth/login']]
                 : '<li class="nav-item">'
-                . Html::beginForm(['/site/logout'], 'post', ['class' => 'd-inline'])
+                . Html::beginForm(['/auth/logout'], 'post', ['class' => 'd-inline'])
                 . Html::submitButton(
                     'Выйти (' . explode('@', Yii::$app->user->identity->email)[0] . ')',
                     ['class' => 'nav-link btn btn-link logout']
