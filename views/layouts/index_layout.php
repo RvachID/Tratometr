@@ -83,6 +83,28 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         </div>
     </div>
 </footer>
+<script>
+    (function() {
+        const LIFETIME = 3000;              // 3 сек
+        const STAGGER  = 150;               // лёгкая «лесенка» при множестве алертов
+
+        document.querySelectorAll('.alert').forEach((el, i) => {
+            // на всякий случай гарантируем анимацию
+            el.classList.add('fade','show');
+
+            setTimeout(() => {
+                if (window.bootstrap && bootstrap.Alert) {
+                    bootstrap.Alert.getOrCreateInstance(el).close(); // корректно удалит
+                } else {
+                    // фолбэк без Bootstrap JS
+                    el.style.transition = 'opacity .25s ease';
+                    el.style.opacity = '0';
+                    setTimeout(() => el.remove(), 250);
+                }
+            }, LIFETIME + i * STAGGER);
+        });
+    })();
+</script>
 
 <?php $this->endBody() ?>
 </body>

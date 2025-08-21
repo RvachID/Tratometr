@@ -238,19 +238,22 @@ class SiteController extends Controller
         if ($session->finalize()) {
             $fmt = Yii::$app->formatter;
 
-            // total_amount и limit_left у нас в КОПЕЙКАХ → делим на 100
+            // total_amount в копейках → рубли
             $totalRub = $fmt->asDecimal(((int)$session->total_amount) / 100, 2);
-            $leftRub  = $session->limit_left === null
-                ? '—'
-                : $fmt->asDecimal(((int)$session->limit_left) / 100, 2);
 
-            Yii::$app->session->setFlash(
-                'success',
-                "Сессия закрыта. Итог: {$totalRub}. Остаток по лимиту: {$leftRub}."
-            );
+            $msg = "Сессия закрыта. Итог: {$totalRub}.";
+
+            // остаток выводим ТОЛЬКО если лимит был указан
+            if ($session->limit_amount !== null) {
+                $leftRub = $fmt->asDecimal(((int)$session->limit_left) / 100, 2);
+                $msg .= " Остаток по лимиту: {$leftRub}.";
+            }
+
+            Yii::$app->session->setFlash('success', $msg);
         } else {
             Yii::$app->session->setFlash('error', 'Не удалось закрыть сессию. Повторите позже.');
         }
+
 
         return $this->redirect(['site/index']);
     }

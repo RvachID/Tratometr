@@ -182,5 +182,26 @@ a:hover {
     .form-check-input { accent-color:#B08D57; }
 }
 
+/* Общие мелочи */
+.alert { border-radius: .6rem; }
+.alert .btn-close { opacity:.4; }
+.alert .btn-close:hover { opacity:.7; }
+
+/* SUCCESS: бронзовая пастель в стиле твоего UI */
+.alert-success {
+    color: #7C4F35;                                       /* тёплый коричневый текст */
+    background: linear-gradient(90deg,#FFF5E9,#F3E3CF);   /* мягкий фон */
+    border: 1px solid #B08D57;                            /* бронзовая рамка */
+    box-shadow: 0 0 0 .25rem rgba(176,141,87,.10);
+}
+
+/* DANGER: более пастельный красный */
+.alert-danger, .alert-error {
+    color: #7B3A3F;
+    background-color: #F8DDE0;                            /* светлый фон */
+    border: 1px solid #E9A7AE;
+    box-shadow: 0 0 0 .25rem rgba(233,167,174,.10);
+}
+
 
 
