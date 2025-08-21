@@ -67,8 +67,8 @@ $this->title = 'Статистика';
             const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // index.php?r=site%2Fstats-data
             const url = new URL(api, window.location.origin);
 
+            // добавляем параметры формы (даты + категории[]), r не трогаем
             const fd = new FormData(form);
-            // сохраняем r=..., просто добавляем фильтры
             for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
 
             try {
@@ -76,38 +76,50 @@ $this->title = 'Статистика';
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     cache: 'no-store'
                 });
+
                 const text = await res.text();
                 let json;
                 try { json = JSON.parse(text); }
-                catch (e) { console.error('stats-data returned non-JSON:', text.slice(0, 200)); return; }
-                if (!json.ok) return;
+                catch (e) { console.error('stats-data вернул не JSON:', text.slice(0, 300)); return; }
+
+                if (!json.ok) { console.warn('stats-data not ok', json); return; }
+
+                const total = json.values.reduce((a, b) => a + b, 0);
 
                 const data = {
-                    labels: json.labels,
+                    labels: json.labels,        // категории
                     datasets: [{
-                        label: 'Расходы, ₽',
-                        data: json.values,
-                        borderWidth: 2,
-                        tension: 0.25,
-                        fill: true
+                        label: 'Доли расходов, ₽',
+                        data: json.values         // суммы по категориям в ₽
                     }]
                 };
+
                 const opts = {
                     responsive: true,
-                    scales: { y: { beginAtZero: true } },
-                    plugins: { legend: { display: false } }
+                    cutout: '55%',              // делает donut
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const val = Number(ctx.parsed);
+                                    const p = total ? (val / total * 100).toFixed(1) : '0.0';
+                                    return ` ${val.toFixed(2)} ₽ (${p}%)`;
+                                }
+                            }
+                        }
+                    }
                 };
 
                 if (chart) chart.destroy();
-                chart = new Chart(ctx, { type: 'line', data, options: opts });
+                chart = new Chart(ctx, { type: 'doughnut', data, options: opts });
 
-                if (json.values.every(v => v === 0)) {
-                    console.info('Нет данных за выбранный период');
-                }
-            } catch (e) {
-                console.error('Failed to load stats:', e);
+                if (total === 0) console.info('Нет данных за выбранный период');
+            } catch (err) {
+                console.error('Failed to load stats:', err);
             }
         }
+
 
         form.addEventListener('submit', function (e) {
             e.preventDefault();

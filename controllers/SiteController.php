@@ -405,9 +405,10 @@ class SiteController extends Controller
         $tsFrom = strtotime($dateFrom . ' 00:00:00');
         $tsTo   = strtotime($dateTo   . ' 23:59:59');
 
+        // Агрегация по КАТЕГОРИЯМ (берём только закрытые сессии)
         $q = (new \yii\db\Query())
             ->select([
-                new \yii\db\Expression("FROM_UNIXTIME(closed_at, '%Y-%m-%d') AS d"),
+                'category',
                 new \yii\db\Expression('SUM(total_amount) AS sum_k'),
             ])
             ->from('purchase_session')
@@ -415,32 +416,30 @@ class SiteController extends Controller
                 'user_id' => $uid,
                 'status'  => \app\models\PurchaseSession::STATUS_CLOSED,
             ])
-            ->andWhere(['between', 'closed_at', $tsFrom, $tsTo]);
+            ->andWhere(['between', 'closed_at', $tsFrom, $tsTo])
+            ->andWhere("category IS NOT NULL AND category <> ''");
 
         if (!empty($cats)) {
             $q->andWhere(['in', 'category', $cats]);
         }
 
-        $rows = $q->groupBy(['d'])->orderBy(['d' => SORT_ASC])->all();
+        $rows = $q->groupBy(['category'])->orderBy(['sum_k' => SORT_DESC])->all();
 
-        // заполнение всех дней
         $labels = [];
-        $map = [];
-        $t0 = strtotime($dateFrom);
-        $t1 = strtotime($dateTo);
-        for ($t = $t0; $t <= $t1; $t += 86400) {
-            $d = date('Y-m-d', $t);
-            $labels[] = date('d.m', $t);
-            $map[$d] = 0;
-        }
+        $values = [];
         foreach ($rows as $r) {
-            $map[$r['d']] = (int)$r['sum_k']; // копейки
+            $labels[] = (string)$r['category'];
+            $values[] = round(((int)$r['sum_k']) / 100, 2); // копейки -> ₽
         }
 
-        $values = array_map(fn($v) => round($v / 100, 2), array_values($map)); // → ₽
-
-        return $this->asJson(['ok' => true, 'labels' => $labels, 'values' => $values, 'period' => [$dateFrom, $dateTo]]);
+        return $this->asJson([
+            'ok'     => true,
+            'labels' => $labels,
+            'values' => $values,
+            'period' => [$dateFrom, $dateTo],
+        ]);
     }
+
 
 
 }
