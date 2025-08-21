@@ -53,10 +53,10 @@ $this->title = 'Статистика';
             <canvas id="statsChart" height="150" class="d-none"></canvas>
             <div id="statsEmpty" class="text-center py-5 small">
                 <div class="fw-semibold" style="color:#7C4F35">Нет данных за выбранный период</div>
-                <div class="text-muted" style="color:#A98467">Учитываются только завершённые сессии</div>
             </div>
         </div>
     </div>
+    <small class="text-muted" style="text-align: center">Учитываются только завершенные сессии</small>
 </div>
 
 <!-- Chart.js -->
