@@ -34,7 +34,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 <header id="header">
     <?php
     NavBar::begin([
-        'brandLabel' => '⟵ Назад',
+        'brandLabel' => '<- На главную',
         'brandUrl'   => '/site/index',
         'options'    => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
     ]);
@@ -43,7 +43,6 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
     echo Nav::widget([
         'options' => ['class' => 'navbar-nav'],
         'items' => [
-            ['label' => 'Главная',  'url' => ['/site/index']],
             ['label' => 'История',  'url' => ['/site/history']],
             ['label' => 'О проекте','url' => ['/site/about']],
             Yii::$app->user->isGuest
