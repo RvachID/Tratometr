@@ -125,6 +125,54 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         });
         mo.observe(document.body, { childList: true, subtree: true });
     })();
+
+    (function () {
+        const toggler = document.querySelector('.navbar-toggler');
+        if (!toggler) return;
+
+        // Определяем цель из data-bs-target или берём первый .navbar-collapse
+        const targetSel  = toggler.getAttribute('data-bs-target') || toggler.getAttribute('data-target') || '.navbar-collapse';
+        const collapseEl = document.querySelector(targetSel);
+        if (!collapseEl) return;
+
+        const hasBS   = !!(window.bootstrap && bootstrap.Collapse);
+        const control = hasBS ? bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }) : null;
+
+        const isOpen   = () => collapseEl.classList.contains('show');
+        const openUI   = () => document.body.classList.add('nav-open');
+        const closeUI  = () => document.body.classList.remove('nav-open');
+        const closeMenu = () => {
+            if (!isOpen()) return;
+            if (control) control.hide(); else collapseEl.classList.remove('show');
+            closeUI();
+        };
+
+        // Поддерживаем Bootstrap-события (если подключён JS Bootstrap)
+        collapseEl.addEventListener('shown.bs.collapse', openUI);
+        collapseEl.addEventListener('hidden.bs.collapse', closeUI);
+
+        // 1) Клик ВНЕ меню закрывает его. Клики ВНУТРИ — игнорируем.
+        document.addEventListener('click', (e) => {
+            if (!isOpen()) return;
+            if (e.target.closest(targetSel)) return;            // внутри меню — ничего не делаем
+            if (e.target.closest('.navbar-toggler')) return;    // по кнопке-бургеру — Bootstrap сам разрулит
+            closeMenu();
+        }, true); // capture, чтобы сработать до перехода по ссылке
+
+        // 2) Esc закрывает
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeMenu();
+        });
+
+        // 3) (опционально) якорные ссылки внутри меню можно закрывать сразу
+        collapseEl.addEventListener('click', (e) => {
+            const a = e.target.closest('a[href^="#"]');
+            if (a) closeMenu();
+        });
+
+        // 4) При ресайзе убираем фиксацию скролла, если меню уже закрыто
+        window.addEventListener('resize', () => { if (!isOpen()) closeUI(); });
+    })();
 </script>
 
 <?php $this->endBody() ?>

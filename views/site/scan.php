@@ -47,9 +47,9 @@ $entries = $entries ?? [];
                                     <option>Бытовая химия</option>
                                     <option>Косметика</option>
                                     <option>Одежда</option>
-                                    <option>Детское</option>
-                                    <option>Аптека</option>
-                                    <option>Техника</option>
+                                    <option>Детские товары</option>
+                                    <option>Лекарства</option>
+                                    <option>Электроника/бытовая техника</option>
                                     <option>Транспорт</option>
                                     <option>Питомцы</option>
                                     <option>Другое</option>
