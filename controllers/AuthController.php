@@ -23,8 +23,12 @@ class AuthController extends Controller
     {
         $this->layout = '@app/views/layouts/guest';
 
+        if (!Yii::$app->user->isGuest) {
+            return $this->goHome();
+        }
+
         if (Yii::$app->request->isPost) {
-            $email = Yii::$app->request->post('email');
+            $email    = Yii::$app->request->post('email');
             $password = Yii::$app->request->post('password');
 
             $user = \app\models\User::findByEmail($email);
@@ -36,6 +40,7 @@ class AuthController extends Controller
         }
         return $this->render('login');
     }
+
 
     public function actionLogout()
     {
