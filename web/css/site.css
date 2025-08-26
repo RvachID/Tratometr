@@ -222,4 +222,16 @@ footer, footer .container { text-align: center; }
 /* На случай, если где-то остался .text-end на колонке с кнопкой — переопределим */
 .cta-row.text-end { text-align: initial !important; }
 
+ .link-brand{
+     color:#A98467;                /* фирменный тёплый */
+     text-decoration:none;
+ }
+.link-brand:hover{
+    color:#7C4F35;                /* тёмный акцент */
+    text-decoration:underline;
+}
+.link-brand:active, .link-brand:focus{
+    color:#7C4F35;
+    outline:none;
+}
 
