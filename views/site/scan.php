@@ -16,18 +16,26 @@ $entries = $entries ?? [];
 
         <div class="container mt-3 text-center">
             <h6 id="scan-title" class="mb-2">Тратометр</h6>
-            <button id="start-scan" class="btn btn-outline-secondary mb-3" type="button">📷 Открыть камеру</button>
-            <button id="manual-add" class="btn btn-outline-secondary mb-3 ms-2" type="button">✍️ Ввести вручную</button>
 
-            <div id="camera-wrapper" style="display:none;">
-                <video id="camera" autoplay playsinline width="100%" style="max-width:400px;"></video>
-                <button id="capture" class="btn btn-outline-secondary">
+            <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
+                <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Открыть камеру</button>
+                <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
+            </div>
+
+            <div id="camera-wrapper" class="text-center" style="display:none;">
+                <video id="camera" autoplay playsinline class="d-block mx-auto"
+                       style="width:100%; max-width:400px;"></video>
+
+                <button id="capture" class="btn btn-outline-secondary d-block mx-auto mt-2" type="button">
                     <span class="spinner d-none spinner-border spinner-border-sm me-1"></span>
                     <span class="btn-text">📸 Сканировать</span>
                 </button>
-                <button id="ocr-cancel-btn" class="btn btn-outline-secondary d-none" type="button">✖ Отмена</button>
+
+                <button id="ocr-cancel-btn" class="btn btn-outline-secondary d-none mt-2" type="button">✖ Отмена</button>
             </div>
-            <!-- Модалка выбора магазина/категории -->
+        </div>
+
+        <!-- Модалка выбора магазина/категории -->
             <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog">
                     <div class="modal-content">

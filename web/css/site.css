@@ -203,6 +203,23 @@ a:hover {
     box-shadow: 0 0 0 .25rem rgba(233,167,174,.10);
 }
 
+/* NAVBAR: центрируем список пунктов и выравниваем на всех брейкпоинтах */
+.navbar .navbar-collapse { justify-content: center !important; }
+.navbar .navbar-nav { margin: 0 auto !important; justify-content: center; text-align: center; }
+.navbar .navbar-nav .nav-link { padding-left: .75rem; padding-right: .75rem; }
 
+/* FOOTER: центрируем копирайт на всех экранах */
+footer, footer .container { text-align: center; }
+
+/* CTA-кнопки (например, "Сканировать по камере"): центр и адекватная ширина */
+.cta-row { display: flex; justify-content: center; }
+.btn-cta { display: inline-flex; align-items: center; justify-content: center; }
+
+/* На телефонах кнопки во всю ширину, на планшетах/десктопах — авто, но с минимальной шириной для красоты */
+@media (max-width: 575.98px) { .btn-cta { width: 100%; } }
+@media (min-width: 576px)     { .btn-cta { width: auto; min-width: 260px; } }
+
+/* На случай, если где-то остался .text-end на колонке с кнопкой — переопределим */
+.cta-row.text-end { text-align: initial !important; }
 
 
