@@ -75,9 +75,9 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 
 <footer id="footer" class="mt-auto py-3 bg-light">
     <div class="container">
-        <div class="row text-muted">
-            <div class="col-md-6 text-center text-md-start">
-                &copy; Rvach_dev <?= date('Y') ?> — версия <?= Yii::$app->params['version'] ?>
+        <div class="row justify-content-center text-muted">
+            <div class="col-auto text-center">
+                &copy; Rvach_dev <?= date('Y') ?> — версия <?= \yii\helpers\Html::encode(Yii::$app->params['version'] ?? '') ?>
             </div>
         </div>
     </div>
