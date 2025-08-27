@@ -17,6 +17,7 @@ class AuthController extends Controller
             // Проставим таймзону новому пользователю из cookie (если валидна)
             $cookieTz = Yii::$app->request->cookies->getValue('tz');
             if ($cookieTz) $cookieTz = urldecode($cookieTz);
+
             if ($cookieTz && in_array($cookieTz, \DateTimeZone::listIdentifiers(), true)) {
                 // Ищем только что созданного пользователя (по email из формы)
                 $user = null;
@@ -27,9 +28,16 @@ class AuthController extends Controller
                 if (!$user && !Yii::$app->user->isGuest) {
                     $user = Yii::$app->user->identity;
                 }
-                if ($user && $user->timezone !== $cookieTz) {
+
+                if ($user) {
+                    // Сохраняем напрямую (обходит кэш схемы AR)
+                    $aff = Yii::$app->db->createCommand()
+                        ->update('{{%user}}', ['timezone' => $cookieTz], ['id' => $user->id])
+                        ->execute();
+
+                    // синхронизируем объект в памяти и логируем
                     $user->timezone = $cookieTz;
-                    $user->save(false);
+                    Yii::info("Saved timezone on signup uid={$user->id}: {$cookieTz}, affected={$aff}", __METHOD__);
                 }
             }
 
@@ -57,16 +65,20 @@ class AuthController extends Controller
             if ($user && $user->validatePassword($password)) {
                 Yii::$app->user->login($user, 3600 * 24 * 30);
 
-                // >>> добавлено: забираем tz из cookie, декодируем и сохраняем
                 $cookieTz = Yii::$app->request->cookies->getValue('tz');
                 if ($cookieTz) $cookieTz = urldecode($cookieTz);
+
                 if ($cookieTz && in_array($cookieTz, \DateTimeZone::listIdentifiers(), true)) {
-                    if ($user->timezone !== $cookieTz) {
-                        $user->timezone = $cookieTz;
-                        $user->save(false);
-                    }
+                    // Пытаемся обновить прямой командой (в обход AR + кэша схемы)
+                    $aff = Yii::$app->db->createCommand()
+                        ->update('{{%user}}', ['timezone' => $cookieTz], ['id' => $user->id])
+                        ->execute();
+
+                    // На всякий случай — синхронизируем AR-объект и пишем в лог
+                    $user->timezone = $cookieTz;
+                    Yii::info("Saved timezone for uid={$user->id}: {$cookieTz}, affected={$aff}", __METHOD__);
                 }
-                // <<<
+
 
                 return $this->goHome();
             }
