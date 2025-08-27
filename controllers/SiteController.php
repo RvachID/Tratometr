@@ -1,15 +1,11 @@
 <?php
 namespace app\controllers;
 
+use app\models\PriceEntry;
 use Yii;
-use yii\web\Controller;
-use yii\web\Response;
-use yii\filters\VerbFilter;
-use yii\filters\AccessControl;
 use yii\db\Expression;
 use yii\db\Query;
-use app\models\PriceEntry;
-use app\models\PurchaseSession;
+use yii\web\Controller;
 
 
 class SiteController extends Controller
