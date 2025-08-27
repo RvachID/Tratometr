@@ -155,6 +155,21 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
             if (!isOpen()) closeUI();
         });
     })();
+
+
+    (function () {
+        try {
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone; // напр. "Europe/Belgrade"
+            if (!tz) return;
+            // ставим на год; если уже есть — не перезаписываем
+            if (document.cookie.indexOf('tz=') === -1) {
+                document.cookie = 'tz=' + encodeURIComponent(tz) + ';path=/;max-age=' + (60 * 60 * 24 * 365) + ';SameSite=Lax';
+            }
+        } catch (e) {
+        }
+    })();
+
+
 </script>
 
 <?php $this->endBody() ?>

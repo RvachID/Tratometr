@@ -27,19 +27,30 @@ class AuthController extends Controller
         }
 
         if (Yii::$app->request->isPost) {
-            $email = Yii::$app->request->post('email');
+            $email    = Yii::$app->request->post('email');
             $password = Yii::$app->request->post('password');
 
             $user = \app\models\User::findByEmail($email);
             if ($user && $user->validatePassword($password)) {
                 Yii::$app->user->login($user, 3600 * 24 * 30);
+
+                // Сохраняем таймзону пользователя из cookie (если валидна)
+                $cookieTz = Yii::$app->request->cookies->getValue('tz');
+                if ($cookieTz && in_array($cookieTz, \DateTimeZone::listIdentifiers(), true)) {
+                    if ($user->timezone !== $cookieTz) {
+                        $user->timezone = $cookieTz;
+                        $user->save(false);
+                    }
+                }
+
                 return $this->goHome();
             }
+
             Yii::$app->session->setFlash('error', 'Неверный e-mail или пароль.');
         }
+
         return $this->render('login');
     }
-
 
     public function actionLogout()
     {

@@ -162,7 +162,7 @@ class SiteController extends Controller
             'store' => (string)$ps->shop,
             'category' => (string)$ps->category,
             'idle' => $idle,
-            'limit' => $limitRub, // <—
+            'limit' => $limitRub,
         ];
     }
 
@@ -293,27 +293,34 @@ class SiteController extends Controller
 
         $userId = Yii::$app->user->id;
 
-        // LEFT JOIN только для активных сессий — закрытые не утяжеляем
         $rows = (new \yii\db\Query())
             ->select([
                 'ps.id',
                 'ps.shop',
                 'ps.category',
                 'ps.status',
-                'ps.limit_amount',          // в копейках (как было)
-                'ps.total_amount',          // ₽ DECIMAL(12,2), кэш
-                'ps.limit_left',            // ₽ DECIMAL(12,2) или NULL, кэш
-                // last_ts: closed_at если есть, иначе последний скан/обновление/старт
+                // ВСЁ в копейках (INT), как и договаривались
+                'ps.limit_amount',
+                'ps.total_amount',
+                'ps.limit_left',
+                // Для возможного вывода обеих дат:
+                'ps.started_at',
+                'ps.closed_at',
+                // last_ts: для закрытых — момент закрытия; для активных — последний скан, иначе updated_at, иначе started_at
                 new \yii\db\Expression(
-                    'COALESCE(ps.closed_at, MAX(pe.created_at), ps.updated_at, ps.started_at) AS last_ts'
+                    "CASE WHEN ps.status = 9
+                      THEN ps.closed_at
+                      ELSE COALESCE(MAX(pe.created_at), ps.updated_at, ps.started_at)
+                 END AS last_ts"
                 ),
-                // Сумма "вживую" считаем только для активных (через условный JOIN ниже)
+                // «Живая» сумма только для активных (для закрытых используем кэш)
                 new \yii\db\Expression('COALESCE(SUM(pe.amount * pe.qty), 0) AS sum_live'),
             ])
             ->from(['ps' => 'purchase_session'])
+            // JOIN считаем только для активных, чтобы не грузить закрытые
             ->leftJoin(
                 ['pe' => 'price_entry'],
-                'pe.session_id = ps.id AND pe.user_id = ps.user_id AND ps.status <> 9' // только активные
+                'pe.session_id = ps.id AND pe.user_id = ps.user_id AND ps.status <> 9'
             )
             ->where(['ps.user_id' => $userId])
             ->groupBy(['ps.id'])
@@ -323,6 +330,7 @@ class SiteController extends Controller
 
         return $this->render('history', ['items' => $rows]);
     }
+
 
     private function parseMoney($raw): ?float
     {
@@ -340,22 +348,37 @@ class SiteController extends Controller
             return $this->redirect(['auth/login']);
         }
 
-        $uid = Yii::$app->user->id;
+        $uid  = Yii::$app->user->id;
+        $tzId = Yii::$app->formatter->timeZone;           // напр. 'Europe/Belgrade'
+        $tz   = new \DateTimeZone($tzId);
 
-        // Период по умолчанию: последние 7 дней (включая сегодня)
-        $dateTo = Yii::$app->request->get('date_to', date('Y-m-d'));
-        $dateFrom = Yii::$app->request->get('date_from', date('Y-m-d', strtotime('-6 days', strtotime($dateTo))));
+        // date_to: из GET, иначе — сегодня в TZ пользователя
+        $dateTo = Yii::$app->request->get('date_to');
+        if (!$dateTo) {
+            $now = new \DateTime('now', $tz);
+            $dateTo = $now->format('Y-m-d');
+        }
 
-        // Достаём НЕ пустые категории пользователя в этом диапазоне из закрытых сессий
-        $tsFrom = strtotime($dateFrom . ' 00:00:00');
-        $tsTo = strtotime($dateTo . ' 23:59:59');
+        // date_from: из GET, иначе — на 6 дней раньше выбранного date_to (в TZ пользователя)
+        $dateFrom = Yii::$app->request->get('date_from');
+        if (!$dateFrom) {
+            $base = new \DateTime($dateTo . ' 00:00:00', $tz);
+            $dateFrom = $base->modify('-6 days')->format('Y-m-d');
+        }
 
-        $allCats = (new Query())
+        // Переводим локальные границы в UTC-таймштампы
+        $fromLocal = new \DateTime($dateFrom . ' 00:00:00', $tz);
+        $toLocal   = new \DateTime($dateTo   . ' 23:59:59',   $tz);
+        $tsFrom = (int)$fromLocal->setTimezone(new \DateTimeZone('UTC'))->format('U');
+        $tsTo   = (int)$toLocal->setTimezone(new \DateTimeZone('UTC'))->format('U');
+
+        // Непустые категории пользователя в этом диапазоне среди закрытых сессий
+        $allCats = (new \yii\db\Query())
             ->select('category')
             ->from('purchase_session')
             ->where([
                 'user_id' => $uid,
-                'status' => \app\models\PurchaseSession::STATUS_CLOSED,
+                'status'  => \app\models\PurchaseSession::STATUS_CLOSED,
             ])
             ->andWhere(['between', 'closed_at', $tsFrom, $tsTo])
             ->andWhere("category IS NOT NULL AND category <> ''")
@@ -366,34 +389,52 @@ class SiteController extends Controller
         // Выбранные категории из GET (по умолчанию — все найденные)
         $selectedCats = Yii::$app->request->get('categories', $allCats);
         if (!is_array($selectedCats)) $selectedCats = [$selectedCats];
-        // Отфильтруем мусор
+        // Оставляем только валидные
         $selectedCats = array_values(array_intersect($selectedCats, $allCats));
 
         return $this->render('stats', [
-            'dateFrom' => $dateFrom,
-            'dateTo' => $dateTo,
-            'allCats' => $allCats,
+            'dateFrom'     => $dateFrom,
+            'dateTo'       => $dateTo,
+            'allCats'      => $allCats,
             'selectedCats' => $selectedCats,
         ]);
     }
 
-    /** JSON-данные для диаграммы: сумма по дням в рублях */
+    /** JSON-данные для диаграммы: суммы по категориям (рубли) за период в TZ пользователя */
     public function actionStatsData()
     {
         if (Yii::$app->user->isGuest) {
             return $this->asJson(['ok' => false, 'error' => 'auth']);
         }
 
-        $uid = Yii::$app->user->id;
-        $dateTo = Yii::$app->request->get('date_to', date('Y-m-d'));
-        $dateFrom = Yii::$app->request->get('date_from', date('Y-m-d', strtotime('-6 days', strtotime($dateTo))));
+        $uid  = Yii::$app->user->id;
+        $tzId = Yii::$app->formatter->timeZone;
+        $tz   = new \DateTimeZone($tzId);
+
+        // date_to: из GET или сегодня в локальной TZ
+        $dateTo = Yii::$app->request->get('date_to');
+        if (!$dateTo) {
+            $now = new \DateTime('now', $tz);
+            $dateTo = $now->format('Y-m-d');
+        }
+
+        // date_from: из GET или -6 дней от date_to
+        $dateFrom = Yii::$app->request->get('date_from');
+        if (!$dateFrom) {
+            $base = new \DateTime($dateTo . ' 00:00:00', $tz);
+            $dateFrom = $base->modify('-6 days')->format('Y-m-d');
+        }
+
         $cats = Yii::$app->request->get('categories', []);
         if (!is_array($cats)) $cats = [$cats];
 
-        $tsFrom = strtotime($dateFrom . ' 00:00:00');
-        $tsTo = strtotime($dateTo . ' 23:59:59');
+        // Границы периода: локальные -> UTC
+        $fromLocal = new \DateTime($dateFrom . ' 00:00:00', $tz);
+        $toLocal   = new \DateTime($dateTo   . ' 23:59:59',   $tz);
+        $tsFrom = (int)$fromLocal->setTimezone(new \DateTimeZone('UTC'))->format('U');
+        $tsTo   = (int)$toLocal->setTimezone(new \DateTimeZone('UTC'))->format('U');
 
-        // Агрегация по КАТЕГОРИЯМ (берём только закрытые сессии)
+        // Агрегация по категориям (берём только закрытые сессии)
         $q = (new \yii\db\Query())
             ->select([
                 'category',
@@ -402,7 +443,7 @@ class SiteController extends Controller
             ->from('purchase_session')
             ->where([
                 'user_id' => $uid,
-                'status' => \app\models\PurchaseSession::STATUS_CLOSED,
+                'status'  => \app\models\PurchaseSession::STATUS_CLOSED,
             ])
             ->andWhere(['between', 'closed_at', $tsFrom, $tsTo])
             ->andWhere("category IS NOT NULL AND category <> ''");
@@ -421,12 +462,13 @@ class SiteController extends Controller
         }
 
         return $this->asJson([
-            'ok' => true,
+            'ok'     => true,
             'labels' => $labels,
             'values' => $values,
             'period' => [$dateFrom, $dateTo],
         ]);
     }
+
 
     public function actionAbout()
     {

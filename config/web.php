@@ -84,6 +84,16 @@ $config = [
             'class' => \app\components\PurchaseSessionService::class,
             'autocloseSeconds' => 10800, // 3 часа
         ],
+
+        'formatter' => [
+            'class' => yii\i18n\Formatter::class,
+            'defaultTimeZone' => 'UTC', // хранилище/логика
+            'timeZone' => 'UTC', // перезапишем в middleware
+        ],
+
+        'asTimezone' => [
+            'class' => app\components\TimezoneMiddleware::class,
+        ],
     ],
     'name' => 'Тратометр',
     'defaultRoute' => 'site/index',

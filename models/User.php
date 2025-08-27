@@ -23,6 +23,7 @@ class User extends ActiveRecord implements IdentityInterface, RateLimitInterface
             ['email', 'unique'],
             // password_hash хранится уже захешированным — валидируем на notEmpty при сохранении
             ['password_hash', 'required'],
+            [['timezone'], 'string', 'max' => 64],
         ];
     }
 
