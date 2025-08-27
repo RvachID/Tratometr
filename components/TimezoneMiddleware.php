@@ -23,6 +23,7 @@ class TimezoneMiddleware extends Behavior
             $tz = Yii::$app->user->identity->timezone;
         } else {
             $cookieTz = Yii::$app->request->cookies->getValue('tz');
+            if ($cookieTz) $cookieTz = urldecode($cookieTz);
             if ($cookieTz) $tz = $cookieTz;
         }
 
