@@ -1,4 +1,5 @@
 <?php
+
 namespace app\controllers;
 
 use app\models\PriceEntry;
@@ -16,23 +17,23 @@ class SiteController extends Controller
             'access' => [
                 'class' => \yii\filters\AccessControl::class,
                 // ограничиваем только эти экшены
-                'only'  => ['logout', 'stats', 'stats-data'],
+                'only' => ['logout', 'stats', 'stats-data'],
                 'rules' => [
                     [
                         'actions' => ['logout', 'stats', 'stats-data'],
-                        'allow'   => true,
-                        'roles'   => ['@'], // только авторизованные
+                        'allow' => true,
+                        'roles' => ['@'], // только авторизованные
                     ],
                 ],
             ],
             'verbs' => [
                 'class' => \yii\filters\VerbFilter::class,
                 'actions' => [
-                    'logout'         => ['post'],
-                    'close-session'  => ['post'],
+                    'logout' => ['post'],
+                    'close-session' => ['post'],
                     'delete-session' => ['post'],
-                    'stats'          => ['get'],
-                    'stats-data'     => ['get'],
+                    'stats' => ['get'],
+                    'stats-data' => ['get'],
                 ],
             ],
         ];
@@ -41,7 +42,7 @@ class SiteController extends Controller
     public function actions()
     {
         return [
-            'error'   => ['class' => 'yii\web\ErrorAction'],
+            'error' => ['class' => 'yii\web\ErrorAction'],
             'captcha' => ['class' => 'yii\captcha\CaptchaAction', 'fixedVerifyCode' => YII_ENV_TEST ? 'testme' : null],
         ];
     }
@@ -58,7 +59,7 @@ class SiteController extends Controller
             ->orderBy(['created_at' => SORT_DESC])
             ->limit(20)->all();
 
-        $total = array_reduce($entries, fn($s,$e) => $s + $e->amount * $e->qty, 0);
+        $total = array_reduce($entries, fn($s, $e) => $s + $e->amount * $e->qty, 0);
 
         // активная покупка для панели
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
@@ -66,11 +67,11 @@ class SiteController extends Controller
         if ($ps) {
             $lastTs = Yii::$app->ps->lastActivityTs($ps);
             $psInfo = [
-                'id'       => $ps->id,
-                'shop'     => $ps->shop,
+                'id' => $ps->id,
+                'shop' => $ps->shop,
                 'category' => $ps->category,
-                'lastTs'   => $lastTs,
-                'limit'    => $ps->limit_amount,
+                'lastTs' => $lastTs,
+                'limit' => $ps->limit_amount,
             ];
         }
 
@@ -81,13 +82,13 @@ class SiteController extends Controller
         $quote = null;
         if ($quotesTotal > 0) {
             $q = (new Query())->from('quotes');
-            if ($quotesTotal > 1 && $lastQuoteId) $q->where(['<>','id',$lastQuoteId]);
+            if ($quotesTotal > 1 && $lastQuoteId) $q->where(['<>', 'id', $lastQuoteId]);
             $quote = $q->orderBy(new Expression('RAND()'))->limit(1)->one($db)
                 ?: (new Query())->from('quotes')->orderBy(new Expression('RAND()'))->limit(1)->one($db);
             if ($quote) Yii::$app->session->set('last_quote_id', $quote['id']);
         }
 
-        return $this->render('index', compact('entries','total','quote','psInfo'));
+        return $this->render('index', compact('entries', 'total', 'quote', 'psInfo'));
     }
 
     /** Страница сканера */
@@ -101,20 +102,20 @@ class SiteController extends Controller
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
 
         $needPrompt = $ps === null; // если сессии нет — покажем модалку выбора магазина
-        $store     = $ps ? (string)$ps->shop      : '';
-        $category  = $ps ? (string)$ps->category  : '';
-        $limit     = ($ps && $ps->limit_amount !== null)
+        $store = $ps ? (string)$ps->shop : '';
+        $category = $ps ? (string)$ps->category : '';
+        $limit = ($ps && $ps->limit_amount !== null)
             ? round(((int)$ps->limit_amount) / 100, 2) // копейки → рубли
             : null;
 
         // Данные текущей сессии
         $entries = [];
-        $total   = 0.0;
+        $total = 0.0;
 
         if ($ps) {
             $entries = \app\models\PriceEntry::find()
                 ->where([
-                    'user_id'    => Yii::$app->user->id,
+                    'user_id' => Yii::$app->user->id,
                     'session_id' => $ps->id,
                 ])
                 ->orderBy(['id' => SORT_DESC])
@@ -123,22 +124,22 @@ class SiteController extends Controller
 
             $sum = \app\models\PriceEntry::find()
                 ->where([
-                    'user_id'    => Yii::$app->user->id,
+                    'user_id' => Yii::$app->user->id,
                     'session_id' => $ps->id,
                 ])
                 ->sum('amount * qty');
 
             $total = (float)($sum ?? 0);
         }
-        $limit = ($ps && $ps->limit_amount !== null) ? round(((int)$ps->limit_amount)/100, 2) : null;
+        $limit = ($ps && $ps->limit_amount !== null) ? round(((int)$ps->limit_amount) / 100, 2) : null;
 
         return $this->render('scan', [
-            'store'      => $store,
-            'category'   => $category,
-            'entries'    => $entries,
-            'total'      => $total,
+            'store' => $store,
+            'category' => $category,
+            'entries' => $entries,
+            'total' => $total,
             'needPrompt' => $needPrompt,
-            'limit'    => $limit,
+            'limit' => $limit,
         ]);
     }
 
@@ -147,21 +148,21 @@ class SiteController extends Controller
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-        if (Yii::$app->user->isGuest) return ['ok'=>false,'needPrompt'=>true];
+        if (Yii::$app->user->isGuest) return ['ok' => false, 'needPrompt' => true];
 
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
-        if (!$ps) return ['ok'=>true,'needPrompt'=>true,'store'=>'','category'=>'','idle'=>null,'limit'=>null];
+        if (!$ps) return ['ok' => true, 'needPrompt' => true, 'store' => '', 'category' => '', 'idle' => null, 'limit' => null];
 
         $idle = time() - Yii::$app->ps->lastActivityTs($ps);
-        $limitRub = $ps->limit_amount !== null ? round(((int)$ps->limit_amount)/100, 2) : null;
+        $limitRub = $ps->limit_amount !== null ? round(((int)$ps->limit_amount) / 100, 2) : null;
 
         return [
-            'ok'         => true,
+            'ok' => true,
             'needPrompt' => false,
-            'store'      => (string)$ps->shop,
-            'category'   => (string)$ps->category,
-            'idle'       => $idle,
-            'limit'      => $limitRub, // <—
+            'store' => (string)$ps->shop,
+            'category' => (string)$ps->category,
+            'idle' => $idle,
+            'limit' => $limitRub, // <—
         ];
     }
 
@@ -169,21 +170,21 @@ class SiteController extends Controller
     public function actionBeginAjax()
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
-        if (Yii::$app->user->isGuest) return ['ok'=>false,'error'=>'Требуется вход'];
+        if (Yii::$app->user->isGuest) return ['ok' => false, 'error' => 'Требуется вход'];
 
-        $store    = trim((string)Yii::$app->request->post('store',''));
-        $category = trim((string)Yii::$app->request->post('category',''));
+        $store = trim((string)Yii::$app->request->post('store', ''));
+        $category = trim((string)Yii::$app->request->post('category', ''));
         $limitStr = Yii::$app->request->post('limit', ''); // может быть пусто
 
-        if ($store === '') return ['ok'=>false,'error'=>'Укажите магазин'];
+        if ($store === '') return ['ok' => false, 'error' => 'Укажите магазин'];
 
         Yii::$app->ps->closeActive(Yii::$app->user->id);
 
         $ps = new \app\models\PurchaseSession([
-            'user_id'  => Yii::$app->user->id,
-            'shop'     => $store,
+            'user_id' => Yii::$app->user->id,
+            'shop' => $store,
             'category' => $category,
-            'status'   => \app\models\PurchaseSession::STATUS_ACTIVE,
+            'status' => \app\models\PurchaseSession::STATUS_ACTIVE,
         ]);
 
         // лимит (в копейках в БД)
@@ -196,7 +197,7 @@ class SiteController extends Controller
         $ps->save(false);
         Yii::$app->session->set('purchase_session_id', $ps->id);
 
-        return ['ok'=>true, 'store'=>$store, 'category'=>$category, 'limit'=>$limitRub];
+        return ['ok' => true, 'store' => $store, 'category' => $category, 'limit' => $limitRub];
     }
 
     public function actionCloseSession()
@@ -323,7 +324,8 @@ class SiteController extends Controller
         return $this->render('history', ['items' => $rows]);
     }
 
-    private function parseMoney($raw): ?float {
+    private function parseMoney($raw): ?float
+    {
         $s = trim((string)$raw);
         if ($s === '') return null;
         // допускаем "3 000,50" и "3000.50"
@@ -341,19 +343,19 @@ class SiteController extends Controller
         $uid = Yii::$app->user->id;
 
         // Период по умолчанию: последние 7 дней (включая сегодня)
-        $dateTo   = Yii::$app->request->get('date_to', date('Y-m-d'));
+        $dateTo = Yii::$app->request->get('date_to', date('Y-m-d'));
         $dateFrom = Yii::$app->request->get('date_from', date('Y-m-d', strtotime('-6 days', strtotime($dateTo))));
 
         // Достаём НЕ пустые категории пользователя в этом диапазоне из закрытых сессий
         $tsFrom = strtotime($dateFrom . ' 00:00:00');
-        $tsTo   = strtotime($dateTo   . ' 23:59:59');
+        $tsTo = strtotime($dateTo . ' 23:59:59');
 
         $allCats = (new Query())
             ->select('category')
             ->from('purchase_session')
             ->where([
                 'user_id' => $uid,
-                'status'  => \app\models\PurchaseSession::STATUS_CLOSED,
+                'status' => \app\models\PurchaseSession::STATUS_CLOSED,
             ])
             ->andWhere(['between', 'closed_at', $tsFrom, $tsTo])
             ->andWhere("category IS NOT NULL AND category <> ''")
@@ -368,9 +370,9 @@ class SiteController extends Controller
         $selectedCats = array_values(array_intersect($selectedCats, $allCats));
 
         return $this->render('stats', [
-            'dateFrom'     => $dateFrom,
-            'dateTo'       => $dateTo,
-            'allCats'      => $allCats,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'allCats' => $allCats,
             'selectedCats' => $selectedCats,
         ]);
     }
@@ -382,14 +384,14 @@ class SiteController extends Controller
             return $this->asJson(['ok' => false, 'error' => 'auth']);
         }
 
-        $uid      = Yii::$app->user->id;
-        $dateTo   = Yii::$app->request->get('date_to', date('Y-m-d'));
+        $uid = Yii::$app->user->id;
+        $dateTo = Yii::$app->request->get('date_to', date('Y-m-d'));
         $dateFrom = Yii::$app->request->get('date_from', date('Y-m-d', strtotime('-6 days', strtotime($dateTo))));
-        $cats     = Yii::$app->request->get('categories', []);
+        $cats = Yii::$app->request->get('categories', []);
         if (!is_array($cats)) $cats = [$cats];
 
         $tsFrom = strtotime($dateFrom . ' 00:00:00');
-        $tsTo   = strtotime($dateTo   . ' 23:59:59');
+        $tsTo = strtotime($dateTo . ' 23:59:59');
 
         // Агрегация по КАТЕГОРИЯМ (берём только закрытые сессии)
         $q = (new \yii\db\Query())
@@ -400,7 +402,7 @@ class SiteController extends Controller
             ->from('purchase_session')
             ->where([
                 'user_id' => $uid,
-                'status'  => \app\models\PurchaseSession::STATUS_CLOSED,
+                'status' => \app\models\PurchaseSession::STATUS_CLOSED,
             ])
             ->andWhere(['between', 'closed_at', $tsFrom, $tsTo])
             ->andWhere("category IS NOT NULL AND category <> ''");
@@ -419,7 +421,7 @@ class SiteController extends Controller
         }
 
         return $this->asJson([
-            'ok'     => true,
+            'ok' => true,
             'labels' => $labels,
             'values' => $values,
             'period' => [$dateFrom, $dateTo],

@@ -2,15 +2,12 @@
 
 namespace app\controllers;
 
+use app\models\PriceEntry;
+use app\models\PurchaseSession;
 use Yii;
+use yii\filters\RateLimiter;
 use yii\web\Controller;
 use yii\web\Response;
-use yii\web\UploadedFile;
-use yii\web\NotFoundHttpException;
-use yii\web\BadRequestHttpException;
-use app\models\PriceEntry;
-use yii\filters\RateLimiter;
-use app\models\PurchaseSession;
 
 class ScanController extends Controller
 {
@@ -475,26 +472,26 @@ class ScanController extends Controller
             }
 
             $amount = Yii::$app->request->post('amount');
-            $qty    = Yii::$app->request->post('qty', 1);
-            $note   = (string)Yii::$app->request->post('note', '');
-            $text   = (string)Yii::$app->request->post('parsed_text', '');
+            $qty = Yii::$app->request->post('qty', 1);
+            $note = (string)Yii::$app->request->post('note', '');
+            $text = (string)Yii::$app->request->post('parsed_text', '');
 
             if (!is_numeric($amount) || (float)$amount <= 0) return ['success' => false, 'error' => 'Неверная сумма'];
-            if (!is_numeric($qty)    || (float)$qty    <= 0) $qty = 1;
+            if (!is_numeric($qty) || (float)$qty <= 0) $qty = 1;
 
             $entry = new PriceEntry();
-            $entry->user_id           = Yii::$app->user->id;
-            $entry->session_id        = $ps->id;                // ВАЖНО
-            $entry->amount            = (float)$amount;
-            $entry->qty               = (float)$qty;
-            $entry->store             = $ps->shop;              // из сессии
-            $entry->category          = $ps->category ?: null;  // из сессии
-            $entry->note              = $note;
-            $entry->recognized_text   = $text;
+            $entry->user_id = Yii::$app->user->id;
+            $entry->session_id = $ps->id;                // ВАЖНО
+            $entry->amount = (float)$amount;
+            $entry->qty = (float)$qty;
+            $entry->store = $ps->shop;              // из сессии
+            $entry->category = $ps->category ?: null;  // из сессии
+            $entry->note = $note;
+            $entry->recognized_text = $text;
             $entry->recognized_amount = (float)$amount;
-            $entry->source            = 'price_tag';
-            $entry->created_at        = time();
-            $entry->updated_at        = time();
+            $entry->source = 'price_tag';
+            $entry->created_at = time();
+            $entry->updated_at = time();
 
             if (!$entry->save(false)) {
                 return ['success' => false, 'error' => 'Ошибка сохранения'];
@@ -502,21 +499,21 @@ class ScanController extends Controller
 
             $ps->updateAttributes(['updated_at' => time()]);
 
-            $total = (float) PriceEntry::find()
+            $total = (float)PriceEntry::find()
                 ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
                 ->sum('amount * qty');
 
             return [
                 'success' => true,
-                'entry'   => [
-                    'id'       => $entry->id,
-                    'amount'   => $entry->amount,
-                    'qty'      => $entry->qty,
-                    'note'     => (string)$entry->note,
-                    'store'    => (string)$entry->store,
+                'entry' => [
+                    'id' => $entry->id,
+                    'amount' => $entry->amount,
+                    'qty' => $entry->qty,
+                    'note' => (string)$entry->note,
+                    'store' => (string)$entry->store,
                     'category' => $entry->category,
                 ],
-                'total'   => $total,
+                'total' => $total,
             ];
         } catch (\Throwable $e) {
             Yii::error($e->getMessage() . "\n" . $e->getTraceAsString(), __METHOD__);
@@ -530,30 +527,30 @@ class ScanController extends Controller
         Yii::$app->response->format = Response::FORMAT_JSON;
 
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
-        if (!$ps) return ['success'=>false,'error'=>'Нет активной покупки.'];
+        if (!$ps) return ['success' => false, 'error' => 'Нет активной покупки.'];
 
-        $m = PriceEntry::findOne(['id'=>(int)$id, 'user_id'=>Yii::$app->user->id]);
-        if (!$m) return ['success'=>false,'error'=>'Запись не найдена'];
+        $m = PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
+        if (!$m) return ['success' => false, 'error' => 'Запись не найдена'];
 
         $m->load(Yii::$app->request->post(), '');
         // фиксируем принадлежность к текущей серверной сессии
-        $m->user_id    = Yii::$app->user->id;
+        $m->user_id = Yii::$app->user->id;
         $m->session_id = $ps->id;
-        $m->store      = $ps->shop;
-        $m->category   = $ps->category ?: null;
+        $m->store = $ps->shop;
+        $m->category = $ps->category ?: null;
         $m->updated_at = time();
 
         if (!$m->save(false)) {
-            return ['success'=>false,'error'=>'Не удалось сохранить'];
+            return ['success' => false, 'error' => 'Не удалось сохранить'];
         }
 
         Yii::$app->ps->touch($ps);
 
-        $total = (float) PriceEntry::find()
-            ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
+        $total = (float)PriceEntry::find()
+            ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
             ->sum('amount * qty');
 
-        return ['success'=>true,'total'=>number_format($total, 2, '.', '')];
+        return ['success' => true, 'total' => number_format($total, 2, '.', '')];
     }
 
     /** Удаление строки из списка */
@@ -562,18 +559,18 @@ class ScanController extends Controller
         Yii::$app->response->format = Response::FORMAT_JSON;
 
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
-        if (!$ps) return ['success'=>false,'error'=>'Нет активной покупки.'];
+        if (!$ps) return ['success' => false, 'error' => 'Нет активной покупки.'];
 
-        $m = PriceEntry::findOne(['id'=>(int)$id, 'user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id]);
-        if (!$m) return ['success'=>false,'error'=>'Запись не найдена'];
+        $m = PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id, 'session_id' => $ps->id]);
+        if (!$m) return ['success' => false, 'error' => 'Запись не найдена'];
 
         $m->delete();
 
-        $total = (float) PriceEntry::find()
-            ->where(['user_id'=>Yii::$app->user->id, 'session_id'=>$ps->id])
+        $total = (float)PriceEntry::find()
+            ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
             ->sum('amount * qty');
 
-        return ['success'=>true,'total'=>number_format($total, 2, '.', '')];
+        return ['success' => true, 'total' => number_format($total, 2, '.', '')];
     }
 
 

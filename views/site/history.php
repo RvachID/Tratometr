@@ -1,11 +1,13 @@
 <?php
 /** @var array $items */
+
 use yii\helpers\Html;
 
 $this->title = 'История';
 $fmt = Yii::$app->formatter;
 
-function rowValueAndLabel(array $r): array {
+function rowValueAndLabel(array $r): array
+{
     $hasLimit = $r['limit_amount'] !== null;
     $limitRub = $hasLimit ? ((int)$r['limit_amount']) / 100 : null;
 
@@ -29,7 +31,7 @@ function rowValueAndLabel(array $r): array {
     }
 
     $isOver = $hasLimit && $value < 0;
-    $ts     = (int)$r['last_ts'];
+    $ts = (int)$r['last_ts'];
 
     return [$value, $label, $isOver, $ts];
 }

@@ -64,9 +64,9 @@ a.desc:after {
     color: rgba(255, 255, 255, 0.5);
 }
 
-@media(max-width:767px) {
+@media (max-width: 767px) {
     .nav li > form > button.logout {
-        display:block;
+        display: block;
         text-align: left;
         width: 100%;
         padding: 10px 0;
@@ -91,13 +91,23 @@ a.desc:after {
     border: 2px solid #f3f3f3;
     border-top: 2px solid #3498db;
     border-radius: 50%;
-    width: 14px; height: 14px;
+    width: 14px;
+    height: 14px;
     animation: spin 0.8s linear infinite;
     margin-left: 6px;
     display: inline-block;
     vertical-align: middle;
 }
-@keyframes spin { 0% {transform: rotate(0)} 100% {transform: rotate(360deg)} }
+
+@keyframes spin {
+    0% {
+        transform: rotate(0)
+    }
+    100% {
+        transform: rotate(360deg)
+    }
+}
+
 /* Дезигн */
 /* ===== Общий фон и текст ===== */
 body {
@@ -122,6 +132,7 @@ body {
     color: #B08D57;
     border-color: #B08D57;
 }
+
 .btn-outline-secondary:hover,
 .btn-outline-secondary:focus {
     background-color: #B08D57;
@@ -144,6 +155,7 @@ h1, h2, h3, h4, h5 {
 a {
     text-decoration: none;
 }
+
 a:hover {
     text-decoration: underline;
 }
@@ -155,83 +167,132 @@ a:hover {
     box-shadow: 0 0 0 0.25rem rgba(176, 141, 87, 0.25);
 }
 
-.amount-input{
+.amount-input {
     font-size: 28px;
     text-align: center;
     font-variant-numeric: tabular-nums;
     letter-spacing: .5px;
 }
 
-.total-total{
+.total-total {
     font-size: 20px;
 }
+
 /* чекбоксы в стиле бренда */
 .form-check-input {
-    border-color:#B08D57;
+    border-color: #B08D57;
 }
+
 .form-check-input:checked {
-    background-color:#B08D57;
-    border-color:#B08D57;
+    background-color: #B08D57;
+    border-color: #B08D57;
 }
+
 .form-check-input:focus {
-    box-shadow:0 0 0 0.25rem rgba(176,141,87,0.25);
-    border-color:#B08D57;
+    box-shadow: 0 0 0 0.25rem rgba(176, 141, 87, 0.25);
+    border-color: #B08D57;
 }
+
 /* системам с поддержкой accent-color — ещё точнее */
 @supports (accent-color: auto) {
-    .form-check-input { accent-color:#B08D57; }
+    .form-check-input {
+        accent-color: #B08D57;
+    }
 }
 
 /* Общие мелочи */
-.alert { border-radius: .6rem; }
-.alert .btn-close { opacity:.4; }
-.alert .btn-close:hover { opacity:.7; }
+.alert {
+    border-radius: .6rem;
+}
+
+.alert .btn-close {
+    opacity: .4;
+}
+
+.alert .btn-close:hover {
+    opacity: .7;
+}
 
 /* SUCCESS: бронзовая пастель в стиле твоего UI */
 .alert-success {
-    color: #7C4F35;                                       /* тёплый коричневый текст */
-    background: linear-gradient(90deg,#FFF5E9,#F3E3CF);   /* мягкий фон */
-    border: 1px solid #B08D57;                            /* бронзовая рамка */
-    box-shadow: 0 0 0 .25rem rgba(176,141,87,.10);
+    color: #7C4F35; /* тёплый коричневый текст */
+    background: linear-gradient(90deg, #FFF5E9, #F3E3CF); /* мягкий фон */
+    border: 1px solid #B08D57; /* бронзовая рамка */
+    box-shadow: 0 0 0 .25rem rgba(176, 141, 87, .10);
 }
 
 /* DANGER: более пастельный красный */
 .alert-danger, .alert-error {
     color: #7B3A3F;
-    background-color: #F8DDE0;                            /* светлый фон */
+    background-color: #F8DDE0; /* светлый фон */
     border: 1px solid #E9A7AE;
-    box-shadow: 0 0 0 .25rem rgba(233,167,174,.10);
+    box-shadow: 0 0 0 .25rem rgba(233, 167, 174, .10);
 }
 
 /* NAVBAR: центрируем список пунктов и выравниваем на всех брейкпоинтах */
-.navbar .navbar-collapse { justify-content: center !important; }
-.navbar .navbar-nav { margin: 0 auto !important; justify-content: center; text-align: center; }
-.navbar .navbar-nav .nav-link { padding-left: .75rem; padding-right: .75rem; }
+.navbar .navbar-collapse {
+    justify-content: center !important;
+}
+
+.navbar .navbar-nav {
+    margin: 0 auto !important;
+    justify-content: center;
+    text-align: center;
+}
+
+.navbar .navbar-nav .nav-link {
+    padding-left: .75rem;
+    padding-right: .75rem;
+}
 
 /* FOOTER: центрируем копирайт на всех экранах */
-footer, footer .container { text-align: center; }
+footer, footer .container {
+    text-align: center;
+}
 
 /* CTA-кнопки (например, "Сканировать по камере"): центр и адекватная ширина */
-.cta-row { display: flex; justify-content: center; }
-.btn-cta { display: inline-flex; align-items: center; justify-content: center; }
+.cta-row {
+    display: flex;
+    justify-content: center;
+}
+
+.btn-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
 
 /* На телефонах кнопки во всю ширину, на планшетах/десктопах — авто, но с минимальной шириной для красоты */
-@media (max-width: 575.98px) { .btn-cta { width: 100%; } }
-@media (min-width: 576px)     { .btn-cta { width: auto; min-width: 260px; } }
+@media (max-width: 575.98px) {
+    .btn-cta {
+        width: 100%;
+    }
+}
+
+@media (min-width: 576px) {
+    .btn-cta {
+        width: auto;
+        min-width: 260px;
+    }
+}
 
 /* На случай, если где-то остался .text-end на колонке с кнопкой — переопределим */
-.cta-row.text-end { text-align: initial !important; }
-
- .link-brand{
-     color:#A98467;                /* фирменный тёплый */
-     text-decoration:none;
- }
-.link-brand:hover{
-    color:#7C4F35;                /* тёмный акцент */
-    text-decoration:underline;
+.cta-row.text-end {
+    text-align: initial !important;
 }
-.link-brand:active, .link-brand:focus{
-    color:#7C4F35;
-    outline:none;
+
+.link-brand {
+    color: #A98467; /* фирменный тёплый */
+    text-decoration: none;
+}
+
+.link-brand:hover {
+    color: #7C4F35; /* тёмный акцент */
+    text-decoration: underline;
+}
+
+.link-brand:active, .link-brand:focus {
+    color: #7C4F35;
+    outline: none;
 }
 

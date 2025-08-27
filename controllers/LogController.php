@@ -3,8 +3,8 @@
 namespace app\controllers;
 
 use Yii;
-use yii\web\Controller;
 use yii\helpers\Html;
+use yii\web\Controller;
 
 class LogController extends Controller
 {
@@ -54,7 +54,7 @@ class LogController extends Controller
         // На всякий случай увеличим лимит
         @set_time_limit(300);
 
-        $appRoot   = Yii::getAlias('@app');
+        $appRoot = Yii::getAlias('@app');
         $yiiScript = $appRoot . '/yii';
 
         // Команда для запуска миграций

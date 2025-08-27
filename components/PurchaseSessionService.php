@@ -2,10 +2,10 @@
 
 namespace app\components;
 
+use app\models\PurchaseSession;
 use Yii;
 use yii\base\Component;
 use yii\db\Query;
-use app\models\PurchaseSession;
 
 class PurchaseSessionService extends Component
 {

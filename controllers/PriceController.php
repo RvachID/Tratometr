@@ -2,13 +2,12 @@
 
 namespace app\controllers;
 
-use app\models\PurchaseSession;
-use Yii;
-use yii\web\Controller;
-use yii\web\Response;
-use yii\web\NotFoundHttpException;
-use yii\filters\AccessControl;
 use app\models\PriceEntry;
+use Yii;
+use yii\filters\AccessControl;
+use yii\web\Controller;
+use yii\web\NotFoundHttpException;
+use yii\web\Response;
 
 class PriceController extends Controller
 {
@@ -17,7 +16,7 @@ class PriceController extends Controller
         return [
             'access' => [
                 'class' => AccessControl::class,
-                'only' => ['index','list','save','qty','delete'],
+                'only' => ['index', 'list', 'save', 'qty', 'delete'],
                 'rules' => [
                     ['allow' => true, 'roles' => ['@']],
                 ],
@@ -41,11 +40,11 @@ class PriceController extends Controller
             ->orderBy(['created_at' => SORT_DESC]);
 
         $items = $query->offset((int)$offset)->limit((int)$limit)->all();
-        $total = (float) $query->sum('amount * qty');
+        $total = (float)$query->sum('amount * qty');
 
         return [
             'total' => number_format($total, 2, '.', ''),
-            'items' => array_map(function(PriceEntry $m){
+            'items' => array_map(function (PriceEntry $m) {
                 return [
                     'id' => $m->id,
                     'created_at' => Yii::$app->formatter->asDatetime($m->created_at),
@@ -69,43 +68,42 @@ class PriceController extends Controller
 
         $userId = Yii::$app->user->id;
         $ps = Yii::$app->ps->active($userId);
-        if (!$ps) return ['error'=>'Нет активной покупки.'];
+        if (!$ps) return ['error' => 'Нет активной покупки.'];
 
         $id = (int)Yii::$app->request->post('id', 0);
         $model = $id
-            ? \app\models\PriceEntry::findOne(['id'=>$id,'user_id'=>$userId])
+            ? \app\models\PriceEntry::findOne(['id' => $id, 'user_id' => $userId])
             : new \app\models\PriceEntry();
 
         if (!$model) throw new \yii\web\NotFoundHttpException('Запись не найдена');
 
         $model->load(Yii::$app->request->post(), '');
-        $model->user_id    = $userId;
+        $model->user_id = $userId;
         $model->session_id = $ps->id;
-        $model->store      = $ps->shop;
-        $model->category   = $ps->category ?: null;
+        $model->store = $ps->shop;
+        $model->category = $ps->category ?: null;
 
         if ($model->isNewRecord) {
             $model->source = $model->source ?: 'manual';
-            $model->qty    = $model->qty ?: 1;
+            $model->qty = $model->qty ?: 1;
             $model->created_at = $model->created_at ?: time();
         }
 
-        if (!$model->validate()) return ['error'=>current($model->firstErrors) ?: 'Ошибка валидации'];
+        if (!$model->validate()) return ['error' => current($model->firstErrors) ?: 'Ошибка валидации'];
         $model->save(false);
 
         Yii::$app->ps->touch($ps);
 
         $total = (float)\app\models\PriceEntry::find()
-            ->where(['user_id'=>$userId,'session_id'=>$ps->id])
+            ->where(['user_id' => $userId, 'session_id' => $ps->id])
             ->sum('amount * qty');
 
         return [
-            'id'=>$model->id,
-            'rowTotal'=>number_format($model->amount*$model->qty, 2, '.', ''),
-            'listTotal'=>number_format($total, 2, '.', ''),
+            'id' => $model->id,
+            'rowTotal' => number_format($model->amount * $model->qty, 2, '.', ''),
+            'listTotal' => number_format($total, 2, '.', ''),
         ];
     }
-
 
 
     /** + / − / set(дробное) для qty */
@@ -129,7 +127,7 @@ class PriceController extends Controller
 
         $model->save(false);
 
-        $listTotal = (float) PriceEntry::find()
+        $listTotal = (float)PriceEntry::find()
             ->where(['user_id' => Yii::$app->user->id])
             ->sum('amount * qty');
 
@@ -150,7 +148,7 @@ class PriceController extends Controller
 
         $model->delete();
 
-        $listTotal = (float) PriceEntry::find()
+        $listTotal = (float)PriceEntry::find()
             ->where(['user_id' => Yii::$app->user->id])
             ->sum('amount * qty');
 

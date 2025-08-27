@@ -1,6 +1,7 @@
 <?php
-use yii\helpers\Url;
+
 use yii\helpers\Html;
+use yii\helpers\Url;
 
 /** @var array|null $quote */
 /** @var array|null $psInfo */
@@ -78,7 +79,7 @@ $historyUrl = \yii\helpers\Url::to(['site/history']);
         </div>
     <?php endif; ?>
     <div class="mt-3">
-        <a href="<?= $historyUrl ?>" class="btn btn-outline-secondary w-100">📜 История</a>
+    <a href="<?= $historyUrl ?>" class="btn btn-outline-secondary w-100">📜 История</a>
     </div>
 
     <a href="<?= \yii\helpers\Url::to(['site/stats']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">📈 Статистика</a>

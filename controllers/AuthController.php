@@ -2,10 +2,9 @@
 
 namespace app\controllers;
 
+use app\models\SignupForm;
 use Yii;
 use yii\web\Controller;
-use app\models\SignupForm;
-use app\models\User;
 
 class AuthController extends Controller
 {
@@ -28,7 +27,7 @@ class AuthController extends Controller
         }
 
         if (Yii::$app->request->isPost) {
-            $email    = Yii::$app->request->post('email');
+            $email = Yii::$app->request->post('email');
             $password = Yii::$app->request->post('password');
 
             $user = \app\models\User::findByEmail($email);

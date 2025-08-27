@@ -76,9 +76,9 @@ $this->title = 'Статистика';
         let chart;
 
         async function loadAndRender() {
-            const formEl   = document.getElementById('stats-form');
+            const formEl = document.getElementById('stats-form');
             const canvasEl = document.getElementById('statsChart');
-            const emptyEl  = document.getElementById('statsEmpty');
+            const emptyEl = document.getElementById('statsEmpty');
 
             const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // index.php?r=site%2Fstats-data
             const url = new URL(api, window.location.origin);
@@ -94,33 +94,51 @@ $this->title = 'Статистика';
                     `<div class="fw-semibold" style="color:#7C4F35">${msgMain}</div>` +
                     `<div class="text-muted" style="color:#A98467">${msgSub}</div>`;
             }
-            function showChart() { emptyEl.classList.add('d-none'); canvasEl.classList.remove('d-none'); }
+
+            function showChart() {
+                emptyEl.classList.add('d-none');
+                canvasEl.classList.remove('d-none');
+            }
 
             try {
-                const res  = await fetch(url.toString(), {
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                const res = await fetch(url.toString(), {
+                    headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
                     cache: 'no-store'
                 });
                 const text = await res.text();
-                let json; try { json = JSON.parse(text); } catch { showEmpty('Ошибка данных'); return; }
-                if (!json.ok) { showEmpty('Нет доступа'); return; }
+                let json;
+                try {
+                    json = JSON.parse(text);
+                } catch {
+                    showEmpty('Ошибка данных');
+                    return;
+                }
+                if (!json.ok) {
+                    showEmpty('Нет доступа');
+                    return;
+                }
 
                 const total = (json.values || []).reduce((a, b) => a + b, 0);
                 if (!json.values || json.values.length === 0 || total === 0) {
-                    if (window.chart) { window.chart.destroy(); window.chart = null; }
-                    showEmpty(); return;
+                    if (window.chart) {
+                        window.chart.destroy();
+                        window.chart = null;
+                    }
+                    showEmpty();
+                    return;
                 }
 
                 // Палитра от САМЫХ СВЕТЛЫХ к тёмным
-                const base = ['#F0DAB7','#E3C59B','#D1B280','#C19A6B','#B08D57','#A98467','#9C6B45','#8C5A3C','#7C4F35','#5E3B29'];
-                const fill  = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.95));
+                const base = ['#F0DAB7', '#E3C59B', '#D1B280', '#C19A6B', '#B08D57', '#A98467', '#9C6B45', '#8C5A3C', '#7C4F35', '#5E3B29'];
+                const fill = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.95));
                 const hover = json.values.map((_, i) => hexToRgba(base[i % base.length], 1.00));
 
                 // Вспомогалка: вычислить читаемый цвет шрифта на фоне сектора
                 const labelColor = (rgba) => {
-                    const m = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i); if (!m) return '#000';
-                    const [r,g,b] = [parseInt(m[1]),parseInt(m[2]),parseInt(m[3])];
-                    const L = 0.2126*r + 0.7152*g + 0.0722*b; // относительная яркость
+                    const m = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+                    if (!m) return '#000';
+                    const [r, g, b] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+                    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b; // относительная яркость
                     return (L < 140) ? '#fff' : '#3b2b1a';
                 };
 
@@ -140,7 +158,7 @@ $this->title = 'Статистика';
                 const opts = {
                     responsive: true,
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: '#7C4F35' } },
+                        legend: {position: 'bottom', labels: {color: '#7C4F35'}},
                         tooltip: {
                             callbacks: {
                                 label: (ctx) => {
@@ -159,18 +177,21 @@ $this->title = 'Статистика';
                                     : `${p.toFixed(0)}%`;
                             },
                             color: (ctx) => labelColor(ctx.dataset.backgroundColor[ctx.dataIndex]),
-                            font: { weight: '600', size: 11 },
+                            font: {weight: '600', size: 11},
                             // Для мелких долей чуть выносим подпись наружу
                             anchor: (ctx) => {
-                                const v = ctx.dataset.data[ctx.dataIndex]; const p = total ? v/total*100 : 0;
+                                const v = ctx.dataset.data[ctx.dataIndex];
+                                const p = total ? v / total * 100 : 0;
                                 return p < 6 ? 'end' : 'center';
                             },
                             align: (ctx) => {
-                                const v = ctx.dataset.data[ctx.dataIndex]; const p = total ? v/total*100 : 0;
+                                const v = ctx.dataset.data[ctx.dataIndex];
+                                const p = total ? v / total * 100 : 0;
                                 return p < 6 ? 'end' : 'center';
                             },
                             offset: (ctx) => {
-                                const v = ctx.dataset.data[ctx.dataIndex]; const p = total ? v/total*100 : 0;
+                                const v = ctx.dataset.data[ctx.dataIndex];
+                                const p = total ? v / total * 100 : 0;
                                 return p < 6 ? 8 : 0;
                             },
                             clamp: true,
@@ -181,7 +202,7 @@ $this->title = 'Статистика';
 
                 showChart();
                 if (window.chart) window.chart.destroy();
-                window.chart = new Chart(canvasEl.getContext('2d'), { type: 'pie', data, options: opts });
+                window.chart = new Chart(canvasEl.getContext('2d'), {type: 'pie', data, options: opts});
             } catch (err) {
                 console.error('Failed to load stats:', err);
                 showEmpty('Не удалось загрузить данные');
@@ -189,10 +210,10 @@ $this->title = 'Статистика';
 
             // helpers
             function hexToRgba(hex, a) {
-                const h = hex.replace('#','');
-                const r = parseInt(h.slice(0,2),16);
-                const g = parseInt(h.slice(2,4),16);
-                const b = parseInt(h.slice(4,6),16);
+                const h = hex.replace('#', '');
+                const r = parseInt(h.slice(0, 2), 16);
+                const g = parseInt(h.slice(2, 4), 16);
+                const b = parseInt(h.slice(4, 6), 16);
                 return `rgba(${r},${g},${b},${a})`;
             }
         }

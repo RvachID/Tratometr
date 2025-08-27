@@ -35,17 +35,17 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
     <?php
     NavBar::begin([
         'brandLabel' => Yii::$app->name,
-        'brandUrl'   => Yii::$app->homeUrl,
-        'options'    => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
+        'brandUrl' => Yii::$app->homeUrl,
+        'options' => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
     ]);
 
     // Левое меню (как было)
     echo Nav::widget([
         'options' => ['class' => 'navbar-nav'],
         'items' => [
-            ['label' => 'История',  'url' => ['/site/history']],
-            ['label' => 'Статистика',  'url' => ['/site/stats']],
-            ['label' => 'О проекте','url' => ['/site/about']],
+            ['label' => 'История', 'url' => ['/site/history']],
+            ['label' => 'Статистика', 'url' => ['/site/stats']],
+            ['label' => 'О проекте', 'url' => ['/site/about']],
             Yii::$app->user->isGuest
                 ? ['label' => 'Авторизоваться', 'url' => ['/auth/login']]
                 : '<li class="nav-item">'
@@ -79,19 +79,20 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
     <div class="container">
         <div class="row justify-content-center text-muted">
             <div class="col-auto text-center">
-                &copy; Rvach_dev <?= date('Y') ?> — версия <?= \yii\helpers\Html::encode(Yii::$app->params['version'] ?? '') ?>
+                &copy; Rvach_dev <?= date('Y') ?> —
+                версия <?= \yii\helpers\Html::encode(Yii::$app->params['version'] ?? '') ?>
             </div>
         </div>
     </div>
 </footer>
 <script>
-    (function() {
+    (function () {
         const LIFETIME = 7000;              // 3 сек
-        const STAGGER  = 150;               // лёгкая «лесенка» при множестве алертов
+        const STAGGER = 150;               // лёгкая «лесенка» при множестве алертов
 
         document.querySelectorAll('.alert').forEach((el, i) => {
             // на всякий случай гарантируем анимацию
-            el.classList.add('fade','show');
+            el.classList.add('fade', 'show');
 
             setTimeout(() => {
                 if (window.bootstrap && bootstrap.Alert) {
@@ -110,16 +111,16 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         if (!toggler) return;
 
         // Определяем цель из data-bs-target или берём первый .navbar-collapse
-        const targetSel  = toggler.getAttribute('data-bs-target') || toggler.getAttribute('data-target') || '.navbar-collapse';
+        const targetSel = toggler.getAttribute('data-bs-target') || toggler.getAttribute('data-target') || '.navbar-collapse';
         const collapseEl = document.querySelector(targetSel);
         if (!collapseEl) return;
 
-        const hasBS   = !!(window.bootstrap && bootstrap.Collapse);
-        const control = hasBS ? bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }) : null;
+        const hasBS = !!(window.bootstrap && bootstrap.Collapse);
+        const control = hasBS ? bootstrap.Collapse.getOrCreateInstance(collapseEl, {toggle: false}) : null;
 
-        const isOpen   = () => collapseEl.classList.contains('show');
-        const openUI   = () => document.body.classList.add('nav-open');
-        const closeUI  = () => document.body.classList.remove('nav-open');
+        const isOpen = () => collapseEl.classList.contains('show');
+        const openUI = () => document.body.classList.add('nav-open');
+        const closeUI = () => document.body.classList.remove('nav-open');
         const closeMenu = () => {
             if (!isOpen()) return;
             if (control) control.hide(); else collapseEl.classList.remove('show');
@@ -150,7 +151,9 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         });
 
         // 4) При ресайзе убираем фиксацию скролла, если меню уже закрыто
-        window.addEventListener('resize', () => { if (!isOpen()) closeUI(); });
+        window.addEventListener('resize', () => {
+            if (!isOpen()) closeUI();
+        });
     })();
 </script>
 

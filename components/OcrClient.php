@@ -1,9 +1,8 @@
 <?php
 
 namespace app\components;
+
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\ConnectException;
-use GuzzleHttp\Exception\RequestException;
 
 class OcrClient
 {
@@ -15,14 +14,14 @@ class OcrClient
     {
         $p = \Yii::$app->params['ocr'] ?? [];
         $this->endpoint = $p['endpoint'] ?? 'https://api.ocr.space/parse/image';
-        $this->apiKey   = $p['apiKey']   ?? null;
+        $this->apiKey = $p['apiKey'] ?? null;
 
         if ((defined('YII_ENV') ? YII_ENV !== 'dev' : true) && empty($this->apiKey)) {
             throw new \yii\base\InvalidConfigException('OCR_API_KEY отсутствует.');
         }
 
         $this->http = new Client([
-            'timeout'         => 45,   // общий таймаут запроса
+            'timeout' => 45,   // общий таймаут запроса
             'connect_timeout' => 10,   // отдельно коннект
             'headers' => [
                 'User-Agent' => 'Tratometr/1.0 (+Railway)',
@@ -39,9 +38,9 @@ class OcrClient
         // Значения по умолчанию, как в старом фронте + улучшения точности
         $defaults = [
             'isOverlayRequired' => true,
-            'scale'             => true,
+            'scale' => true,
             'detectOrientation' => true,
-            'OCREngine'         => 2,   // у OCR.space обычно даёт лучший Overlay
+            'OCREngine' => 2,   // у OCR.space обычно даёт лучший Overlay
             // при необходимости добавишь сюда другие поля OCR.space:
             // 'isTable' => false, 'isCreateSearchablePdf' => false, и т.п.
         ];
@@ -74,7 +73,7 @@ class OcrClient
             try {
                 $res = $this->http->post($this->endpoint, ['multipart' => $multipart]);
                 return json_decode((string)$res->getBody(), true) ?: [];
-            } catch (\GuzzleHttp\Exception\ConnectException|\GuzzleHttp\Exception\RequestException $e) {
+            } catch (\GuzzleHttp\Exception\ConnectException | \GuzzleHttp\Exception\RequestException $e) {
                 $lastEx = $e;
                 usleep([500000, 1000000, 2000000][$i]);
             }

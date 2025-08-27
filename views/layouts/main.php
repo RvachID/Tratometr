@@ -35,17 +35,17 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
     <?php
     NavBar::begin([
         'brandLabel' => '<- На главную',
-        'brandUrl'   => '/site/index',
-        'options'    => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
+        'brandUrl' => '/site/index',
+        'options' => ['class' => 'navbar-expand-md navbar-dark bg-dark fixed-top'],
     ]);
 
     // Левое меню (как было)
     echo Nav::widget([
         'options' => ['class' => 'navbar-nav'],
         'items' => [
-            ['label' => 'История',  'url' => ['/site/history']],
-            ['label' => 'Статистика',  'url' => ['/site/stats']],
-            ['label' => 'О проекте','url' => ['/site/about']],
+            ['label' => 'История', 'url' => ['/site/history']],
+            ['label' => 'Статистика', 'url' => ['/site/stats']],
+            ['label' => 'О проекте', 'url' => ['/site/about']],
             Yii::$app->user->isGuest
                 ? ['label' => 'Авторизоваться', 'url' => ['/auth/login']]
                 : '<li class="nav-item">'
@@ -78,15 +78,16 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
     <div class="container">
         <div class="row justify-content-center text-muted">
             <div class="col-auto text-center">
-                &copy; Rvach_dev <?= date('Y') ?> — версия <?= \yii\helpers\Html::encode(Yii::$app->params['version'] ?? '') ?>
+                &copy; Rvach_dev <?= date('Y') ?> —
+                версия <?= \yii\helpers\Html::encode(Yii::$app->params['version'] ?? '') ?>
             </div>
         </div>
     </div>
 </footer>
 <script>
-    (function() {
+    (function () {
         const LIFETIME = 3000;  // мс
-        const STAGGER  = 150;   // «лесенка» между несколькими алертами
+        const STAGGER = 150;   // «лесенка» между несколькими алертами
 
         function closeAlert(el, delay) {
             setTimeout(() => {
@@ -103,7 +104,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
 
         // закрываем все уже отображённые
         document.querySelectorAll('.alert').forEach((el, i) => {
-            el.classList.add('fade','show');
+            el.classList.add('fade', 'show');
             closeAlert(el, LIFETIME + i * STAGGER);
         });
 
@@ -113,17 +114,17 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
                 m.addedNodes.forEach(n => {
                     if (!(n instanceof HTMLElement)) return;
                     if (n.classList && n.classList.contains('alert')) {
-                        n.classList.add('fade','show');
+                        n.classList.add('fade', 'show');
                         closeAlert(n, LIFETIME);
                     }
                     n.querySelectorAll?.('.alert').forEach(el => {
-                        el.classList.add('fade','show');
+                        el.classList.add('fade', 'show');
                         closeAlert(el, LIFETIME);
                     });
                 });
             });
         });
-        mo.observe(document.body, { childList: true, subtree: true });
+        mo.observe(document.body, {childList: true, subtree: true});
     })();
 
     (function () {
@@ -131,16 +132,16 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         if (!toggler) return;
 
         // Определяем цель из data-bs-target или берём первый .navbar-collapse
-        const targetSel  = toggler.getAttribute('data-bs-target') || toggler.getAttribute('data-target') || '.navbar-collapse';
+        const targetSel = toggler.getAttribute('data-bs-target') || toggler.getAttribute('data-target') || '.navbar-collapse';
         const collapseEl = document.querySelector(targetSel);
         if (!collapseEl) return;
 
-        const hasBS   = !!(window.bootstrap && bootstrap.Collapse);
-        const control = hasBS ? bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }) : null;
+        const hasBS = !!(window.bootstrap && bootstrap.Collapse);
+        const control = hasBS ? bootstrap.Collapse.getOrCreateInstance(collapseEl, {toggle: false}) : null;
 
-        const isOpen   = () => collapseEl.classList.contains('show');
-        const openUI   = () => document.body.classList.add('nav-open');
-        const closeUI  = () => document.body.classList.remove('nav-open');
+        const isOpen = () => collapseEl.classList.contains('show');
+        const openUI = () => document.body.classList.add('nav-open');
+        const closeUI = () => document.body.classList.remove('nav-open');
         const closeMenu = () => {
             if (!isOpen()) return;
             if (control) control.hide(); else collapseEl.classList.remove('show');
@@ -171,7 +172,9 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         });
 
         // 4) При ресайзе убираем фиксацию скролла, если меню уже закрыто
-        window.addEventListener('resize', () => { if (!isOpen()) closeUI(); });
+        window.addEventListener('resize', () => {
+            if (!isOpen()) closeUI();
+        });
     })();
 </script>
 

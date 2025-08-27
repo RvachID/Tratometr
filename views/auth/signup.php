@@ -1,6 +1,7 @@
 <?php
-use yii\widgets\ActiveForm;
+
 use yii\helpers\Html;
+use yii\widgets\ActiveForm;
 
 /** @var $model app\models\SignupForm */
 $this->title = 'Регистрация';

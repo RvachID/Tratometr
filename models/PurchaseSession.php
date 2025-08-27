@@ -1,4 +1,5 @@
 <?php
+
 namespace app\models;
 
 use Yii;
@@ -9,15 +10,18 @@ class PurchaseSession extends ActiveRecord
     const STATUS_ACTIVE = 1;
     const STATUS_CLOSED = 9;
 
-    public static function tableName(): string { return 'purchase_session'; }
+    public static function tableName(): string
+    {
+        return 'purchase_session';
+    }
 
     public function rules(): array
     {
         return [
-            [['user_id','status','started_at','updated_at'], 'integer'],
-            [['user_id','shop','category'], 'required'],
+            [['user_id', 'status', 'started_at', 'updated_at'], 'integer'],
+            [['user_id', 'shop', 'category'], 'required'],
             [['limit_amount'], 'integer'],
-            [['shop','category'], 'string', 'max' => 120],
+            [['shop', 'category'], 'string', 'max' => 120],
         ];
     }
 
@@ -28,6 +32,7 @@ class PurchaseSession extends ActiveRecord
         $this->updated_at = $now;
         return parent::beforeSave($insert);
     }
+
     /**
      * Финализировать сессию: посчитать total_amount/limit_left и закрыть.
      * Безопасно вызывать повторно — посчитает заново.
@@ -54,11 +59,11 @@ class PurchaseSession extends ActiveRecord
                 $this->limit_left = $left > 0 ? $left : 0;
             }
 
-            $this->status     = self::STATUS_CLOSED;
-            $this->closed_at  = time();
+            $this->status = self::STATUS_CLOSED;
+            $this->closed_at = time();
             $this->updated_at = $this->closed_at;
 
-            $this->save(false, ['total_amount','limit_left','status','closed_at','updated_at']);
+            $this->save(false, ['total_amount', 'limit_left', 'status', 'closed_at', 'updated_at']);
             $tx->commit();
             return true;
         } catch (\Throwable $e) {
