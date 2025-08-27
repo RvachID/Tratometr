@@ -14,6 +14,15 @@ $config = [
     'components' => [
         'request' => [
             'cookieValidationKey' => 'JnrKGc4dsJmo_uU1hCj-k7W2Ettg3Y8A',
+            'enableCsrfValidation' => true,
+            'enableCsrfCookie' => true,
+            'csrfParam' => '_csrf',
+            'csrfCookie' => [
+                'httpOnly' => true,
+                'sameSite' => \yii\web\Cookie::SAME_SITE_LAX,
+                'secure' => YII_ENV_PROD,
+                'path' => '/',
+            ],
         ],
 
         'session' => [
