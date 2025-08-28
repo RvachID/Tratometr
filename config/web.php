@@ -9,10 +9,14 @@ $config = [
     'bootstrap' => ['log'],
     'aliases' => [
         '@bower' => '@vendor/bower-asset',
-        '@npm' => '@vendor/npm-asset',
+        '@npm'   => '@vendor/npm-asset',
     ],
+
+    // локализация
     'language' => 'ru-RU',
     'sourceLanguage' => 'en-US',
+
+    // ===== компоненты =====
     'components' => [
         'request' => [
             'cookieValidationKey' => 'JnrKGc4dsJmo_uU1hCj-k7W2Ettg3Y8A',
@@ -31,13 +35,13 @@ $config = [
             'cookieParams' => [
                 'httpOnly' => true,
                 'sameSite' => 'Lax',
-                'secure' => YII_ENV_PROD,
+                'secure'   => YII_ENV_PROD,
             ],
             'timeout' => 3600 * 24 * 7,
         ],
 
         'cache' => [
-            'class' => 'yii\caching\FileCache',
+            'class' => yii\caching\FileCache::class,
         ],
 
         'errorHandler' => [
@@ -45,7 +49,7 @@ $config = [
         ],
 
         'mailer' => [
-            'class' => \yii\symfonymailer\Mailer::class,
+            'class' => yii\symfonymailer\Mailer::class,
             'viewPath' => '@app/mail',
             'useFileTransport' => true,
         ],
@@ -53,18 +57,15 @@ $config = [
         'log' => [
             'traceLevel' => YII_DEBUG ? 3 : 0,
             'targets' => [
-                // всё как раньше в файл (можно оставить/убрать)
                 [
                     'class' => yii\log\FileTarget::class,
                     'levels' => ['error', 'warning'],
                 ],
-                // ВАЖНО: всё в stdout — видно в Railway → Logs
                 [
                     'class' => yii\log\FileTarget::class,
                     'logFile' => 'php://stdout',
                     'levels' => ['error', 'warning', 'info'],
-                    // без categories — ловим вообще все события
-                    'logVars' => [], // не спамим суперглобалами
+                    'logVars' => [],
                 ],
             ],
         ],
@@ -72,7 +73,7 @@ $config = [
         'db' => $db,
 
         'user' => [
-            'identityClass' => 'app\models\User',
+            'identityClass' => app\models\User::class,
             'enableAutoLogin' => true,
             'loginUrl' => ['auth/login'],
             'identityCookie' => [
@@ -81,7 +82,7 @@ $config = [
                 'secure' => YII_ENV_PROD,
                 'sameSite' => 'Lax',
             ],
-            'on ' . \yii\web\User::EVENT_AFTER_LOGIN => function ($e) {
+            'on ' . yii\web\User::EVENT_AFTER_LOGIN => function ($e) {
                 /** @var app\models\User $u */
                 $u = $e->identity;
                 $u->updateAttributes([
@@ -89,19 +90,19 @@ $config = [
                     'ocr_allowance_updated_at' => time(),
                 ]);
             },
-
         ],
+
         'urlManager' => [
             'enablePrettyUrl' => false,
             'showScriptName' => true,
         ],
 
         'ocr' => [
-            'class' => \app\components\OcrClient::class,
+            'class' => app\components\OcrClient::class,
         ],
         'ps' => [
-            'class' => \app\components\PurchaseSessionService::class,
-            'autocloseSeconds' => 10800, // 3 часа
+            'class' => app\components\PurchaseSessionService::class,
+            'autocloseSeconds' => 10800,
         ],
 
         'formatter' => [
@@ -111,12 +112,11 @@ $config = [
             'locale' => 'ru-RU',
             'currencyCode' => 'RUB',
             'thousandSeparator' => ' ',
-            'decimalSeparator' => ',',
+            'decimalSeparator'  => ',',
         ],
 
         'i18n' => [
             'translations' => [
-                // Встроенные сообщения фреймворка (валидаторы, ошибки и т.п.)
                 'yii*' => [
                     'class' => yii\i18n\PhpMessageSource::class,
                     'basePath' => '@yii/messages',
@@ -126,29 +126,27 @@ $config = [
                     'class' => yii\i18n\PhpMessageSource::class,
                     'basePath' => '@app/messages',
                     'fileMap' => [
-                        'app' => 'app.php',
+                        'app'       => 'app.php',
                         'app/error' => 'error.php',
                     ],
                 ],
             ],
         ],
+    ],
 
-        'as timezone' => [
-            'class' => app\components\TimezoneMiddleware::class,
-        ],
-
-        'name' => 'Тратометр',
-        'defaultRoute' => 'site/index',
-        'params' => $params,
-    ]
+    // ===== ВЕРХНИЙ УРОВЕНЬ (не в components!) =====
+    'as timezone'   => ['class' => app\components\TimezoneMiddleware::class],
+    'name'          => 'Тратометр',
+    'defaultRoute'  => 'site/index',
+    'params'        => $params,
 ];
 
-if (YII_ENV_DEV && class_exists('yii\debug\Module')) {
+// debug-модуль
+if (YII_ENV_DEV && class_exists(yii\debug\Module::class)) {
     $config['bootstrap'][] = 'debug';
     $config['modules']['debug'] = [
-        'class' => 'yii\debug\Module',
+        'class' => yii\debug\Module::class,
     ];
 }
-
 
 return $config;
