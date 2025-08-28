@@ -19,6 +19,10 @@ $this->title = 'Регистрация';
         ],
     ]); ?>
 
+    <!-- антибот: отметка времени рендера + honeypot -->
+    <?= Html::hiddenInput('render_ts', time()) ?>
+    <input type="text" name="hp" value="" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
+
     <?= $form->field($model, 'email')
         ->input('email', [
             'autocomplete' => 'username',
@@ -46,7 +50,6 @@ $this->title = 'Регистрация';
 </div>
 
 <?php
-
 $js = <<<JS
 (function(){
   try{

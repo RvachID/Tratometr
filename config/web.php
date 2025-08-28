@@ -27,9 +27,11 @@ $config = [
 
         'session' => [
             'cookieParams' => [
+                'httpOnly' => true,
                 'sameSite' => 'Lax',
                 'secure' => YII_ENV_PROD,
             ],
+            'timeout' => 3600 * 24 * 7,
         ],
 
         'cache' => [
@@ -71,6 +73,12 @@ $config = [
             'identityClass' => 'app\models\User',
             'enableAutoLogin' => true,
             'loginUrl' => ['auth/login'],
+            'identityCookie' => [
+                'name' => '_identity',
+                'httpOnly' => true,
+                'secure' => YII_ENV_PROD,
+                'sameSite' => 'Lax',
+            ],
             'on ' . \yii\web\User::EVENT_AFTER_LOGIN => function ($e) {
                 /** @var app\models\User $u */
                 $u = $e->identity;

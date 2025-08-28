@@ -17,22 +17,22 @@ $this->title = 'Вход';
 
             <p class="text-muted small mb-2">
                 <strong>Я считаю траты до оплаты.</strong><br>
-
-                Сканируй ценники до покупки.<br>
-                Я покажу стоимость текущей корзины и предупрежу о превышении лимита.<br>
-                Контроль в моменте, а не по чекам.
+                Сканируйте ценники до покупки и контролируйте бюджет в моменте, а не по факту.<br>
             </p>
 
             <a class="small link-brand" href="<?= \yii\helpers\Url::to(['/site/about']) ?>">Подробнее о проекте →</a>
         </div>
     </div>
 
-
     <h2 class="h5 mb-3 text-center"><?= Html::encode($this->title) ?></h2>
 
     <!-- Форма входа -->
     <form method="post" action="<?= Url::to(['auth/login']) ?>" novalidate>
         <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->getCsrfToken()) ?>
+
+        <!-- антибот: отметка времени рендера + honeypot -->
+        <?= Html::hiddenInput('render_ts', time()) ?>
+        <input type="text" name="hp" value="" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
 
         <div class="mb-3">
             <label class="form-label small text-muted">E-mail</label>
@@ -54,8 +54,8 @@ $this->title = 'Вход';
                    placeholder="Ваш пароль">
         </div>
 
+        <?= Html::hiddenInput('tz', '', ['id' => 'tz-field']) ?>
         <button type="submit" class="btn btn-outline-secondary w-100">Войти</button>
-        <?= \yii\helpers\Html::hiddenInput('tz', '', ['id' => 'tz-field']) ?>
     </form>
 
     <!-- Разделитель и регистрация -->
