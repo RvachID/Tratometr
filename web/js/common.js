@@ -97,8 +97,13 @@
             var wrap = document.getElementById('total-wrap');
             if (!wrap) return;
 
-            var hasLimit = wrap.getAttribute('data-has-limit') === '1';
             var sum = calcSum();
+
+            // Толстый детектор лимита:
+            // 1) data-has-limit="1"   2) есть элемент #scan-remaining   3) data-limit не пуст
+            var hasLimit = (wrap.getAttribute('data-has-limit') === '1')
+                || (document.getElementById('scan-remaining') !== null)
+                || ((wrap.getAttribute('data-limit') || '').trim() !== '');
 
             if (!hasLimit) {
                 var totalEl = document.getElementById('scan-total');
@@ -106,8 +111,9 @@
                 return;
             }
 
+            // Парсим лимит из data-limit (чистим пробелы и запятые)
             var limitStr = wrap.getAttribute('data-limit') || '';
-            var limit = parseFloat((limitStr+'').replace(/\s+/g,'').replace(',','.')) || 0;
+            var limit = parseFloat(limitStr.replace(/\s+/g,'').replace(',','.')) || 0;
             var rest = limit - sum;
 
             var remEl = document.getElementById('scan-remaining');
@@ -125,6 +131,12 @@
 
         // Триггеры: любые изменения amount/qty и после сохранения/удаления
         document.addEventListener('input', function(e){
+            if (e.target && (e.target.name === 'amount' || e.target.name === 'qty')) {
+                window.updateTotals();
+            }
+        });
+
+        document.addEventListener('change', function(e){
             if (e.target && (e.target.name === 'amount' || e.target.name === 'qty')) {
                 window.updateTotals();
             }
