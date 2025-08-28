@@ -95,26 +95,28 @@ class ScanController extends Controller
      * Достаём цену из Overlay по ПЛОЩАДИ bbox ГРУППЫ числовых токенов.
      * Фильтруем перечёркнутые и проценты. Бонусы за копейки.
      */
-    private function extractAmountByOverlay(array $recognized): ?float
+
+    private function extractAmountByOverlay(array $recognized, ?string $imagePath = null): ?float
     {
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
-        if (!$lines || !is_array($lines)) return null;
+        if (!$lines || !is_array($lines) || !count($lines)) {
+            return null;
+        }
 
-        $bestValue = null;
-        $bestScore = -INF;
+        $bestValue   = null;
+        $bestScore   = -INF;
+        $bestBBox    = null;
+        $bestHasCents= false;
 
-        // Нормализация "числовой" строки -> float
+        // нормализация «числа» внутри группы
         $norm = function (string $raw): ?float {
             $s = trim($raw);
-            if ($s === '') return null;
+            if ($s === '' || preg_match('/[%\/]/u', $s)) return null;
+
             $s = str_replace(["\xC2\xA0", ' ', ' '], ' ', $s);
-            // 1) пометить возможный разделитель копеек
-            $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);
-            // 2) убрать тысячные
-            $s = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $s);
-            // 3) убрать оставшиеся пробелы между цифрами
-            $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);
-            // 4) вернуть точку
+            $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);      // пометка копеек
+            $s = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $s);        // тысячные
+            $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);                  // мусор внутри
             $s = str_replace('#', '.', $s);
 
             if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
@@ -130,14 +132,13 @@ class ScanController extends Controller
 
         foreach ($lines as $line) {
             $words = $line['Words'] ?? [];
-            if (!is_array($words) || !$words) continue;
+            if (!is_array($words) || !count($words)) continue;
 
-            // Подготовим токены: запомним оригинал (%), координаты и высоту
             foreach ($words as &$w) {
                 $orig = (string)($w['WordText'] ?? '');
                 $w['__orig']          = $orig;
                 $w['__hadPercent']    = (strpos($orig, '%') !== false);
-                $w['WordText']        = preg_replace('~[^\d.,\s]~u', '', $orig); // чистим, % убран
+                $w['WordText']        = preg_replace('~[^\d.,\s]~u', '', $orig); // чистим, % убираем из текста
                 $w['IsStrikethrough'] = !empty($w['IsStrikethrough']);
                 $w['Height']          = isset($w['Height']) ? (int)$w['Height'] : 0;
                 $w['Left']            = isset($w['Left']) ? (int)$w['Left'] : 0;
@@ -147,97 +148,153 @@ class ScanController extends Controller
             unset($w);
 
             $group = [];
-            // flush может получить $nextNonNumeric — следующий токен, который не вошёл в группу
-            $flush = function ($nextNonNumeric = null) use (&$group, $norm, &$bestValue, &$bestScore) {
+            $flush = function ($nextNonNumeric = null) use (&$group, $norm, &$bestValue, &$bestScore, &$bestBBox, &$bestHasCents) {
                 if (!$group) return;
 
-                // базовый «сырой» текст
                 $raw = implode('', array_map(fn($g) => preg_replace('~\s+~u', '', $g['WordText']), $group));
                 $val = $norm($raw);
 
-                // габариты группы
                 $minL = min(array_column($group, 'Left'));
                 $maxR = max(array_map(fn($g) => $g['Left'] + $g['Width'], $group));
                 $minT = min(array_column($group, 'Top'));
                 $maxB = max(array_map(fn($g) => $g['Top'] + $g['Height'], $group));
-                $area = max(1, $maxR - $minL) * max(1, $maxB - $minT);
 
-                // --- Попробуем сделать «хвост» копейками, если дробной части нет ---
+                $gW   = max(1, $maxR - $minL);
+                $gH   = max(1, $maxB - $minT);
+                $area = $gW * $gH;
+
                 $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
-                if (!$hasCents) {
-                    // базовая высота — максимум по группе (крупные цифры)
-                    $baseH = 1;
-                    foreach ($group as $g) $baseH = max($baseH, (int)$g['Height']);
+                $digits   = preg_match_all('~\d~', $raw);
 
-                    // 1) trailing-цифры меньшим шрифтом внутри группы (обычно отдельный токен "99")
-                    $tailDigits = '';
-                    for ($i = count($group) - 1; $i >= 0; $i--) {
-                        $gw = $group[$i];
-                        $t  = preg_replace('~\s+~u', '', $gw['WordText']);
-                        if ($t !== '' && preg_match('~^\d{1,2}$~', $t)) {
-                            $ratio = ($baseH > 0) ? ($gw['Height'] / $baseH) : 1.0;
-                            if ($ratio <= 0.90) { // заметно меньше
-                                $tailDigits = $t . $tailDigits;
-                                // съели хвост — выкидываем из "целой" части
-                                array_pop($group);
-                                $raw = implode('', array_map(fn($g) => preg_replace('~\s+~u', '', $g['WordText']), $group));
-                                continue;
-                            }
-                        }
-                        break;
-                    }
+                $score = (float)$area;
+                if ($hasCents) $score *= 1.35;
+                if ($digits >= 3) $score *= 1.10;
+                if ($val !== null && $val < 1.0) $score *= 0.3;
 
-                    // 2) если хвоста в группе нет, но следующий токен — маленький «%», трактуем как 99
-                    if ($tailDigits === '' && is_array($nextNonNumeric)) {
-                        $ratio = ($baseH > 0) ? (((int)$nextNonNumeric['Height']) / $baseH) : 1.0;
-                        if (!empty($nextNonNumeric['__hadPercent']) && $ratio <= 0.78) {
-                            $tailDigits = '99';
-                        }
-                    }
-
-                    if ($tailDigits !== '') {
-                        $intVal = $norm($raw);
-                        if ($intVal !== null) {
-                            // берём только 2 цифры, 1 цифра -> умножаем на 10
-                            if (strlen($tailDigits) === 1) $tailDigits .= '0';
-                            $cents = (int)substr($tailDigits, 0, 2);
-                            $val   = floor($intVal) + ($cents / 100.0);
-                            $hasCents = true;
-                        }
-                    }
-                }
-
-                if ($val !== null) {
-                    $digits = preg_match_all('~\d~', $raw);
-                    $score  = (float)$area;
-                    if ($hasCents) $score *= 1.35;
-                    if ($digits >= 3) $score *= 1.10;
-                    if ($val < 1.0) $score *= 0.3;
-
-                    if ($score > $bestScore) {
-                        $bestScore = $score;
-                        $bestValue = $val;
-                    }
+                if ($val !== null && $score > $bestScore) {
+                    $bestScore   = $score;
+                    $bestValue   = $val;
+                    $bestHasCents= $hasCents;
+                    $bestBBox    = ['left'=>$minL,'top'=>$minT,'width'=>$gW,'height'=>$gH];
                 }
 
                 $group = [];
             };
 
-            // проходим слова строки
             foreach ($words as $w) {
-                if ($w['IsStrikethrough']) { $flush(); continue; } // отбрасываем старые цены
-
+                if ($w['IsStrikethrough']) { $flush(); continue; }
                 $t = preg_replace('~\s+~u', '', $w['WordText']);
                 if ($t !== '' && preg_match('~^[\d.,]+$~u', $t)) {
-                    $group[] = $w;               // числовой токен — копим
+                    $group[] = $w;
                 } else {
-                    $flush($w);                  // нечисловой — возможно, хвост «%» → .99
+                    $flush($w);
                 }
             }
             $flush(null);
         }
 
+        // если нашли основную сумму, но нет копеек — пробуем вытащить копейки через ROI
+        if ($bestValue !== null && !$bestHasCents && $imagePath && $bestBBox) {
+            $cents = $this->tryFindCentsViaRoi($imagePath, $bestBBox);
+            if ($cents !== null) {
+                $bestValue = floor($bestValue) + ($cents / 100.0);
+            }
+        }
+
         return $bestValue;
+    }
+
+    /**
+     * Пробуем вычитать копейки из маленького «хвоста» справа от основной цены.
+     * Возвращает 0..99 или null.
+     */
+    private function tryFindCentsViaRoi(string $imagePath, array $bbox): ?int
+    {
+        try {
+            $im = new \Imagick($imagePath);
+            $im->autoOrient();
+
+            $W = $im->getImageWidth();
+            $H = $im->getImageHeight();
+
+            $L = (int)$bbox['left'];
+            $T = (int)$bbox['top'];
+            $Wg= (int)$bbox['width'];
+            $Hg= (int)$bbox['height'];
+
+            // ROI: справа-вверх от основной группы (как на ценниках «мелкие копейки»)
+            $x = (int)round($L + $Wg * 1.02);
+            $y = (int)round($T - $Hg * 0.25);
+            $w = (int)round(max($Wg * 0.60, 40));
+            $h = (int)round(max($Hg * 0.90, 32));
+
+            // границы
+            $x = max(0, min($x, $W - 1));
+            $y = max(0, min($y, $H - 1));
+            if ($x + $w > $W) $w = $W - $x;
+            if ($y + $h > $H) $h = $H - $y;
+            if ($w < 16 || $h < 16) return null;
+
+            // crop + upscale + лёгкая резкость (без агрессивного контраста)
+            $roi = clone $im;
+            $roi->cropImage($w, $h, $x, $y);
+            $roi->setImagePage(0,0,0,0);
+            $roi->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
+            $roi->unsharpMaskImage(0.5, 0.5, 1.2, 0.02);
+            $roi->setImageFormat('jpeg');
+            $roi->setImageCompressionQuality(92);
+
+            $tmp = \Yii::getAlias('@runtime/' . uniqid('roi_', true) . '.jpg');
+            $roi->writeImage($tmp);
+            $roi->clear(); $roi->destroy();
+            $im->clear();  $im->destroy();
+
+            // Второй OCR-проход по ROI — движок 1, он чаще «дробит» мелкие цифры
+            $raw = \Yii::$app->ocr->parseImage($tmp, 'eng', [
+                'isOverlayRequired' => true,
+                'scale'             => true,
+                'detectOrientation' => true,
+                'OCREngine'         => 1,
+            ]);
+            @unlink($tmp);
+
+            $res  = $raw['ParsedResults'][0] ?? [];
+            $text = (string)($res['ParsedText'] ?? '');
+
+            // Явный «%» возле копеек — трактуем как 99
+            if (strpos($text, '%') !== false) return 99;
+
+            // Сначала ищем строго две цифры как отдельное «слово»
+            if (preg_match('/\b(\d{2})\b/u', $text, $m)) {
+                $c = (int)$m[1];
+                if ($c >= 0 && $c <= 99) return $c;
+            }
+
+            // Если Overlay есть — выбираем самый «цифровой» токен длиной 1–2
+            $best = null;
+            if (!empty($res['TextOverlay']['Lines'])) {
+                foreach ($res['TextOverlay']['Lines'] as $ln) {
+                    foreach (($ln['Words'] ?? []) as $w) {
+                        $t = preg_replace('~\D+~u', '', (string)($w['WordText'] ?? ''));
+                        if ($t === '') continue;
+                        if (strlen($t) <= 2) {
+                            $c = (int)$t;
+                            if ($c >= 0 && $c <= 99) {
+                                // предпочитаем ровно 2 цифры
+                                if (strlen($t) === 2) return $c;
+                                $best = $c; // запасной вариант (одна цифра)
+                            }
+                        }
+                    }
+                }
+            }
+            if ($best !== null) return $best * 10; // «9» ≈ «90»
+
+            return null;
+        } catch (\Throwable $e) {
+            \Yii::warning('ROI cents OCR failed: '.$e->getMessage(), __METHOD__);
+            return null;
+        }
     }
 
     /**
@@ -473,7 +530,7 @@ class ScanController extends Controller
                     return ['error' => $recognized['error'], 'reason' => 'ocr', 'recognized' => $recognized];
                 }
 
-                $amount = $this->extractAmountByOverlay($recognized);
+                $amount = $this->extractAmountByOverlay($recognized, $path);
                 if ($amount === null || $amount === 0.0) {
                     $amount = $this->extractAmount($recognized['ParsedText'] ?? '');
                 }
