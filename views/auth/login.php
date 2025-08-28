@@ -41,7 +41,7 @@ $this->title = 'Вход';
                    class="form-control"
                    required
                    autocomplete="username"
-                   placeholder="you@example.com">
+
         </div>
 
         <div class="mb-3">
@@ -51,7 +51,7 @@ $this->title = 'Вход';
                    class="form-control"
                    required
                    autocomplete="current-password"
-                   placeholder="Ваш пароль">
+
         </div>
 
         <?= Html::hiddenInput('tz', '', ['id' => 'tz-field']) ?>

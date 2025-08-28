@@ -384,6 +384,34 @@ class ScanController extends Controller
             }
 
             $run = function (string $path) {
+                // 0) Сначала пытаемся пройти «новым» путём: фото → OCR → PriceParser
+                try {
+                    /** @var \app\components\OcrClient $ocr */
+                    $ocr = \Yii::$app->ocr;
+
+                    $res = $ocr->extractPriceFromImage($path, 'rus', [
+                        'isOverlayRequired' => true,
+                        'OCREngine'         => 2,
+                        'scale'             => true,
+                        'detectOrientation' => true,
+                    ]); // parserOpts не передаём — дефолты внутри PriceParser
+
+                    if (!empty($res['success']) && $res['success'] === true && !empty($res['amount'])) {
+                        // Отдаём в том же формате, который ожидает нижний код
+                        return [
+                            'amount'     => (float)$res['amount'],
+                            'recognized' => [
+                                'ParsedText' => (string)($res['text'] ?? ''),
+                                // TextOverlay не обязателен на этом пути
+                            ],
+                        ];
+                    }
+                } catch (\Throwable $e) {
+                    \Yii::warning('extractPriceFromImage failed: ' . $e->getMessage(), __METHOD__);
+                    // Пойдём по старому пути
+                }
+
+                // 1) Фолбэк: старый путь — OCR → Overlay → (bbox-скоринг) → строковый парсер
                 $recognized = $this->recognizeText($path);
                 if (isset($recognized['error'])) {
                     return ['error' => $recognized['error'], 'reason' => 'ocr', 'recognized' => $recognized];
