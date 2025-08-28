@@ -9,23 +9,29 @@ $fmt = Yii::$app->formatter;
 function rowValueAndLabel(array $r): array
 {
     $hasLimit = $r['limit_amount'] !== null;
-    $limitRub = $hasLimit ? ((int)$r['limit_amount']) / 100 : null;
 
-    if ((int)$r['status'] === 9) { // ЗАКРЫТА: кэш в КОПЕЙКАХ -> переводим в рубли
+    // В рублях
+    $limitRub = $hasLimit ? ((int)$r['limit_amount']) / 100 : null;
+    $totalRub = ((int)$r['total_amount']) / 100; // для активных ниже перезапишем из sum_live
+
+    if ((int)$r['status'] === 9) { // ЗАКРЫТА
         if ($hasLimit) {
-            $value = ((int)$r['limit_left']) / 100;   // копейки -> ₽
-            $label = 'Лимит';
+            // Остаток пересчитываем напрямую, чтобы не зависеть от кэша limit_left
+            $leftRub = (((int)$r['limit_amount']) - ((int)$r['total_amount'])) / 100;
+            $value   = $leftRub;
+            $label   = 'Лимит';
         } else {
-            $value = ((int)$r['total_amount']) / 100; // копейки -> ₽
+            $value = $totalRub;
             $label = 'Итого';
         }
-    } else { // АКТИВНА: считаем как раньше (sum_live в рублях)
-        $sumLive = (float)$r['sum_live']; // ₽
+    } else { // АКТИВНА
+        $sumLive = (float)$r['sum_live']; // здесь уже в рублях
+        $totalRub = $sumLive;
         if ($hasLimit) {
-            $value = $limitRub - $sumLive; // ₽
+            $value = $limitRub - $sumLive; // остаток в рублях
             $label = 'Лимит';
         } else {
-            $value = $sumLive;             // ₽
+            $value = $sumLive;
             $label = 'Итого';
         }
     }
@@ -33,8 +39,10 @@ function rowValueAndLabel(array $r): array
     $isOver = $hasLimit && $value < 0;
     $ts = (int)$r['last_ts'];
 
-    return [$value, $label, $isOver, $ts];
+    // Возвращаем: [основное_значение, ярлык, признак_перерасхода, ts, итоговая_сумма, лимит]
+    return [$value, $label, $isOver, $ts, $totalRub, $limitRub];
 }
+
 
 ?>
 <div class="container mt-3">
@@ -55,7 +63,7 @@ function rowValueAndLabel(array $r): array
             </thead>
             <tbody>
             <?php foreach ($items as $r):
-                [$value, $label, $isOver, $ts] = rowValueAndLabel($r);
+                [$value, $label, $isOver, $ts, $sumRub, $limitRub] = rowValueAndLabel($r);
                 ?>
                 <tr>
                     <td>
@@ -67,6 +75,9 @@ function rowValueAndLabel(array $r): array
                     <td><?= $label ?></td>
                     <td class="text-end <?= $isOver ? 'text-danger fw-bold' : '' ?>">
                         <?= number_format($value, 2, '.', ' ') ?>
+                        <?php if ($limitRub !== null): ?>
+                            <div class="text-muted small">(Итого: <?= number_format($sumRub, 2, '.', ' ') ?>)</div>
+                        <?php endif; ?>
                     </td>
                     <td class="text-end">
                         <?= Html::beginForm(['site/delete-session', 'id' => (int)$r['id']], 'post', [
@@ -101,6 +112,9 @@ function rowValueAndLabel(array $r): array
                             <div class="small text-muted"><?= $label ?></div>
                             <div class="<?= $isOver ? 'text-danger fw-bold' : 'fw-semibold' ?>">
                                 <?= number_format($value, 2, '.', ' ') ?>
+                                <?php if ($limitRub !== null): ?>
+                                    <div class="text-muted small">(Итого: <?= number_format($sumRub, 2, '.', ' ') ?>)</div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
