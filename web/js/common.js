@@ -74,8 +74,9 @@
 
     window.Utils = { getCsrf, debounce, fmt2, resetPhotoPreview, renderNote };
 
+    // ===== Итоги/лимит =====
     (function(){
-        // Красивое форматирование: 12 345,67
+        // Форматирование: 12 345,67
         function fmt(v){
             try {
                 return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2})
@@ -85,56 +86,61 @@
             }
         }
 
+        // Универсальный парсер "12 345,67" / "12345.67" / с NBSP
+        function parseNum(s){
+            if (!s) return NaN;
+            s = (''+s)
+                .replace(/\u00A0/g, ' ')   // NBSP -> space
+                .replace(/\s+/g, '')
+                .replace(',', '.');
+            return parseFloat(s);
+        }
+
         // Сумма по всем позициям (amount * qty)
         function calcSum(){
             var forms = document.querySelectorAll('.entry-form');
             var sum = 0;
             forms.forEach(function(f){
-                var a = parseFloat((f.querySelector('input[name="amount"]')?.value || '0').replace(',','.')) || 0;
-                var q = parseFloat((f.querySelector('input[name="qty"]')?.value || '1').replace(',','.')) || 0;
+                var a = parseNum(f.querySelector('input[name="amount"]')?.value || '0');
+                var q = parseNum(f.querySelector('input[name="qty"]')?.value || '1');
+                if (isNaN(a)) a = 0;
+                if (isNaN(q)) q = 0;
                 sum += a * q;
             });
             return sum;
         }
 
-        // Универсальный парсер чисел из текстов вида "12 345,67" / "12345.67"
-        function parseNum(s){
-            if (!s) return NaN;
-            s = (''+s).replace(/\s+/g,'').replace(',', '.');
-            return parseFloat(s);
-        }
-
-        // Обновление DOM итогов (поддержка старого и нового макета)
-        window.updateTotals = function(){
+        // Главный апдейтер
+        function updateTotals(){
             var wrap = document.getElementById('total-wrap');
             if (!wrap) return;
 
             var sum = calcSum();
 
-            // Элементы «новой» двухстрочной вёрстки (если есть)
+            // Новая вёрстка?
             var remEl = document.getElementById('scan-remaining');
             var sumEl = document.getElementById('scan-sum');
             var limEl = document.getElementById('scan-limit');
 
-            // Пытаемся понять, есть ли лимит
+            // Определяем наличие лимита
             var dsLimit = (wrap.getAttribute('data-limit') || '').trim();
             var limit = parseNum(dsLimit);
             var hasLimit = !!dsLimit;
 
-            // Фолбэк: если лимит не в data-*, пробуем вытащить из текста #scan-limit
+            // Фолбэк: пробуем вытащить лимит из текста "Лимит: ..."
             if (!hasLimit && limEl) {
-                var num = parseNum(limEl.textContent || '');
+                var limTxt = limEl.textContent || '';
+                var num = parseNum(limTxt);
                 if (!isNaN(num)) { limit = num; hasLimit = true; }
             }
-
-            // Доп. признак (если кто-то проставил руками)
+            // Явный флаг
             if (!hasLimit && wrap.getAttribute('data-has-limit') === '1') {
                 hasLimit = true;
                 if (isNaN(limit)) limit = 0;
             }
 
             if (remEl || sumEl || limEl) {
-                // Новая вёрстка: обновляем обе строки
+                // Новая двухстрочная вёрстка
                 if (hasLimit) {
                     var rest = limit - sum;
                     if (remEl){
@@ -145,7 +151,7 @@
                     if (sumEl) sumEl.textContent = fmt(sum);
                     if (limEl) limEl.textContent = fmt(limit);
                 } else {
-                    // Если лимита нет — показываем только сумму (на случай смешанной разметки)
+                    // Без лимита: показываем просто сумму
                     if (sumEl) sumEl.textContent = fmt(sum);
                     if (remEl){
                         remEl.textContent = fmt(sum);
@@ -155,7 +161,7 @@
                 return;
             }
 
-            // Старая вёрстка: одна строка с #scan-total (там либо остаток, либо общая сумма)
+            // Старая вёрстка (одна строка с #scan-total)
             var totalEl = document.getElementById('scan-total');
             if (!totalEl) return;
 
@@ -168,25 +174,43 @@
                 totalEl.textContent = fmt(sum);
                 totalEl.classList.remove('text-danger', 'fw-bold');
             }
+        }
+
+        // Делаем функцию доступной извне
+        window.updateTotals = updateTotals;
+
+        // ----- Слушатели (в capture, на случай stopPropagation) -----
+        var handler = function(e){
+            var t = e.target;
+            if (!t) return;
+            var name = t.name || '';
+            if (name === 'amount' || name === 'qty') updateTotals();
         };
+        document.addEventListener('input', handler, true);   // capture
+        document.addEventListener('change', handler, true);  // capture
+        document.addEventListener('keyup', handler, true);   // на всякий
 
-        // Триггеры: любые изменения amount/qty
-        document.addEventListener('input', function(e){
-            if (e.target && (e.target.name === 'amount' || e.target.name === 'qty')) {
-                window.updateTotals();
+        // Клики по кнопкам сохранения/удаления
+        document.addEventListener('click', function(e){
+            var t = e.target;
+            if (!t) return;
+            if (t.closest('.save-entry') || t.closest('.delete-entry') || t.closest('#m-save')) {
+                setTimeout(updateTotals, 0); // после DOM-правок
             }
-        });
-        document.addEventListener('change', function(e){
-            if (e.target && (e.target.name === 'amount' || e.target.name === 'qty')) {
-                window.updateTotals();
-            }
-        });
+        }, true);
 
-        // Мгновенный запуск (без ожидания DOMContentLoaded)
+        // Наблюдаем за списком позиций — реакция на добавление/удаление
+        var entriesRoot = document.querySelector('.mt-3.text-start');
+        if (entriesRoot && 'MutationObserver' in window) {
+            var mo = new MutationObserver(debounce(updateTotals, 50));
+            mo.observe(entriesRoot, {childList: true, subtree: true});
+        }
+
+        // Первый запуск
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', window.updateTotals);
+            document.addEventListener('DOMContentLoaded', updateTotals);
         } else {
-            window.updateTotals();
+            updateTotals();
         }
     })();
 })();
