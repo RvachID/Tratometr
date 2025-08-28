@@ -11,6 +11,8 @@ $config = [
         '@bower' => '@vendor/bower-asset',
         '@npm' => '@vendor/npm-asset',
     ],
+    'language' => 'ru-RU',
+    'sourceLanguage' => 'en-US',
     'components' => [
         'request' => [
             'cookieValidationKey' => 'JnrKGc4dsJmo_uU1hCj-k7W2Ettg3Y8A',
@@ -104,9 +106,22 @@ $config = [
 
         'formatter' => [
             'class' => yii\i18n\Formatter::class,
-            'defaultTimeZone' => 'UTC', // хранилище/логика
-            'timeZone' => 'UTC', // перезапишем в middleware
+            'defaultTimeZone' => 'UTC',
+            'timeZone' => 'UTC',
+            'locale' => 'ru-RU',
+            'currencyCode' => 'RUB',
+            'thousandSeparator' => ' ',
+            'decimalSeparator'  => ',',
         ],
+
+        'i18n' => [
+            'translations' => [
+                // Встроенные сообщения фреймворка (валидаторы, ошибки и т.п.)
+                'yii*' => [
+                    'class' => yii\i18n\PhpMessageSource::class,
+                    'basePath' => '@yii/messages',
+                    'sourceLanguage' => 'en-US',
+                ],
 
     ],
 
