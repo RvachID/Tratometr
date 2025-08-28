@@ -111,7 +111,7 @@ $config = [
             'locale' => 'ru-RU',
             'currencyCode' => 'RUB',
             'thousandSeparator' => ' ',
-            'decimalSeparator'  => ',',
+            'decimalSeparator' => ',',
         ],
 
         'i18n' => [
@@ -133,13 +133,14 @@ $config = [
             ],
         ],
 
-    'as timezone' => [
-        'class' => app\components\TimezoneMiddleware::class,
-    ],
+        'as timezone' => [
+            'class' => app\components\TimezoneMiddleware::class,
+        ],
 
-    'name' => 'Тратометр',
-    'defaultRoute' => 'site/index',
-    'params' => $params,
+        'name' => 'Тратометр',
+        'defaultRoute' => 'site/index',
+        'params' => $params,
+    ]
 ];
 
 if (YII_ENV_DEV && class_exists('yii\debug\Module')) {
