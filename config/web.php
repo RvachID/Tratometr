@@ -102,7 +102,7 @@ $config = [
 
     ],
 
-    'asTimezone' => [
+    'as timezone' => [
         'class' => app\components\TimezoneMiddleware::class,
     ],
 
