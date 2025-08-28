@@ -100,10 +100,12 @@ $config = [
             'timeZone' => 'UTC', // перезапишем в middleware
         ],
 
-        'asTimezone' => [
-            'class' => app\components\TimezoneMiddleware::class,
-        ],
     ],
+
+    'asTimezone' => [
+        'class' => app\components\TimezoneMiddleware::class,
+    ],
+
     'name' => 'Тратометр',
     'defaultRoute' => 'site/index',
     'params' => $params,
