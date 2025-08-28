@@ -73,4 +73,64 @@
     }
 
     window.Utils = { getCsrf, debounce, fmt2, resetPhotoPreview, renderNote };
+    (function(){
+        // Красиво форматируем число: 12 345.67
+        function fmt(v){
+            try { return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2}).format(Number(v)); }
+            catch(e){ return (Number(v).toFixed(2)).replace('.', '.'); }
+        }
+
+        // Сумма по всем позициям (amount * qty)
+        function calcSum(){
+            var forms = document.querySelectorAll('.entry-form');
+            var sum = 0;
+            forms.forEach(function(f){
+                var a = parseFloat((f.querySelector('input[name="amount"]')?.value || '0').replace(',','.')) || 0;
+                var q = parseFloat((f.querySelector('input[name="qty"]')?.value || '1').replace(',','.')) || 0;
+                sum += a * q;
+            });
+            return sum;
+        }
+
+        // Обновление DOM итогов
+        window.updateTotals = function(){
+            var wrap = document.getElementById('total-wrap');
+            if (!wrap) return;
+
+            var hasLimit = wrap.getAttribute('data-has-limit') === '1';
+            var sum = calcSum();
+
+            if (!hasLimit) {
+                var totalEl = document.getElementById('scan-total');
+                if (totalEl) totalEl.textContent = fmt(sum);
+                return;
+            }
+
+            var limitStr = wrap.getAttribute('data-limit') || '';
+            var limit = parseFloat((limitStr+'').replace(/\s+/g,'').replace(',','.')) || 0;
+            var rest = limit - sum;
+
+            var remEl = document.getElementById('scan-remaining');
+            var sumEl = document.getElementById('scan-sum');
+            var limEl = document.getElementById('scan-limit');
+
+            if (remEl){
+                remEl.textContent = fmt(rest);
+                remEl.classList.toggle('text-danger', rest < 0);
+                remEl.classList.toggle('fw-bold', rest < 0);
+            }
+            if (sumEl) sumEl.textContent = fmt(sum);
+            if (limEl) limEl.textContent = fmt(limit);
+        };
+
+        // Триггеры: любые изменения amount/qty и после сохранения/удаления
+        document.addEventListener('input', function(e){
+            if (e.target && (e.target.name === 'amount' || e.target.name === 'qty')) {
+                window.updateTotals();
+            }
+        });
+
+        // на старте
+        document.addEventListener('DOMContentLoaded', window.updateTotals);
+    })();
 })();

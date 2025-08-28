@@ -139,18 +139,41 @@ $entries = $entries ?? [];
         </div>
 
         <?php
-        $label = $limit !== null ? 'Лимит:' : ($totalLabel ?? 'Общая сумма:');
-        $value = $limit !== null ? ($limit - ($total ?? 0)) : ($total ?? 0);
-        $isOver = $limit !== null && $value < 0;
-        $dataLim = $limit !== null ? number_format($limit, 2, '.', '') : '';
-        ?>
-        <div class="total-total mt-3" id="total-wrap" data-limit="<?= $dataLim ?>">
-            <span class="me-1"><strong id="scan-total-label"><?= $label ?></strong></span>
-            <strong id="scan-total" class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
-                <?= number_format($value, 2, '.', ' ') ?>
-            </strong>
-        </div>
+        $sum   = (float)($total ?? 0.0);
+        $lim   = $limit !== null ? (float)$limit : null;
+        $rest  = $lim !== null ? ($lim - $sum) : null;
+        $isOver = $lim !== null && $rest < 0;
 
+        $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
+        ?>
+        <div class="mt-3" id="total-wrap"
+             data-limit="<?= $lim !== null ? $fmt($lim) : '' ?>"
+             data-has-limit="<?= $lim !== null ? '1' : '0' ?>">
+
+            <?php if ($lim === null): ?>
+                <!-- режим без лимита -->
+                <div class="total-total">
+                    <span class="me-1"><strong id="scan-total-label"><?= $totalLabel ?? 'Общая сумма:' ?></strong></span>
+                    <strong id="scan-total" class=""><?= $fmt($sum) ?></strong>
+                </div>
+            <?php else: ?>
+                <!-- режим с лимитом: главная строка — остаток/перерасход -->
+                <div class="total-total">
+                    <span class="me-1"><strong id="scan-remaining-label">До лимита:</strong></span>
+                    <strong id="scan-remaining" class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
+                        <?= $fmt($rest) ?>
+                    </strong>
+                </div>
+                <!-- тонкая вторая строка: итог + лимит -->
+                <div class="text-muted small mt-1" id="scan-secondary">
+                    <span id="scan-sum-label">Итого:</span>
+                    <span id="scan-sum"><?= $fmt($sum) ?></span>
+                    <span class="mx-1">•</span>
+                    <span id="scan-limit-label">Лимит:</span>
+                    <span id="scan-limit"><?= $fmt($lim) ?></span>
+                </div>
+            <?php endif; ?>
+        </div>
 
         <div class="mt-3 text-start">
             <?php foreach ($entries as $entry): ?>
