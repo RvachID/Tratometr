@@ -55,6 +55,7 @@ $this->title = 'Вход';
         </div>
 
         <button type="submit" class="btn btn-outline-secondary w-100">Войти</button>
+        <?= \yii\helpers\Html::hiddenInput('tz', '', ['id' => 'tz-field']) ?>
     </form>
 
     <!-- Разделитель и регистрация -->
@@ -65,3 +66,16 @@ $this->title = 'Вход';
         Зарегистрироваться
     </a>
 </div>
+<script>
+    (function(){
+        try{
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+            var fld = document.getElementById('tz-field');
+            if (fld) fld.value = tz;
+            // держим куку на будущее (не критично, но полезно)
+            if (tz && document.cookie.indexOf('tz=') === -1) {
+                document.cookie = 'tz=' + tz + ';path=/;max-age='+(60*60*24*365)+';SameSite=Lax';
+            }
+        }catch(e){}
+    })();
+</script>
