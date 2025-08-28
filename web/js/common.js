@@ -73,11 +73,16 @@
     }
 
     window.Utils = { getCsrf, debounce, fmt2, resetPhotoPreview, renderNote };
+
     (function(){
-        // Красиво форматируем число: 12 345.67
+        // Красивое форматирование: 12 345,67
         function fmt(v){
-            try { return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2}).format(Number(v)); }
-            catch(e){ return (Number(v).toFixed(2)).replace('.', '.'); }
+            try {
+                return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2})
+                    .format(Number(v));
+            } catch(e){
+                return (Number(v).toFixed(2));
+            }
         }
 
         // Сумма по всем позициям (amount * qty)
@@ -92,57 +97,96 @@
             return sum;
         }
 
-        // Обновление DOM итогов
+        // Универсальный парсер чисел из текстов вида "12 345,67" / "12345.67"
+        function parseNum(s){
+            if (!s) return NaN;
+            s = (''+s).replace(/\s+/g,'').replace(',', '.');
+            return parseFloat(s);
+        }
+
+        // Обновление DOM итогов (поддержка старого и нового макета)
         window.updateTotals = function(){
             var wrap = document.getElementById('total-wrap');
             if (!wrap) return;
 
             var sum = calcSum();
 
-            // Толстый детектор лимита:
-            // 1) data-has-limit="1"   2) есть элемент #scan-remaining   3) data-limit не пуст
-            var hasLimit = (wrap.getAttribute('data-has-limit') === '1')
-                || (document.getElementById('scan-remaining') !== null)
-                || ((wrap.getAttribute('data-limit') || '').trim() !== '');
-
-            if (!hasLimit) {
-                var totalEl = document.getElementById('scan-total');
-                if (totalEl) totalEl.textContent = fmt(sum);
-                return;
-            }
-
-            // Парсим лимит из data-limit (чистим пробелы и запятые)
-            var limitStr = wrap.getAttribute('data-limit') || '';
-            var limit = parseFloat(limitStr.replace(/\s+/g,'').replace(',','.')) || 0;
-            var rest = limit - sum;
-
+            // Элементы «новой» двухстрочной вёрстки (если есть)
             var remEl = document.getElementById('scan-remaining');
             var sumEl = document.getElementById('scan-sum');
             var limEl = document.getElementById('scan-limit');
 
-            if (remEl){
-                remEl.textContent = fmt(rest);
-                remEl.classList.toggle('text-danger', rest < 0);
-                remEl.classList.toggle('fw-bold', rest < 0);
+            // Пытаемся понять, есть ли лимит
+            var dsLimit = (wrap.getAttribute('data-limit') || '').trim();
+            var limit = parseNum(dsLimit);
+            var hasLimit = !!dsLimit;
+
+            // Фолбэк: если лимит не в data-*, пробуем вытащить из текста #scan-limit
+            if (!hasLimit && limEl) {
+                var num = parseNum(limEl.textContent || '');
+                if (!isNaN(num)) { limit = num; hasLimit = true; }
             }
-            if (sumEl) sumEl.textContent = fmt(sum);
-            if (limEl) limEl.textContent = fmt(limit);
+
+            // Доп. признак (если кто-то проставил руками)
+            if (!hasLimit && wrap.getAttribute('data-has-limit') === '1') {
+                hasLimit = true;
+                if (isNaN(limit)) limit = 0;
+            }
+
+            if (remEl || sumEl || limEl) {
+                // Новая вёрстка: обновляем обе строки
+                if (hasLimit) {
+                    var rest = limit - sum;
+                    if (remEl){
+                        remEl.textContent = fmt(rest);
+                        remEl.classList.toggle('text-danger', rest < 0);
+                        remEl.classList.toggle('fw-bold', rest < 0);
+                    }
+                    if (sumEl) sumEl.textContent = fmt(sum);
+                    if (limEl) limEl.textContent = fmt(limit);
+                } else {
+                    // Если лимита нет — показываем только сумму (на случай смешанной разметки)
+                    if (sumEl) sumEl.textContent = fmt(sum);
+                    if (remEl){
+                        remEl.textContent = fmt(sum);
+                        remEl.classList.remove('text-danger','fw-bold');
+                    }
+                }
+                return;
+            }
+
+            // Старая вёрстка: одна строка с #scan-total (там либо остаток, либо общая сумма)
+            var totalEl = document.getElementById('scan-total');
+            if (!totalEl) return;
+
+            if (hasLimit) {
+                var restOld = limit - sum;
+                totalEl.textContent = fmt(restOld);
+                totalEl.classList.toggle('text-danger', restOld < 0);
+                totalEl.classList.toggle('fw-bold', restOld < 0);
+            } else {
+                totalEl.textContent = fmt(sum);
+                totalEl.classList.remove('text-danger', 'fw-bold');
+            }
         };
 
-        // Триггеры: любые изменения amount/qty и после сохранения/удаления
+        // Триггеры: любые изменения amount/qty
         document.addEventListener('input', function(e){
             if (e.target && (e.target.name === 'amount' || e.target.name === 'qty')) {
                 window.updateTotals();
             }
         });
-
         document.addEventListener('change', function(e){
             if (e.target && (e.target.name === 'amount' || e.target.name === 'qty')) {
                 window.updateTotals();
             }
         });
 
-        // на старте
-        document.addEventListener('DOMContentLoaded', window.updateTotals);
+        // Мгновенный запуск (без ожидания DOMContentLoaded)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', window.updateTotals);
+        } else {
+            window.updateTotals();
+        }
     })();
 })();
