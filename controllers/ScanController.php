@@ -111,7 +111,7 @@ class ScanController extends Controller
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
         if (!$lines || !is_array($lines)) return null;
 
-        // Собираем токены
+        // --- токены из Overlay
         $tokens = [];
         foreach ($lines as $ln) {
             foreach (($ln['Words'] ?? []) as $w) {
@@ -132,34 +132,33 @@ class ScanController extends Controller
         }
         if (!$tokens) return null;
 
-        // Сортируем слева-направо, сверху-вниз
         usort($tokens, function($a,$b){
             $dy = $a['T'] - $b['T'];
             if (abs($dy) > 8) return $dy;
             return $a['L'] <=> $b['L'];
         });
 
-        // --- ГРУППИРОВКА ЧИСЛОВЫХ ТОКЕНОВ ---
-        // Ключевое изменение: НЕ склеиваем токен в группу, если его высота < 88% базовой.
+        // --- группировка по строкам
         $groups = [];
-        $cur = [];
-        $curTop = null; $curBaseH = 0;
+        $cur = []; $curTop = null; $curBaseH = 0;
 
         $isNumLike = fn($t) => $t !== '' && preg_match('~^[\d.,\s]+$~u', $t) && preg_match('~\d~', $t);
 
         $flush = function() use (&$cur, &$groups, &$curTop, &$curBaseH) {
             if (!$cur) return;
+
             $minL = min(array_column($cur, 'L'));
             $maxR = max(array_column($cur, 'R'));
             $minT = min(array_column($cur, 'T'));
             $maxB = max(array_column($cur, 'B'));
             $W = max(1, $maxR - $minL);
             $H = max(1, $maxB - $minT);
-            $raw = implode('', array_map(fn($g)=>preg_replace('~\s+~u','',$g['text']), $cur));
 
-            $val = $this->normalizeOcrNumber($raw);
+            $raw = implode('', array_map(fn($g)=>preg_replace('~\s+~u','',$g['text']), $cur));
+            $val = $this->normalizeOcrNumber($raw);            // тут уже 30799 → 307.99
+
             $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
-            $digits = preg_match_all('~\d~', $raw);
+            $digits   = preg_match_all('~\d~', $raw);
 
             $score = (float)($W*$H);
             if ($hasCents) $score *= 1.35;
@@ -181,19 +180,15 @@ class ScanController extends Controller
         foreach ($tokens as $tk) {
             if (!$isNumLike($tk['text'])) { $flush(); continue; }
 
-            if (!$cur) {
-                $cur = [$tk]; $curTop = $tk['T']; $curBaseH = $tk['H'];
-                continue;
-            }
+            if (!$cur) { $cur = [$tk]; $curTop = $tk['T']; $curBaseH = $tk['H']; continue; }
 
             $sameBaseline = abs($tk['T'] - $curTop) <= max(6, (int)round(0.35 * $curBaseH));
             $prev = $cur[count($cur)-1];
             $gapX = $tk['L'] - $prev['R'];
             $nearX = $gapX <= max(10, (int)round(0.5 * $curBaseH));
 
-            // НОВОЕ: не присоединяем "мелкий" токен в основную группу
-            $ratioH = $tk['H'] / max(1,$curBaseH);
-            $heightOk = ($ratioH >= 0.88); // 88% и выше считаем одним шрифтом/строкой
+            // НЕ склеиваем явно меньший по высоте (чтобы «99» не въезжало внутрь «307»)
+            $heightOk = ($tk['H'] / max(1,$curBaseH)) >= 0.88;
 
             if ($sameBaseline && $nearX && $heightOk) {
                 $cur[] = $tk;
@@ -207,62 +202,26 @@ class ScanController extends Controller
 
         if (!$groups) return null;
 
-        // Выбираем лучшую группу (по score) с валидным числом
+        // лучшая группа
         usort($groups, fn($a,$b) => $b['score'] <=> $a['score']);
         $main = null;
         foreach ($groups as $g) { if ($g['val'] !== null) { $main = $g; break; } }
         if (!$main) return null;
 
-        // Если у группы уже есть копейки — возвращаем
+        // уже есть копейки? — возвращаем
         if ($main['hasCents']) return $main['val'];
 
-        // --- Ищем "мелкий хвост" справа-сверху ---
-        $bbox = $main['bbox']; $baseH = $main['baseH'];
-        $R = $bbox['R']; $T = $bbox['T']; $H = $bbox['H']; $W = $bbox['W'];
-
-        $zoneL = $R - (int)round(0.05 * $W);
-        $zoneR = $R + (int)round(0.90 * $W);
-        $zoneT = $T - (int)round(0.60 * $H);
-        $zoneB = $T + (int)round(0.35 * $H);
-
-        $bestCents = null; $bestRank = -INF;
-        foreach ($tokens as $tk) {
-            // короткие цифровые 1–2 символа или токен с '%'
-            $digits = preg_replace('~\D+~u', '', $tk['orig']);
-            $len = strlen($digits);
-            $isShort = ($len >= 1 && $len <= 2);
-            $isPct = $tk['hasPct'];
-
-            if (!$isShort && !$isPct) continue;
-            if ($tk['L'] < $zoneL || $tk['L'] > $zoneR) continue;
-            if ($tk['T'] < $zoneT || $tk['T'] > $zoneB) continue;
-
-            // должен быть существенно меньше основной высоты
-            $ratio = $tk['H'] / max(1,$baseH);
-            if ($ratio > 0.83) continue;
-
-            $cents = null;
-            if ($isPct)        $cents = 99;
-            elseif ($len === 2)$cents = (int)$digits;
-            else               $cents = (int)$digits * 10;
-
-            if ($cents >= 0 && $cents <= 99) {
-                $rank = (0.8 - $ratio) * 100;
-                $rank -= abs(($tk['T'] - $T)) / max(1,$H);
-                $rank -= abs(($tk['L'] - $R)) / max(1,$W);
-                if ($isPct) $rank += 40;
-                if ($len === 2) $rank += 10;
-                if ($rank > $bestRank) { $bestRank = $rank; $bestCents = $cents; }
+        // ФОЛБЭК 1: если внутри самой группы есть токен с «%» → трактуем как .99
+        foreach ($main['tokens'] as $tk) {
+            if (!empty($tk['hasPct'])) {
+                return floor($main['val']) + 0.99;
             }
         }
 
-        if ($bestCents !== null) {
-            return floor($main['val']) + ($bestCents / 100.0);
-        }
+        // ФОЛБЭК 2: попытка найти "хвостик" справа-сверху остаётся прежней (если нужен — можно включить позже)
 
         return $main['val'];
     }
-
 
     /**
      * Пробуем вычитать копейки из маленького «хвоста» справа от основной цены.
@@ -365,12 +324,12 @@ class ScanController extends Controller
     private function normalizeOcrNumber(string $s): ?float
     {
         $s = trim($s);
-        if ($s === '' || preg_match('/[%\/]/u', $s)) return null; // отсекаем проценты и дроби
+        if ($s === '' || preg_match('/[%\/]/u', $s)) return null; // проценты/дроби отбрасываем
 
         // разные пробелы → обычный
         $s = str_replace(["\xC2\xA0", ' ', ' '], ' ', $s);
 
-        // помечаем разделитель копеек между цифрами (перед ровно 2 цифрами в конце «слова»)
+        // помечаем разделитель копеек между цифрами (ровно 2 цифры в конце «слова»)
         $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);
 
         // убираем тысячные разделители (пробел/точка/цент.точка перед 3 цифрами)
@@ -379,19 +338,18 @@ class ScanController extends Controller
         // чистим любые оставшиеся пробелы между цифрами
         $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);
 
-        // финальный разделитель копеек — точка
-        $s = str_replace('#', '.', $s);
-
-        // валидный формат: целое или с копейками
-        if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
-            $v = (float)$s;
+        // --- ВАЖНО: сначала кейс «слилось в 4–6 цифр» → считаем, что пропал разделитель копеек
+        if (preg_match('/^\d{4,6}$/', $s)) {
+            $v = ((int)$s) / 100.0;                 // 30799 → 307.99
             return ($v > 0 && $v <= 99999) ? $v : null;
         }
 
-        // если OCR «съел» точку: 4–6 цифр как копейки (44999 → 449.99)
-        if (preg_match('/^\d{4,6}$/', $s)) {
-            $n = (int)$s;
-            $v = $n / 100.0;
+        // финальный разделитель копеек — точка
+        $s = str_replace('#', '.', $s);
+
+        // Явно валидное число: целое или с копейками
+        if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
+            $v = (float)$s;
             return ($v > 0 && $v <= 99999) ? $v : null;
         }
 
@@ -403,6 +361,7 @@ class ScanController extends Controller
 
         return null;
     }
+
 
     /**
      * Умный разбор суммы из распознанного текста.
