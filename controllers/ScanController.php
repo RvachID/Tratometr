@@ -97,27 +97,46 @@ class ScanController extends Controller
     private function extractAmountByOverlay(array $recognized): ?float
     {
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
-        if (!$lines || !is_array($lines) || !count($lines)) {
-            return null;
-        }
+        if (!$lines || !is_array($lines)) return null;
 
         $bestValue = null;
         $bestScore = -INF;
 
+        // Нормализация "числовой" строки -> float
         $norm = function (string $raw): ?float {
-            return $this->normalizeOcrNumber($raw);
+            $s = trim($raw);
+            if ($s === '') return null;
+            $s = str_replace(["\xC2\xA0", ' ', ' '], ' ', $s);
+            // 1) пометить возможный разделитель копеек
+            $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);
+            // 2) убрать тысячные
+            $s = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $s);
+            // 3) убрать оставшиеся пробелы между цифрами
+            $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);
+            // 4) вернуть точку
+            $s = str_replace('#', '.', $s);
+
+            if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
+                $v = (float)$s;
+                return ($v > 0 && $v <= 9999999) ? $v : null;
+            }
+            if (preg_match('/^\d+$/', $s)) {
+                $v = (float)$s;
+                return ($v > 0 && $v <= 9999999) ? $v : null;
+            }
+            return null;
         };
 
         foreach ($lines as $line) {
             $words = $line['Words'] ?? [];
-            if (!is_array($words) || !count($words)) continue;
+            if (!is_array($words) || !$words) continue;
 
-            // Нормализуем слова, оставляя только цифры/разделители, при этом ЗАПОМИНАЕМ, был ли %.
+            // Подготовим токены: запомним оригинал (%), координаты и высоту
             foreach ($words as &$w) {
                 $orig = (string)($w['WordText'] ?? '');
-
-                $w['WordText']        = preg_replace('~[^\d.,\s]~u', '', $orig); // % тоже убираем
-                $w['__hadPercent']    = (strpos($orig, '%') !== false);          // флажок для .99
+                $w['__orig']          = $orig;
+                $w['__hadPercent']    = (strpos($orig, '%') !== false);
+                $w['WordText']        = preg_replace('~[^\d.,\s]~u', '', $orig); // чистим, % убран
                 $w['IsStrikethrough'] = !empty($w['IsStrikethrough']);
                 $w['Height']          = isset($w['Height']) ? (int)$w['Height'] : 0;
                 $w['Left']            = isset($w['Left']) ? (int)$w['Left'] : 0;
@@ -127,40 +146,72 @@ class ScanController extends Controller
             unset($w);
 
             $group = [];
-            $flush = function () use (&$group, $norm, &$bestValue, &$bestScore) {
-                if (!count($group)) return;
+            // flush может получить $nextNonNumeric — следующий токен, который не вошёл в группу
+            $flush = function ($nextNonNumeric = null) use (&$group, $norm, &$bestValue, &$bestScore) {
+                if (!$group) return;
 
-                // Собираем «сырое» число без пробелов
+                // базовый «сырой» текст
                 $raw = implode('', array_map(fn($g) => preg_replace('~\s+~u', '', $g['WordText']), $group));
                 $val = $norm($raw);
 
-                // bbox группы
+                // габариты группы
                 $minL = min(array_column($group, 'Left'));
                 $maxR = max(array_map(fn($g) => $g['Left'] + $g['Width'], $group));
                 $minT = min(array_column($group, 'Top'));
                 $maxB = max(array_map(fn($g) => $g['Top'] + $g['Height'], $group));
+                $area = max(1, $maxR - $minL) * max(1, $maxB - $minT);
 
-                $gWidth  = max(1, $maxR - $minL);
-                $gHeight = max(1, $maxB - $minT);
-                $area    = $gWidth * $gHeight;
+                // --- Попробуем сделать «хвост» копейками, если дробной части нет ---
+                $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
+                if (!$hasCents) {
+                    // базовая высота — максимум по группе (крупные цифры)
+                    $baseH = 1;
+                    foreach ($group as $g) $baseH = max($baseH, (int)$g['Height']);
+
+                    // 1) trailing-цифры меньшим шрифтом внутри группы (обычно отдельный токен "99")
+                    $tailDigits = '';
+                    for ($i = count($group) - 1; $i >= 0; $i--) {
+                        $gw = $group[$i];
+                        $t  = preg_replace('~\s+~u', '', $gw['WordText']);
+                        if ($t !== '' && preg_match('~^\d{1,2}$~', $t)) {
+                            $ratio = ($baseH > 0) ? ($gw['Height'] / $baseH) : 1.0;
+                            if ($ratio <= 0.78) { // заметно меньше
+                                $tailDigits = $t . $tailDigits;
+                                // съели хвост — выкидываем из "целой" части
+                                array_pop($group);
+                                $raw = implode('', array_map(fn($g) => preg_replace('~\s+~u', '', $g['WordText']), $group));
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+
+                    // 2) если хвоста в группе нет, но следующий токен — маленький «%», трактуем как 99
+                    if ($tailDigits === '' && is_array($nextNonNumeric)) {
+                        $ratio = ($baseH > 0) ? (((int)$nextNonNumeric['Height']) / $baseH) : 1.0;
+                        if (!empty($nextNonNumeric['__hadPercent']) && $ratio <= 0.78) {
+                            $tailDigits = '99';
+                        }
+                    }
+
+                    if ($tailDigits !== '') {
+                        $intVal = $norm($raw);
+                        if ($intVal !== null) {
+                            // берём только 2 цифры, 1 цифра -> умножаем на 10
+                            if (strlen($tailDigits) === 1) $tailDigits .= '0';
+                            $cents = (int)substr($tailDigits, 0, 2);
+                            $val   = floor($intVal) + ($cents / 100.0);
+                            $hasCents = true;
+                        }
+                    }
+                }
 
                 if ($val !== null) {
-                    $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
-                    $digits   = preg_match_all('~\d~', $raw);
-
-                    $score = (float)$area;
-                    if ($hasCents) $score *= 1.40;
-                    if ($digits >= 3) $score *= 1.15;
-                    if ($val < 1.0) $score *= 0.2;
-                    if ($digits <= 2 && !$hasCents) $score *= 0.6;
-
-                    // NEW: если в группе встречался %, а число целое — считаем это как ".99"
-                    $groupHadPercent = false;
-                    foreach ($group as $g) { if (!empty($g['__hadPercent'])) { $groupHadPercent = true; break; } }
-                    if ($groupHadPercent && abs($val - floor($val)) < 0.0001) {
-                        $val   = floor($val) + 0.99;
-                        $score *= 1.25; // небольшой бонус
-                    }
+                    $digits = preg_match_all('~\d~', $raw);
+                    $score  = (float)$area;
+                    if ($hasCents) $score *= 1.35;
+                    if ($digits >= 3) $score *= 1.10;
+                    if ($val < 1.0) $score *= 0.3;
 
                     if ($score > $bestScore) {
                         $bestScore = $score;
@@ -171,17 +222,18 @@ class ScanController extends Controller
                 $group = [];
             };
 
+            // проходим слова строки
             foreach ($words as $w) {
-                if ($w['IsStrikethrough']) { $flush(); continue; }
+                if ($w['IsStrikethrough']) { $flush(); continue; } // отбрасываем старые цены
 
                 $t = preg_replace('~\s+~u', '', $w['WordText']);
                 if ($t !== '' && preg_match('~^[\d.,]+$~u', $t)) {
-                    $group[] = $w;
+                    $group[] = $w;               // числовой токен — копим
                 } else {
-                    $flush();
+                    $flush($w);                  // нечисловой — возможно, хвост «%» → .99
                 }
             }
-            $flush();
+            $flush(null);
         }
 
         return $bestValue;
@@ -246,81 +298,36 @@ class ScanController extends Controller
      */
     private function extractAmount(string $text): float
     {
-        // Нормализация пробелов и похожих символов
+        // нормализация «похожих» пробелов
         $text = str_replace(["\xC2\xA0", ' ', '﻿'], ' ', $text);
 
-        $cands = [];
-
-        // 0) Спец-кейс: "XXX%" -> XXX.99  (если XXX >= 100; валюта рядом усиливает)
-        $lower = mb_strtolower($text, 'UTF-8');
-        if (preg_match_all('/\b(\d{2,6})\s*%/u', $lower, $mp, PREG_OFFSET_CAPTURE)) {
-            foreach ($mp[1] as $i => $m) {
-                $intStr = $m[0];
-                $pos    = $mp[0][$i][1];
-                $intVal = (int)$intStr;
-                if ($intVal >= 100 && $intVal <= 9999) {
-                    $win   = mb_substr($lower, $pos, 40, 'UTF-8');
-                    $score = 2.5;
-                    if (preg_match('/\b(rs?d|din|dinara|руб|rub|₽|eur|€|usd|\$)\b/u', $win)) $score += 0.8;
-                    $cands[] = [$intVal + 0.99, $score];
-                }
-            }
-        }
-
-        // 1) Пометить разделитель копеек, убрать тысячные разделители
-        $tmp = $text;
-        $tmp = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $tmp);   // 307 99 / 307,99 -> 307#99
-        $tmp = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $tmp);     // 1 299,90 -> 1299,90
+        // 1) Явные десятичные: 123.45 / 123,45
+        $tmp = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $text); // 307 99 / 307,99 -> 307#99
+        $tmp = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $tmp);    // 1 299,90 -> 1299,90
         $tmp = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $tmp);
         $normalized = str_replace('#', '.', $tmp);
 
-        // 2) Явные десятичные
+        $best = 0.0;
+
         if (preg_match_all('/\d+(?:\.\d{1,2})/', $normalized, $m1)) {
             foreach ($m1[0] as $s) {
                 $v = (float)$s;
-                if ($v < 0.01 || $v > 99999) continue;
+                if ($v > $best && $v > 0.0 && $v <= 9999999) $best = $v;
+            }
+            if ($best > 0) return $best;
+        }
 
-                $score = 1.5;
-                $frac  = (int)round(($v - floor($v)) * 100);
-                $ilen  = strlen((string)floor($v));
-
-                // подозрительно: ".00" у длинной целой — возможно, склейка
-                if ($frac === 0 && $ilen >= 4) $score -= 1.0;
-                if ($v > 9999) $score -= 1.0;
-
-                $cands[] = [$v, $score];
-
-                // исправляющая гипотеза для "30799.00" -> 307.99
-                if ($frac === 0 && $ilen >= 4) {
-                    $v2 = floor($v) / 100.0;
-                    if ($v2 > 0 && $v2 <= 9999) $cands[] = [$v2, $score + 1.5];
-                }
+        // 2) Хвост "мелкими копейками" мог стать пробелом/запятой: 307 99 / 307, 99
+        if (preg_match_all('/\b(\d{1,7})\b(?:\s{0,3}[.,]?)\s*(\d{2})\b/u', $text, $m2)) {
+            foreach ($m2[1] as $i => $int) {
+                $cent = $m2[2][$i];
+                $v = (int)$int + ((int)$cent)/100.0;
+                if ($v > $best && $v > 0.0 && $v <= 9999999) $best = $v;
             }
         }
 
-        // 3) Чистые целые 3–6 цифр (в т.ч. склейка копеек)
-        if (preg_match_all('/\b\d{3,6}\b/', $normalized, $m2)) {
-            foreach ($m2[0] as $raw) {
-                $n   = (int)$raw;
-                $len = strlen($raw);
-
-                $asIs    = (float)$n;            // 3079 -> 3079.00
-                $asCents = ($len >= 4) ? $n/100.0 : 0.0; // 3079 -> 30.79; 30799 -> 307.99
-
-                if ($asIs > 0 && $asIs <= 99999) {
-                    $cands[] = [$asIs, ($asIs >= 1000 ? 0.3 : 0.8)];
-                }
-                if ($asCents > 0 && $asCents <= 9999) {
-                    $cands[] = [$asCents, 2.0]; // предпочитаем «со склеенными копейками»
-                }
-            }
-        }
-
-        if (!$cands) return 0.0;
-        usort($cands, fn($a,$b) => $b[1] <=> $a[1]); // по убыванию score
-        return $cands[0][0];
+        return $best; // 0.0 = «не нашли»
     }
-
 
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
