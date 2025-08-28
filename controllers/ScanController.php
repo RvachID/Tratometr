@@ -96,113 +96,184 @@ class ScanController extends Controller
      * Фильтруем перечёркнутые и проценты. Бонусы за копейки.
      */
 
-    private function extractAmountByOverlay(array $recognized, ?string $imagePath = null): ?float
+    /**
+     * Главная цена = числовая группа с максимальной площадью bbox.
+     * Копейки = маленький токен (1–2 цифры или «%») справа-сверху от этой группы.
+     * Никакого деления на 100 — только если реально нашли «хвост».
+     */
+    private function extractAmountByOverlay(array $recognized): ?float
     {
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
-        if (!$lines || !is_array($lines) || !count($lines)) {
-            return null;
+        if (!$lines || !is_array($lines)) return null;
+
+        // --- Собираем все токены из Overlay ---
+        $tokens = [];
+        foreach ($lines as $ln) {
+            $words = $ln['Words'] ?? [];
+            foreach ($words as $w) {
+                $orig = (string)($w['WordText'] ?? '');
+                $l = (int)($w['Left'] ?? 0);
+                $t = (int)($w['Top'] ?? 0);
+                $h = (int)($w['Height'] ?? 0);
+                $wth = (int)($w['Width'] ?? 0);
+
+                $tokens[] = [
+                    'orig' => $orig,
+                    'text' => preg_replace('~[^\d.,\s]~u', '', $orig), // только цифры, . , и пробелы
+                    'hasPct' => (strpos($orig, '%') !== false),
+                    'strike' => !empty($w['IsStrikethrough']),
+                    'L' => $l, 'T' => $t, 'H' => $h, 'W' => $wth, 'R' => $l + $wth, 'B' => $t + $h,
+                ];
+            }
         }
+        if (!$tokens) return null;
 
-        $bestValue   = null;
-        $bestScore   = -INF;
-        $bestBBox    = null;
-        $bestHasCents= false;
+        // Отфильтруем явный мусор
+        $tokens = array_values(array_filter($tokens, fn($tk) => !$tk['strike'] && $tk['H'] > 0 && $tk['W'] > 0));
 
-        // нормализация «числа» внутри группы
-        $norm = function (string $raw): ?float {
-            $s = trim($raw);
-            if ($s === '' || preg_match('/[%\/]/u', $s)) return null;
+        // Сортировка слева-направо, сверху-вниз
+        usort($tokens, function($a,$b){
+            $dy = $a['T'] - $b['T'];
+            if (abs($dy) > 8) return $dy;
+            return $a['L'] <=> $b['L'];
+        });
 
-            $s = str_replace(["\xC2\xA0", ' ', ' '], ' ', $s);
-            $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);      // пометка копеек
-            $s = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $s);        // тысячные
-            $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);                  // мусор внутри
-            $s = str_replace('#', '.', $s);
+        // --- Группируем соседние «числовые» токены в одну цену ---
+        $groups = [];
+        $cur = [];
+        $curTop = null; $curBaseH = 0;
 
-            if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
-                $v = (float)$s;
-                return ($v > 0 && $v <= 9999999) ? $v : null;
-            }
-            if (preg_match('/^\d+$/', $s)) {
-                $v = (float)$s;
-                return ($v > 0 && $v <= 9999999) ? $v : null;
-            }
-            return null;
+        $isNumericLike = fn($t) => $t !== '' && (bool)preg_match('~\d~', $t) && preg_match('~^[\d.,\s]+$~u', $t);
+
+        $flush = function() use (&$cur, &$groups, &$curTop, &$curBaseH) {
+            if (!$cur) return;
+            $minL = min(array_column($cur, 'L'));
+            $maxR = max(array_column($cur, 'R'));
+            $minT = min(array_column($cur, 'T'));
+            $maxB = max(array_column($cur, 'B'));
+            $w = max(1, $maxR - $minL);
+            $h = max(1, $maxB - $minT);
+            $raw = implode('', array_map(fn($g)=>preg_replace('~\s+~u','',$g['text']), $cur));
+
+            // normalize
+            $val = $this->normalizeOcrNumber($raw);
+            $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
+            $digits = preg_match_all('~\d~', $raw);
+
+            // скор по площади + бонусы
+            $score = (float)($w*$h);
+            if ($hasCents) $score *= 1.35;
+            if ($digits >= 3) $score *= 1.12;
+            if ($val !== null && $val < 1.0) $score *= 0.3;
+
+            $groups[] = [
+                'tokens' => $cur,
+                'val'    => $val,
+                'raw'    => $raw,
+                'bbox'   => ['L'=>$minL,'T'=>$minT,'W'=>$w,'H'=>$h,'R'=>$maxR,'B'=>$maxB],
+                'baseH'  => max(1,$curBaseH),
+                'hasCents'=>$hasCents,
+                'score'  => $score,
+            ];
+            $cur = []; $curTop = null; $curBaseH = 0;
         };
 
-        foreach ($lines as $line) {
-            $words = $line['Words'] ?? [];
-            if (!is_array($words) || !count($words)) continue;
+        foreach ($tokens as $tk) {
+            if (!$isNumericLike($tk['text'])) { $flush(); continue; }
 
-            foreach ($words as &$w) {
-                $orig = (string)($w['WordText'] ?? '');
-                $w['__orig']          = $orig;
-                $w['__hadPercent']    = (strpos($orig, '%') !== false);
-                $w['WordText']        = preg_replace('~[^\d.,\s]~u', '', $orig); // чистим, % убираем из текста
-                $w['IsStrikethrough'] = !empty($w['IsStrikethrough']);
-                $w['Height']          = isset($w['Height']) ? (int)$w['Height'] : 0;
-                $w['Left']            = isset($w['Left']) ? (int)$w['Left'] : 0;
-                $w['Top']             = isset($w['Top']) ? (int)$w['Top'] : 0;
-                $w['Width']           = isset($w['Width']) ? (int)$w['Width'] : 0;
+            if (!$cur) {
+                $cur = [$tk]; $curTop = $tk['T']; $curBaseH = $tk['H'];
+                continue;
             }
-            unset($w);
-
-            $group = [];
-            $flush = function ($nextNonNumeric = null) use (&$group, $norm, &$bestValue, &$bestScore, &$bestBBox, &$bestHasCents) {
-                if (!$group) return;
-
-                $raw = implode('', array_map(fn($g) => preg_replace('~\s+~u', '', $g['WordText']), $group));
-                $val = $norm($raw);
-
-                $minL = min(array_column($group, 'Left'));
-                $maxR = max(array_map(fn($g) => $g['Left'] + $g['Width'], $group));
-                $minT = min(array_column($group, 'Top'));
-                $maxB = max(array_map(fn($g) => $g['Top'] + $g['Height'], $group));
-
-                $gW   = max(1, $maxR - $minL);
-                $gH   = max(1, $maxB - $minT);
-                $area = $gW * $gH;
-
-                $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
-                $digits   = preg_match_all('~\d~', $raw);
-
-                $score = (float)$area;
-                if ($hasCents) $score *= 1.35;
-                if ($digits >= 3) $score *= 1.10;
-                if ($val !== null && $val < 1.0) $score *= 0.3;
-
-                if ($val !== null && $score > $bestScore) {
-                    $bestScore   = $score;
-                    $bestValue   = $val;
-                    $bestHasCents= $hasCents;
-                    $bestBBox    = ['left'=>$minL,'top'=>$minT,'width'=>$gW,'height'=>$gH];
-                }
-
-                $group = [];
-            };
-
-            foreach ($words as $w) {
-                if ($w['IsStrikethrough']) { $flush(); continue; }
-                $t = preg_replace('~\s+~u', '', $w['WordText']);
-                if ($t !== '' && preg_match('~^[\d.,]+$~u', $t)) {
-                    $group[] = $w;
-                } else {
-                    $flush($w);
-                }
-            }
-            $flush(null);
-        }
-
-        // если нашли основную сумму, но нет копеек — пробуем вытащить копейки через ROI
-        if ($bestValue !== null && !$bestHasCents && $imagePath && $bestBBox) {
-            $cents = $this->tryFindCentsViaRoi($imagePath, $bestBBox);
-            if ($cents !== null) {
-                $bestValue = floor($bestValue) + ($cents / 100.0);
+            // близко по вертикали и горизонтали => тот же «блок» числа
+            $sameBaseline = abs($tk['T'] - $curTop) <= max(6, (int)round(0.35 * $curBaseH));
+            $prev = $cur[count($cur)-1];
+            $gapX = $tk['L'] - $prev['R'];
+            $nearX = $gapX <= max(10, (int)round(0.5 * $curBaseH));
+            if ($sameBaseline && $nearX) {
+                $cur[] = $tk;
+                $curBaseH = max($curBaseH, $tk['H']);
+            } else {
+                $flush();
+                $cur = [$tk]; $curTop = $tk['T']; $curBaseH = $tk['H'];
             }
         }
+        $flush();
+        if (!$groups) return null;
 
-        return $bestValue;
+        // Выбираем ЛУЧШУЮ группу (макс. score) с валидным значением
+        usort($groups, fn($a,$b) => $b['score'] <=> $a['score']);
+        $main = null;
+        foreach ($groups as $g) {
+            if ($g['val'] !== null) { $main = $g; break; }
+        }
+        if (!$main) return null;
+
+        // Если уже есть копейки — возвращаем как есть
+        if ($main['hasCents']) return $main['val'];
+
+        // --- Ищем «мелкий хвост» справа-сверху от главной группы ---
+        $bbox = $main['bbox']; $baseH = $main['baseH'];
+        $R = $bbox['R']; $T = $bbox['T']; $H = $bbox['H']; $W = $bbox['W'];
+
+        // Зона поиска: чуть выше и правее основной суммы
+        $zoneL = $R - (int)round(0.05 * $W);
+        $zoneR = $R + (int)round(0.90 * $W);
+        $zoneT = $T - (int)round(0.60 * $H);
+        $zoneB = $T + (int)round(0.35 * $H);
+
+        $bestCents = null; $bestCentsRank = -INF;
+        foreach ($tokens as $tk) {
+            // кандидаты — короткие цифровые токены (1–2 цифры) ИЛИ токен, где был '%'
+            $digitsOnly = preg_replace('~\D+~u', '', $tk['orig']);
+            $len = strlen($digitsOnly);
+            $isShortNumeric = ($len >= 1 && $len <= 2);
+            $isPct = $tk['hasPct'];
+
+            if (!$isShortNumeric && !$isPct) continue;
+
+            // позиция внутри зоны
+            if ($tk['L'] < $zoneL || $tk['L'] > $zoneR) continue;
+            if ($tk['T'] < $zoneT || $tk['T'] > $zoneB) continue;
+
+            // высота заметно меньше основной
+            $ratioH = $tk['H'] / $baseH;
+            if ($ratioH > 0.83) continue;
+
+            // определяем копейки
+            $cents = null;
+            if ($isPct) {
+                $cents = 99; // «307%» трактуем как .99
+            } elseif ($len === 2) {
+                $cents = (int)$digitsOnly;
+            } elseif ($len === 1) {
+                // один символ: скорее всего «9» → принимаем как «90»
+                $cents = ((int)$digitsOnly) * 10;
+            }
+
+            if ($cents !== null && $cents >= 0 && $cents <= 99) {
+                // ранжируем ближе к верхней кромке и правому краю, и чем меньше высота — тем лучше
+                $rank = 0;
+                $rank += (0.8 - $ratioH) * 100;                         // маленький шрифт
+                $rank -= abs(($tk['T'] - $T)) / max(1,$H);              // вертикальное совпадение
+                $rank -= abs(($tk['L'] - $R)) / max(1,$W);              // близость справа
+                if ($isPct) $rank += 50;                                // бонус за '%'
+                if ($len === 2) $rank += 10;                            // бонус за ровно 2 цифры
+
+                if ($rank > $bestCentsRank) {
+                    $bestCentsRank = $rank;
+                    $bestCents = $cents;
+                }
+            }
+        }
+
+        if ($bestCents !== null) {
+            return floor($main['val']) + ($bestCents / 100.0);
+        }
+
+        return $main['val']; // хвост не нашли — возвращаем целую часть
     }
+
 
     /**
      * Пробуем вычитать копейки из маленького «хвоста» справа от основной цены.
