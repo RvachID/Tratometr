@@ -53,55 +53,33 @@ class ScanController extends Controller
      */
     private function recognizeText(string $filePath): array
     {
-        $run = function (int $engine) use ($filePath): array {
+        try {
             $apiResponse = \Yii::$app->ocr->parseImage($filePath, 'rus', [
                 'isOverlayRequired' => true,
                 'scale'             => true,
                 'detectOrientation' => true,
-                'OCREngine'         => $engine,
+                'OCREngine'         => 2,
             ]);
 
             if (!empty($apiResponse['IsErroredOnProcessing'])) {
                 $msg = $apiResponse['ErrorMessage'] ?? $apiResponse['ErrorDetails'] ?? 'OCR: ошибка обработки';
                 return ['error' => $msg, 'full_response' => $apiResponse];
             }
-            $res = $apiResponse['ParsedResults'][0] ?? null;
-            if (!$res) {
+
+            $results = $apiResponse['ParsedResults'][0] ?? null;
+            if (!$results) {
                 return ['error' => 'Пустой ответ OCR', 'full_response' => $apiResponse];
             }
+
             return [
-                'ParsedText'  => (string)($res['ParsedText'] ?? ''),
-                'TextOverlay' => $res['TextOverlay'] ?? ['Lines' => []],
+                'ParsedText'  => (string)($results['ParsedText'] ?? ''),
+                'TextOverlay' => $results['TextOverlay'] ?? ['Lines' => []],
                 'full_response' => $apiResponse,
             ];
-        };
-
-        // Сначала движок 2 (обычно точнее), потом 1 — если 2 дал слабый Overlay
-        $r2 = $run(2);
-        if (isset($r2['error'])) return $r2;
-
-        $overlayWords2 = 0;
-        if (!empty($r2['TextOverlay']['Lines'])) {
-            foreach ($r2['TextOverlay']['Lines'] as $ln) {
-                $overlayWords2 += is_array($ln['Words'] ?? null) ? count($ln['Words']) : 0;
-            }
+        } catch (\Throwable $e) {
+            \Yii::error($e->getMessage(), __METHOD__);
+            return ['error' => 'Сбой OCR: ' . $e->getMessage()];
         }
-        $needEngine1 = ($overlayWords2 < 5) || strpos($r2['ParsedText'] ?? '', '%') !== false;
-
-        if ($needEngine1) {
-            $r1 = $run(1);
-            if (!isset($r1['error'])) {
-                // выбираем ответ с «более богатым» Overlay
-                $words1 = 0;
-                if (!empty($r1['TextOverlay']['Lines'])) {
-                    foreach ($r1['TextOverlay']['Lines'] as $ln) {
-                        $words1 += is_array($ln['Words'] ?? null) ? count($ln['Words']) : 0;
-                    }
-                }
-                return ($words1 > $overlayWords2) ? $r1 : $r2;
-            }
-        }
-        return $r2;
     }
 
 
@@ -321,26 +299,25 @@ class ScanController extends Controller
      */
     private function extractAmount(string $text): float
     {
-        // 0) быстрый кейс: "307%" -> 307.99 (но не ловим "50% скидка" и т.п.)
+        // Быстрый кейс: "307%" → 307.99 (для цен с мелкими копейками, склеенных в один токен)
         if (preg_match_all('/\b(\d{3,6})\s*%/u', $text, $mp)) {
             foreach ($mp[1] as $s) {
                 $n = (int)$s;
-                if ($n >= 100 && $n <= 999999) { // цена из 3+ цифр
-                    return floor($n) + 0.99;
-                }
+                if ($n >= 100 && $n <= 999999) return floor($n) + 0.99;
             }
         }
 
-        // нормализация похожих пробелов
+        // Нормализация
         $text = str_replace(["\xC2\xA0", ' ', '﻿'], ' ', $text);
-
-        // 1) "307 99" / "307,99" -> помечаем разделитель копеек, убираем тысячные, чистим промежутки
+        // Помечаем возможный разделитель копеек: 307 99 / 307,99 / 307·99 → 307#99
         $tmp = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $text);
+        // Убираем тысячные разделители
         $tmp = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $tmp);
+        // Убираем пробелы внутри числа
         $tmp = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $tmp);
         $normalized = str_replace('#', '.', $tmp);
 
-        // 2) явные десятичные
+        // 1) Явные десятичные
         if (preg_match_all('/\d+(?:\.\d{1,2})/', $normalized, $m1)) {
             $best = 0.0;
             foreach ($m1[0] as $s) {
@@ -350,8 +327,8 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        // 3) "целое + 2 цифры" через пробел/запятую: 307 99 / 307, 99 (без Overlay)
-        if (preg_match_all('/\b(\d{1,7})\b(?:\s{0,3}[.,]?)\s*(\d{2})\b/u', $text, $m2)) {
+        // 2) «целое + 2 цифры» через пробел/запятую (без Overlay): 307 99 / 307, 99
+        if (preg_match_all('/\b(\d{1,5})\b(?:\s{0,3}[.,]?)\s*(\d{2})\b/u', $text, $m2)) {
             $best = 0.0;
             foreach ($m2[1] as $i => $int) {
                 $cent = $m2[2][$i];
@@ -361,7 +338,27 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        return 0.0; // не нашли
+        // 3) Глухие слитые числа из 4–6 цифр: считаем, что "съелся" разделитель → делим на 100
+        if (preg_match_all('/\b(\d{4,6})\b/u', $normalized, $m3)) {
+            $best = 0.0;
+            foreach ($m3[1] as $raw) {
+                $v = ((int)$raw) / 100.0;
+                if ($v > 0.0 && $v <= 99999 && $v > $best) $best = $v;
+            }
+            if ($best > 0) return $best;
+        }
+
+        // 4) В крайнем случае — просто максимальное целое «разумного» размера (1–5 цифр)
+        if (preg_match_all('/\b(\d{1,5})\b/u', $normalized, $m4)) {
+            $best = 0.0;
+            foreach ($m4[1] as $raw) {
+                $v = (float)$raw;
+                if ($v > 0.0 && $v <= 99999 && $v > $best) $best = $v;
+            }
+            if ($best > 0) return $best;
+        }
+
+        return 0.0;
     }
 
     /**
