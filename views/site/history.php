@@ -76,7 +76,7 @@ function rowValueAndLabel(array $r): array
                     <td class="text-end <?= $isOver ? 'text-danger fw-bold' : '' ?>">
                         <?= number_format($value, 2, '.', ' ') ?>
                         <?php if ($limitRub !== null): ?>
-                            <div class="text-muted small">(Итого: <?= number_format($sumRub, 2, '.', ' ') ?>)</div>
+                            <div class="text-muted small">(<?= number_format($sumRub, 2, '.', ' ') ?>)</div>
                         <?php endif; ?>
                     </td>
                     <td class="text-end">
@@ -95,7 +95,7 @@ function rowValueAndLabel(array $r): array
     <!-- < sm: карточки -->
     <div class="d-sm-none">
         <?php foreach ($items as $r):
-            [$value, $label, $isOver, $ts] = rowValueAndLabel($r);
+            [$value, $label, $isOver, $ts, $sumRub, $limitRub] = rowValueAndLabel($r);
             ?>
             <div class="card border-0 shadow-sm mb-2">
                 <div class="card-body py-2">
@@ -113,7 +113,7 @@ function rowValueAndLabel(array $r): array
                             <div class="<?= $isOver ? 'text-danger fw-bold' : 'fw-semibold' ?>">
                                 <?= number_format($value, 2, '.', ' ') ?>
                                 <?php if ($limitRub !== null): ?>
-                                    <div class="text-muted small">(Итого: <?= number_format($sumRub, 2, '.', ' ') ?>)</div>
+                                    <div class="text-muted small">(<?= number_format($sumRub, 2, '.', ' ') ?>)</div>
                                 <?php endif; ?>
                             </div>
                         </div>
