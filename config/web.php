@@ -122,8 +122,16 @@ $config = [
                     'basePath' => '@yii/messages',
                     'sourceLanguage' => 'en-US',
                 ],
-
-    ],
+                'app*' => [
+                    'class' => yii\i18n\PhpMessageSource::class,
+                    'basePath' => '@app/messages',
+                    'fileMap' => [
+                        'app' => 'app.php',
+                        'app/error' => 'error.php',
+                    ],
+                ],
+            ],
+        ],
 
     'as timezone' => [
         'class' => app\components\TimezoneMiddleware::class,
