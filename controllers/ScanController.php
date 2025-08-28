@@ -54,11 +54,13 @@ class ScanController extends Controller
     private function recognizeText(string $filePath): array
     {
         try {
-            $apiResponse = \Yii::$app->ocr->parseImage($filePath, 'eng,rus', [
+            // ВАЖНО: теперь передаём массив языков ['eng','rus'],
+            // а перебор по движкам делает сам клиент.
+            $apiResponse = \Yii::$app->ocr->parseImage($filePath, ['eng','rus'], [
                 'isOverlayRequired' => true,
                 'scale'             => true,
                 'detectOrientation' => true,
-                'OCREngine'         => 2,
+                // можно не указывать OCREngine — клиент сам попробует 2 → 1
             ]);
 
             if (!empty($apiResponse['IsErroredOnProcessing'])) {
@@ -522,12 +524,13 @@ class ScanController extends Controller
                     /** @var \app\components\OcrClient $ocr */
                     $ocr = \Yii::$app->ocr;
 
-                    $res = $ocr->extractPriceFromImage($path, 'eng,rus', [
+                    $res = $ocr->extractPriceFromImage($path, 'eng', [
                         'isOverlayRequired' => true,
                         'OCREngine'         => 2,
                         'scale'             => true,
                         'detectOrientation' => true,
                     ]);
+
 
                     if (!empty($res['success']) && $res['success'] === true && !empty($res['amount'])) {
                         return [
