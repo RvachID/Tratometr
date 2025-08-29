@@ -11,8 +11,6 @@ use yii\web\Response;
 
 class ScanController extends Controller
 {
-
-
     public $enableCsrfValidation = true;
 
     public function beforeAction($action)
@@ -31,7 +29,6 @@ class ScanController extends Controller
         return parent::beforeAction($action);
     }
 
-
     public function behaviors()
     {
         $b = parent::behaviors();
@@ -43,24 +40,17 @@ class ScanController extends Controller
         return $b;
     }
 
-
     /**
-     * Распознавание текста через OCR API
-     */
-    /**
-     * Распознавание OCR.space с нужными флагами.
-     * ВАЖНО: компонент \Yii::$app->ocr->parseImage должен уметь принимать 3-й аргумент (массив опций POST).
+     * Базовый OCR-запрос с Overlay
      */
     private function recognizeText(string $filePath): array
     {
         try {
-            // ВАЖНО: теперь передаём массив языков ['eng','rus'],
-            // а перебор по движкам делает сам клиент.
             $apiResponse = \Yii::$app->ocr->parseImage($filePath, ['eng','rus'], [
                 'isOverlayRequired' => true,
                 'scale'             => true,
                 'detectOrientation' => true,
-                // можно не указывать OCREngine — клиент сам попробует 2 → 1
+                // клиент может сам фолбечить по движкам 2 -> 1
             ]);
 
             if (!empty($apiResponse['IsErroredOnProcessing'])) {
@@ -84,12 +74,15 @@ class ScanController extends Controller
         }
     }
 
+    /**
+     * Overlay → группировка → кроп-рефайн → ROI-копейки → фолбэк целой части
+     */
     private function extractAmountByOverlay(array $recognized, string $imagePath): ?float
     {
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
         if (!$lines || !is_array($lines)) return null;
 
-        // Токены (сразу отбрасываем зачёркнутые)
+        // Токены (отбрасываем зачёркнутые)
         $tokens = [];
         foreach ($lines as $ln) {
             foreach (($ln['Words'] ?? []) as $w) {
@@ -110,14 +103,14 @@ class ScanController extends Controller
         }
         if (!$tokens) return null;
 
-        // Сортировка «строкой»
+        // Сортировка «по строкам»
         usort($tokens, function($a,$b){
             $dy = $a['T'] - $b['T'];
             if (abs($dy) > 8) return $dy;
             return $a['L'] <=> $b['L'];
         });
 
-        // Группировка по строкам (антисклейка «99»)
+        // Группировка
         $groups = [];
         $cur = []; $curTop = null; $curBaseH = 0;
         $isNumLike = fn($t) => $t !== '' && preg_match('~^[\d.,\s]+$~u', $t) && preg_match('~\d~', $t);
@@ -179,7 +172,6 @@ class ScanController extends Controller
 
         if (!$groups) return null;
 
-        // Выбор главной группы
         usort($groups, fn($a,$b) => $b['score'] <=> $a['score']);
         $main = null;
         foreach ($groups as $g) { if ($g['val'] !== null) { $main = $g; break; } }
@@ -187,19 +179,19 @@ class ScanController extends Controller
 
         if ($main['hasCents']) return $main['val'];
 
-        // Кроп-рефайн строго вокруг цены (учитываем ожидаемую длину целой части)
+        // Кроп-рефайн
         $digitsInGroup = preg_match_all('~\d~', (string)$main['raw']);
         $refined = $this->refinePriceFromCrop($imagePath, $main['bbox'], $digitsInGroup);
         if ($refined !== null) return $refined;
 
-        // «307%» внутри группы → .99
+        // «307%» → .99
         foreach ($main['tokens'] as $tk) {
             if (!empty($tk['hasPct'])) {
                 return floor($main['val']) + 0.99;
             }
         }
 
-        // ROI: мелкие копейки справа-сверху
+        // ROI-копейки
         $bbox = [
             'left'   => $main['bbox']['L'],
             'top'    => $main['bbox']['T'],
@@ -211,48 +203,34 @@ class ScanController extends Controller
             return floor($main['val']) + min(99, max(0, (int)$cents))/100.0;
         }
 
-        // Нет копеек — возвращаем целую часть
         return $main['val'];
     }
 
     /**
-     * Нормализуем «числовое» слово из OCR в float.
-     * Чиним: '449 99' / '449,99' / '449·99' / '1 299,90' / '44999' → 449.99.
-     * Отсекаем проценты/дроби, мусор и нереалистичные значения.
+     * Нормализация числа из OCR-токенов
      */
     private function normalizeOcrNumber(string $s): ?float
     {
         $s = trim($s);
-        if ($s === '' || preg_match('/[%\/]/u', $s)) return null; // проценты/дроби отбрасываем
+        if ($s === '' || preg_match('/[%\/]/u', $s)) return null;
 
-        // разные пробелы → обычный
         $s = str_replace(["\xC2\xA0", ' ', ' '], ' ', $s);
-
-        // помечаем разделитель копеек между цифрами (ровно 2 цифры в конце «слова»)
         $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);
-
-        // убираем тысячные разделители (пробел/точка/цент.точка перед 3 цифрами)
         $s = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $s);
-
-        // чистим любые оставшиеся пробелы между цифрами
         $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);
 
-        // --- ВАЖНО: сначала кейс «слилось в 4–6 цифр» → считаем, что пропал разделитель копеек
         if (preg_match('/^\d{4,6}$/', $s)) {
-            $v = ((int)$s) / 100.0;                 // 30799 → 307.99
+            $v = ((int)$s) / 100.0;
             return ($v > 0 && $v <= 99999) ? $v : null;
         }
 
-        // финальный разделитель копеек — точка
         $s = str_replace('#', '.', $s);
 
-        // Явно валидное число: целое или с копейками
         if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
             $v = (float)$s;
             return ($v > 0 && $v <= 99999) ? $v : null;
         }
 
-        // просто целое: допустим
         if (preg_match('/^\d+$/', $s)) {
             $v = (float)$s;
             return ($v > 0 && $v <= 99999) ? $v : null;
@@ -262,25 +240,17 @@ class ScanController extends Controller
     }
 
     /**
-     * Умный разбор суммы из распознанного текста.
-     * Правит '449 99' / '449,99' → '449.99', убирает тысячные разделители,
-     * пытается восстановить копейки из 4–6-значных целых (44999 → 449.99).
-     */
-    /**
-     * Умный разбор суммы из распознанного текста.
-     * Добавлено: паттерн "307%" трактуем как 307.99 (с приоритетом),
-     * а для 4–6-значных слепленных чисел предпочитаем вариант /100 (3079 -> 30.79, 30799 -> 307.99).
+     * Фолбэк парсер из общего текста
      */
     private function extractAmount(string $text): float
     {
-        // Нормализация
         $text = str_replace(["\xC2\xA0", ' ', '﻿'], ' ', $text);
         $tmp  = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $text);
         $tmp  = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $tmp);
         $tmp  = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $tmp);
         $normalized = str_replace('#', '.', $tmp);
 
-        // (1) Явные десятичные — выбираем по скорингу (штраф «перевёртышам»)
+        // 1) Явные десятичные
         if (preg_match_all('/\d+(?:\.\d{1,2})/', $normalized, $m1)) {
             $best = 0.0; $bestScore = 0.0;
             foreach ($m1[0] as $s) {
@@ -292,11 +262,10 @@ class ScanController extends Controller
                 if (in_array($frac, [99,95,90,89], true)) $score *= 1.25;
                 if ($v < 100 && preg_match('~\b\d{3,}\b~', $normalized)) $score *= 0.6;
 
-                // штраф «все шестерки»
                 $sDigits = preg_replace('/\D/','', number_format($v, 2, '.', ''));
                 if ($sDigits !== '') {
                     $ratio6 = substr_count($sDigits, '6') / strlen($sDigits);
-                    if ($ratio6 >= 0.7) $score *= 0.45;
+                    if ($ratio6 >= 0.7) $score *= 0.45; // «666.66»
                 }
 
                 if ($score > $bestScore || ($score === $bestScore && $v > $best)) {
@@ -306,7 +275,7 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        // (2) «целое + 2 цифры»
+        // 2) «целое + 2 цифры»
         if (preg_match_all('/\b(\d{1,5})\b(?:\s{0,3}[.,]?)\s*(\d{2})\b/u', $text, $m2)) {
             $best = 0.0;
             foreach ($m2[1] as $i => $int) {
@@ -317,7 +286,7 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        // (3) Делить 4–6 цифр на 100 — только если нет пары «целое+две»
+        // 3) Делить 4–6 цифр на 100 — только если нет пары «целое+две»
         if (!preg_match('/\b\d{1,5}\D{0,3}\d{2}\b/u', $normalized)) {
             if (preg_match_all('/\b(\d{4,6})\b/u', $normalized, $m3)) {
                 $best = 0.0;
@@ -329,7 +298,7 @@ class ScanController extends Controller
             }
         }
 
-        // (4) Последний шанс — максимум целое разумного размера
+        // 4) Последний шанс — максимум целое
         if (preg_match_all('/\b(\d{1,5})\b/u', $normalized, $m4)) {
             $best = 0.0;
             foreach ($m4[1] as $raw) {
@@ -343,13 +312,7 @@ class ScanController extends Controller
     }
 
     /**
-     * Предобработка изображения: ресайз, ч/б, контраст
-     */
-    /**
-     * Мягкая и стабильная предобработка:
-     * - сохраняем цвет;
-     * - только resize + лёгкая резкость;
-     * - без контраста, без GRAY, без кропа.
+     * Мягкая предобработка исходника
      */
     private function preprocessImage(string $filePath): bool
     {
@@ -358,16 +321,13 @@ class ScanController extends Controller
             $im = new \Imagick($filePath);
             $im->autoOrient(); // если есть EXIF
 
-            // OCR обычно лучше на 1000–1600 px по ширине
             $w = $im->getImageWidth();
             if ($w > 1280) {
                 $im->resizeImage(1280, 0, \Imagick::FILTER_LANCZOS, 1);
             }
 
-            // Очень мягкая резкость без «перешарпа»
             $im->unsharpMaskImage(0.5, 0.5, 0.8, 0.01);
 
-            // JPEG качество
             $im->setImageFormat('jpeg');
             $im->setImageCompressionQuality(85);
 
@@ -383,14 +343,51 @@ class ScanController extends Controller
         }
     }
 
+    /**
+     * Принудительно загоняет файл под лимит размера (JPEG, ресайз + компрессия)
+     */
+    private function enforceSizeLimit(string $path, int $bytes = 1048576): bool
+    {
+        try {
+            if (!is_file($path)) return false;
+            if (@filesize($path) <= $bytes) return true;
+
+            $im = new \Imagick($path);
+            $im->autoOrient();
+
+            for ($i=0; $i<3; $i++) {
+                $im->resizeImage((int)round($im->getImageWidth()*0.85), 0, \Imagick::FILTER_LANCZOS, 1);
+                $im->setImageCompressionQuality(max(60, 85 - $i*10));
+                $im->setImageFormat('jpeg');
+                $im->writeImage($path);
+                if (@filesize($path) <= $bytes) { $im->clear(); $im->destroy(); return true; }
+            }
+            $im->clear(); $im->destroy();
+            return @filesize($path) <= $bytes;
+        } catch (\Throwable $e) {
+            \Yii::warning('enforceSizeLimit fail: '.$e->getMessage(), __METHOD__);
+            return false;
+        }
+    }
+
+    /**
+     * Главный экшен распознавания
+     */
     public function actionRecognize()
     {
         \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        $rawPath = null;
+        $procPath = null;
 
         try {
             $image = \yii\web\UploadedFile::getInstanceByName('image');
             if (!$image) {
                 return ['success' => false, 'error' => 'Изображение не загружено'];
+            }
+
+            if (!in_array($image->type, ['image/jpeg','image/png','image/webp','image/heic','image/heif'], true)) {
+                return ['success'=>false,'error'=>'Неверный формат изображения'];
             }
 
             $ext = strtolower($image->extension ?: 'jpg');
@@ -401,6 +398,7 @@ class ScanController extends Controller
             if (!$image->saveAs($rawPath)) {
                 return ['success' => false, 'error' => 'Не удалось сохранить изображение'];
             }
+            $this->enforceSizeLimit($rawPath, $sizeLimit);
 
             // копия под soft-предобработку
             $procPath = \Yii::getAlias('@runtime/' . uniqid('scan_proc_') . '.' . $ext);
@@ -409,55 +407,50 @@ class ScanController extends Controller
                 @unlink($procPath);
                 $procPath = null;
             }
-
-            // контроль размера
-            if ($procPath && @filesize($procPath) > $sizeLimit) {
-                @unlink($procPath);
-                $procPath = null;
-            }
-            if (!$procPath && @filesize($rawPath) > $sizeLimit) {
-                @unlink($rawPath);
-                return ['success' => false, 'error' => 'Размер файла превышает 1 МБ'];
+            if ($procPath) {
+                $this->enforceSizeLimit($procPath, $sizeLimit);
             }
 
+            // Раннер одного прохода
             $run = function (string $path) {
                 try {
                     /** @var \app\components\OcrClient $ocr */
                     $ocr = \Yii::$app->ocr;
 
-                    $res = $ocr->extractPriceFromImage($path, 'eng', [
+                    // Если у тебя есть компонентный извлекатель — используем его как первый путь
+                    $res = $ocr->extractPriceFromImage($path, ['eng','rus'], [
                         'isOverlayRequired' => true,
                         'OCREngine'         => 2,
                         'scale'             => true,
                         'detectOrientation' => true,
                     ]);
 
-
                     if (!empty($res['success']) && $res['success'] === true && !empty($res['amount'])) {
                         return [
                             'amount'     => (float)$res['amount'],
                             'recognized' => [
                                 'ParsedText' => (string)($res['text'] ?? ''),
+                                // Overlay на этом пути не обязателен
                             ],
                         ];
                     }
                 } catch (\Throwable $e) {
                     \Yii::warning('extractPriceFromImage failed: ' . $e->getMessage(), __METHOD__);
+                    // Пойдём по старому пути
                 }
 
-                // Фолбэк: OCR → Overlay → (bbox-скоринг/ROI) → строковый парсер
+                // Фолбэк: OCR → Overlay → (bbox-скоринг/кроп/ROI) → строковый парсер
                 $recognized = $this->recognizeText($path);
                 if (isset($recognized['error'])) {
                     return ['error' => $recognized['error'], 'reason' => 'ocr', 'recognized' => $recognized];
                 }
 
-                // Новый вызов: Overlay/ROI
                 $amount = $this->extractAmountByOverlay($recognized, $path);
-
                 if ($amount !== null && $amount > 0.0) {
                     return ['amount' => $amount, 'recognized' => $recognized];
                 }
 
+                // строковый фолбэк с вычитанием зачёркнутых слов
                 $cleanText = $this->stripStrikethroughText($recognized, $recognized['ParsedText'] ?? '');
                 $amount = $this->extractAmount($cleanText);
                 if (!$amount) {
@@ -475,16 +468,11 @@ class ScanController extends Controller
             if (empty($r1['amount'])) {
                 $usedPass = 'raw';
                 if (@filesize($rawPath) > $sizeLimit) {
-                    @unlink($rawPath);
-                    if ($procPath) @unlink($procPath);
                     return ['success' => false, 'error' => 'Не удалось извлечь сумму', 'reason' => 'no_amount'];
                 }
 
                 $r2 = $run($rawPath);
                 if (empty($r2['amount'])) {
-                    @unlink($rawPath);
-                    if ($procPath) @unlink($procPath);
-
                     if (($r1['reason'] ?? '') === 'ocr' || ($r2['reason'] ?? '') === 'ocr') {
                         return ['success' => false, 'error' => 'Ошибка OCR', 'reason' => 'ocr'];
                     }
@@ -494,31 +482,32 @@ class ScanController extends Controller
                     return ['success' => false, 'error' => 'Текст не распознан', 'reason' => 'empty'];
                 }
 
-                @unlink($rawPath);
-                if ($procPath) @unlink($procPath);
                 return [
                     'success' => true,
-                    'recognized_amount' => $r2['amount'],
-                    'parsed_text' => $r2['recognized']['ParsedText'] ?? '',
+                    'recognized_amount' => (float)$r2['amount'],
+                    'parsed_text' => (string)($r2['recognized']['ParsedText'] ?? ''),
                     'pass' => $usedPass,
                 ];
             }
 
-            @unlink($rawPath);
-            if ($procPath) @unlink($procPath);
             return [
                 'success' => true,
-                'recognized_amount' => $r1['amount'],
-                'parsed_text' => $r1['recognized']['ParsedText'] ?? '',
+                'recognized_amount' => (float)$r1['amount'],
+                'parsed_text' => (string)($r1['recognized']['ParsedText'] ?? ''),
                 'pass' => $usedPass,
             ];
-
         } catch (\Throwable $e) {
             \Yii::error($e->getMessage(), __METHOD__);
             return ['success' => false, 'error' => 'Внутренняя ошибка сервера'];
+        } finally {
+            if ($rawPath && is_file($rawPath)) @unlink($rawPath);
+            if ($procPath && is_file($procPath)) @unlink($procPath);
         }
     }
 
+    /**
+     * Сохранение позиции в активной сессии
+     */
     public function actionStore()
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
@@ -528,7 +517,6 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Требуется вход'];
             }
 
-            // Активная серверная сессия (без методов другого контроллера)
             $ps = PurchaseSession::find()
                 ->where(['user_id' => Yii::$app->user->id, 'status' => PurchaseSession::STATUS_ACTIVE])
                 ->orderBy(['updated_at' => SORT_DESC])
@@ -548,11 +536,11 @@ class ScanController extends Controller
 
             $entry = new PriceEntry();
             $entry->user_id = Yii::$app->user->id;
-            $entry->session_id = $ps->id;                // ВАЖНО
+            $entry->session_id = $ps->id;
             $entry->amount = (float)$amount;
             $entry->qty = (float)$qty;
-            $entry->store = $ps->shop;              // из сессии
-            $entry->category = $ps->category ?: null;  // из сессии
+            $entry->store = $ps->shop;
+            $entry->category = $ps->category ?: null;
             $entry->note = $note;
             $entry->recognized_text = $text;
             $entry->recognized_amount = (float)$amount;
@@ -580,7 +568,7 @@ class ScanController extends Controller
                     'store' => (string)$entry->store,
                     'category' => $entry->category,
                 ],
-                'total' => $total,
+                'total' => number_format($total, 2, '.', ''), // единый формат
             ];
         } catch (\Throwable $e) {
             Yii::error($e->getMessage() . "\n" . $e->getTraceAsString(), __METHOD__);
@@ -588,7 +576,9 @@ class ScanController extends Controller
         }
     }
 
-    /** Автосохранение суммы/qty из строки списка */
+    /**
+     * Автосохранение суммы/qty
+     */
     public function actionUpdate($id)
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
@@ -596,11 +586,14 @@ class ScanController extends Controller
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
         if (!$ps) return ['success' => false, 'error' => 'Нет активной покупки.'];
 
-        $m = PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
+        $m = PriceEntry::findOne([
+            'id' => (int)$id,
+            'user_id' => Yii::$app->user->id,
+            'session_id' => $ps->id, // важно!
+        ]);
         if (!$m) return ['success' => false, 'error' => 'Запись не найдена'];
 
         $m->load(Yii::$app->request->post(), '');
-        // фиксируем принадлежность к текущей серверной сессии
         $m->user_id = Yii::$app->user->id;
         $m->session_id = $ps->id;
         $m->store = $ps->shop;
@@ -620,7 +613,9 @@ class ScanController extends Controller
         return ['success' => true, 'total' => number_format($total, 2, '.', '')];
     }
 
-    /** Удаление строки из списка */
+    /**
+     * Удаление строки
+     */
     public function actionDelete($id)
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
@@ -628,7 +623,11 @@ class ScanController extends Controller
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
         if (!$ps) return ['success' => false, 'error' => 'Нет активной покупки.'];
 
-        $m = PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id, 'session_id' => $ps->id]);
+        $m = PriceEntry::findOne([
+            'id' => (int)$id,
+            'user_id' => Yii::$app->user->id,
+            'session_id' => $ps->id,
+        ]);
         if (!$m) return ['success' => false, 'error' => 'Запись не найдена'];
 
         $m->delete();
@@ -641,10 +640,9 @@ class ScanController extends Controller
     }
 
     /**
-     * Кроп вокруг основной цены и повторный OCR только на этом участке.
-     * Делает извлечение кандидатов (X.XX / "целое+две" / 4–6 цифр ÷100),
-     * вычищает зачёркнутые слова из текста кропа и выбирает лучший по скору.
-     * $digitsInGroup — сколько цифр нашли в основной группе Overlay (ожидаемая длина целой части).
+     * Кроп вокруг основной цены + повторный OCR по этому фрагменту.
+     * Извлекаем кандидатов (X.XX / "целое+две" / 4–6 цифр ÷100), чистим зачёркнутые,
+     * выбираем лучший по скору. $digitsInGroup — ожидаемая длина целой части по Overlay-группе.
      */
     private function refinePriceFromCrop(string $imagePath, array $mainBbox, int $digitsInGroup = 0): ?float
     {
@@ -659,10 +657,10 @@ class ScanController extends Controller
             $Wg = (int)$mainBbox['W'];
             $Hg = (int)$mainBbox['H'];
 
-            // Увеличенный левый паддинг — чтобы не терять первый разряд
+            // левый паддинг увеличен, чтобы не терять первый разряд
             $padL = max((int)round($Wg * 0.30), 28);
             $padT = max((int)round($Hg * 0.18), 12);
-            $padR = max((int)round($Wg * 1.35), 60); // хвост копеек
+            $padR = max((int)round($Wg * 1.35), 60); // зона копеек
             $padB = max((int)round($Hg * 0.25), 14);
 
             $x = max(0, $L - $padL);
@@ -675,7 +673,7 @@ class ScanController extends Controller
             $crop->cropImage($w, $h, $x, $y);
             $crop->setImagePage(0,0,0,0);
 
-            // Аккуратная локальная обработка
+            // аккуратная локальная обработка
             $crop->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
             $crop->normalizeImage();
             $crop->modulateImage(100, 110, 100);
@@ -688,7 +686,7 @@ class ScanController extends Controller
             $crop->clear(); $crop->destroy();
             $im->clear();   $im->destroy();
 
-            // OCR только по кропу (клиент сам фолбечит по языкам/движкам)
+            // OCR по кропу
             $raw = \Yii::$app->ocr->parseImage($tmp, ['eng','rus'], [
                 'isOverlayRequired' => true,
                 'scale'             => true,
@@ -699,13 +697,13 @@ class ScanController extends Controller
 
             $res   = $raw['ParsedResults'][0] ?? [];
             $text0 = (string)($res['ParsedText'] ?? '');
-            // Вырезаем зачёркнутые слова, если они попали в кроп
+            // чистим зачёркнутые слова (если вдруг попали)
             $text  = $this->stripStrikethroughText(['TextOverlay' => $res['TextOverlay'] ?? []], $text0);
 
-            // Собираем кандидатов
+            // кандидаты
             $cands = [];
 
-            // (A) Явные X.XX
+            // (A) X.XX
             if (preg_match_all('/\b\d+(?:[.,]\d{2})\b/u', $text, $ma)) {
                 foreach ($ma[0] as $s) {
                     $v = (float)str_replace(',', '.', $s);
@@ -713,7 +711,7 @@ class ScanController extends Controller
                 }
             }
 
-            // (B) «целое + любые 2 цифры» рядом
+            // (B) целое + 2 цифры
             if (preg_match_all('/\b(\d{1,6})\D{0,3}(\d{2})\b/u', $text, $mb)) {
                 foreach ($mb[1] as $i => $int) {
                     $v = (int)$int + ((int)$mb[2][$i]) / 100.0;
@@ -721,7 +719,7 @@ class ScanController extends Controller
                 }
             }
 
-            // (C) 4–6 цифр слитно → ÷100 (только если (A)/(B) ничего не дали)
+            // (C) 4–6 цифр → ÷100, только если (A)/(B) пусты
             if (empty($cands)) {
                 if (preg_match_all('/\b(\d{4,6})\b/u', $text, $mc)) {
                     foreach ($mc[1] as $rawNum) {
@@ -733,7 +731,6 @@ class ScanController extends Controller
 
             if (!$cands) return null;
 
-            // Скоринг кандидатов: бонус .99, штраф «все шестерки», штраф за слишком малое значение
             $expectIntDigits = max(0, min(6, $digitsInGroup));
             $bestV = null; $bestScore = -INF;
 
@@ -749,11 +746,11 @@ class ScanController extends Controller
                     if ($ratio6 >= 0.7) $score *= 0.45; // «666.66»
                 }
 
-                // Если ожидаем ≥2–3 цифры в целой части, а значение слишком малое — штраф (ловим 1.09 вместо 109.99)
+                // гасим 1.09, если ожидаем минимум 2–3 цифры в целой части
                 if ($v < 10 && $expectIntDigits >= 2)  $score *= 0.25;
                 if ($v < 100 && $expectIntDigits >= 3) $score *= 0.35;
 
-                // Лёгкий бонус за большее число (помогает 99.99 победить 9.99)
+                // лёгкий бонус за «крупнее»
                 $score += min(0.4, log10(max($v, 1.0)) * 0.15);
 
                 return $score;
@@ -772,8 +769,7 @@ class ScanController extends Controller
     }
 
     /**
-     * Узкий ROI справа-сверху от основной цены для вычитки двух цифр «копеек».
-     * Игнорирует зачёркнутые слова в Overlay результата ROI.
+     * Узкий ROI справа-сверху от основной цены для вычитки копеек (2 цифры)
      */
     private function tryFindCentsViaRoi(string $imagePath, array $bbox): ?int
     {
@@ -789,7 +785,7 @@ class ScanController extends Controller
             $Wg = (int)$bbox['width'];
             $Hg = (int)$bbox['height'];
 
-            // Узкий «хвостик» копеек
+            // узкая зона «хвостика» копеек
             $x = (int)round($L + $Wg * 1.02);
             $y = (int)round($T - $Hg * 0.25);
             $w = (int)round(max($Wg * 0.60, 40));
@@ -805,7 +801,7 @@ class ScanController extends Controller
             $roi->cropImage($w, $h, $x, $y);
             $roi->setImagePage(0,0,0,0);
 
-            // Локальная обработка для мелкого текста
+            // локальная обработка для мелкого шрифта
             $roi->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
             $roi->normalizeImage();
             $roi->modulateImage(100, 120, 100);
@@ -829,31 +825,31 @@ class ScanController extends Controller
 
             $res   = $raw['ParsedResults'][0] ?? [];
             $text0 = (string)($res['ParsedText'] ?? '');
-            // Убираем зачёркнутые токены из текста ROI
+            // чистим зачёркнутые токены из текста ROI
             $text  = $this->stripStrikethroughText(['TextOverlay' => $res['TextOverlay'] ?? []], $text0);
 
-            // % в ROI → 99 копеек
+            // % в ROI → 99
             if (strpos($text, '%') !== false) return 99;
 
-            // Пробуем найти две цифры словом
+            // две цифры словом
             if (preg_match('/\b(\d{2})\b/u', $text, $m)) {
                 $c = (int)$m[1];
                 if ($c >= 0 && $c <= 99) return $c;
             }
 
-            // По Overlay ROI — короткие цифровые токены
+            // короткие цифровые токены из Overlay ROI
             if (!empty($res['TextOverlay']['Lines'])) {
                 $best = null;
                 foreach ($res['TextOverlay']['Lines'] as $ln) {
                     foreach (($ln['Words'] ?? []) as $w) {
-                        if (!empty($w['IsStrikethrough'])) continue; // игнор зачёркнутого
+                        if (!empty($w['IsStrikethrough'])) continue;
                         $t = preg_replace('~\D+~u', '', (string)($w['WordText'] ?? ''));
                         if ($t === '') continue;
 
                         if (strlen($t) === 2) {
                             $c = (int)$t; if ($c >= 0 && $c <= 99) return $c;
                         } elseif (strlen($t) === 1) {
-                            $best = max($best ?? 0, (int)$t); // одна цифра — как десятки
+                            $best = max($best ?? 0, (int)$t); // одну цифру трактуем как десятки
                         }
                     }
                 }
@@ -867,12 +863,13 @@ class ScanController extends Controller
         }
     }
 
-    /** Удаляет из ParsedText все слова, помеченные в Overlay как IsStrikethrough=true */
+    /**
+     * Удаляет из ParsedText все слова, помеченные в Overlay как IsStrikethrough=true
+     */
     private function stripStrikethroughText(array $recognized, string $parsedText): string
     {
         if (empty($recognized['TextOverlay']['Lines']) || $parsedText === '') return $parsedText;
 
-        // Собираем список зачёркнутых слов (как есть и с «очисткой» пробелов)
         $needles = [];
         foreach ($recognized['TextOverlay']['Lines'] as $ln) {
             foreach (($ln['Words'] ?? []) as $w) {
@@ -884,15 +881,11 @@ class ScanController extends Controller
         }
         if (!$needles) return $parsedText;
 
-        // Вырезаем их из общего текста как отдельные «слова»
         foreach (array_keys($needles) as $t) {
             $q = preg_quote($t, '/');
             $parsedText = preg_replace('/\b'.$q.'\b/u', ' ', $parsedText);
         }
-        // нормализуем пробелы
         $parsedText = preg_replace('/\s{2,}/u', ' ', $parsedText);
         return trim($parsedText);
     }
-
-
 }
