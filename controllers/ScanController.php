@@ -564,6 +564,9 @@ class ScanController extends Controller
                     return ['amount' => $amount, 'recognized' => $recognized];
                 }
 
+                $cleanText = $this->stripStrikethroughText($recognized, $recognized['ParsedText'] ?? '');
+                $amount = $this->extractAmount($cleanText);
+
                 // Крайний случай — строковый парсер
                 $amount = $this->extractAmount($recognized['ParsedText'] ?? '');
                 if (!$amount) {
@@ -872,5 +875,19 @@ class ScanController extends Controller
         }
     }
 
+    private function stripStrikethroughText(array $recognized, string $parsedText): string
+    {
+        if (empty($recognized['TextOverlay']['Lines'])) return $parsedText;
+
+        foreach ($recognized['TextOverlay']['Lines'] as $ln) {
+            foreach (($ln['Words'] ?? []) as $w) {
+                if (!empty($w['IsStrikethrough']) && !empty($w['WordText'])) {
+                    $txt = preg_quote($w['WordText'], '/');
+                    $parsedText = preg_replace('/\b'.$txt.'\b/u', '', $parsedText);
+                }
+            }
+        }
+        return $parsedText;
+    }
 
 }
