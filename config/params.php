@@ -8,7 +8,7 @@ if (is_file($secretsFile)) {
 
 return [
     'appName' => 'Тратометр',
-    'version' => '0.7.1',
+    'version' => '0.7.3',
 
     'ocr' => [
         'endpoint' => getenv('OCR_ENDPOINT') ?: ($localSecrets['OCR_ENDPOINT'] ?? 'https://api.ocr.space/parse/image'),
