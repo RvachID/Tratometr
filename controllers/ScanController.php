@@ -82,7 +82,7 @@ class ScanController extends Controller
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
         if (!$lines || !is_array($lines)) return null;
 
-        // Токены (отбрасываем зачёркнутые)
+        // Токены (сразу отбрасываем зачёркнутые)
         $tokens = [];
         foreach ($lines as $ln) {
             foreach (($ln['Words'] ?? []) as $w) {
@@ -103,14 +103,14 @@ class ScanController extends Controller
         }
         if (!$tokens) return null;
 
-        // Сортировка «по строкам»
+        // Сортировка «строкой»
         usort($tokens, function($a,$b){
             $dy = $a['T'] - $b['T'];
             if (abs($dy) > 8) return $dy;
             return $a['L'] <=> $b['L'];
         });
 
-        // Группировка
+        // Группировка по строкам
         $groups = [];
         $cur = []; $curTop = null; $curBaseH = 0;
         $isNumLike = fn($t) => $t !== '' && preg_match('~^[\d.,\s]+$~u', $t) && preg_match('~\d~', $t);
@@ -126,7 +126,9 @@ class ScanController extends Controller
             $H = max(1, $maxB - $minT);
 
             $raw = implode('', array_map(fn($g)=>preg_replace('~\s+~u','',$g['text']), $cur));
-            $val = $this->normalizeOcrNumber($raw);
+
+            // ⛔️ Больше НЕ делим на 100 на этом шаге
+            $val = $this->normalizeOcrNumber($raw, false);
 
             $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
             $digits   = preg_match_all('~\d~', $raw);
@@ -172,6 +174,7 @@ class ScanController extends Controller
 
         if (!$groups) return null;
 
+        // Выбор главной группы
         usort($groups, fn($a,$b) => $b['score'] <=> $a['score']);
         $main = null;
         foreach ($groups as $g) { if ($g['val'] !== null) { $main = $g; break; } }
@@ -179,7 +182,7 @@ class ScanController extends Controller
 
         if ($main['hasCents']) return $main['val'];
 
-        // Кроп-рефайн
+        // Кроп-рефайн (тут уже можно аккуратно решать «слепленное»)
         $digitsInGroup = preg_match_all('~\d~', (string)$main['raw']);
         $refined = $this->refinePriceFromCrop($imagePath, $main['bbox'], $digitsInGroup);
         if ($refined !== null) return $refined;
@@ -191,7 +194,7 @@ class ScanController extends Controller
             }
         }
 
-        // ROI-копейки
+        // ROI: мелкие копейки справа-сверху
         $bbox = [
             'left'   => $main['bbox']['L'],
             'top'    => $main['bbox']['T'],
@@ -203,34 +206,48 @@ class ScanController extends Controller
             return floor($main['val']) + min(99, max(0, (int)$cents))/100.0;
         }
 
+        // Нет копеек — возвращаем целую часть БЕЗ деления
         return $main['val'];
     }
 
+
     /**
-     * Нормализация числа из OCR-токенов
+     * Нормализуем «числовое» слово из OCR в float.
+     * Деление на 100 для слитых 4–6 цифр включаем только при $allowDiv100=true.
      */
-    private function normalizeOcrNumber(string $s): ?float
+    private function normalizeOcrNumber(string $s, bool $allowDiv100 = false): ?float
     {
         $s = trim($s);
-        if ($s === '' || preg_match('/[%\/]/u', $s)) return null;
+        if ($s === '' || preg_match('/[%\/]/u', $s)) return null; // проценты/дроби отбрасываем
 
+        // разные пробелы → обычный
         $s = str_replace(["\xC2\xA0", ' ', ' '], ' ', $s);
+
+        // помечаем разделитель копеек между цифрами (ровно 2 цифры в конце «слова»)
         $s = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $s);
+
+        // убираем тысячные разделители (пробел/точка/цент.точка перед 3 цифрами)
         $s = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $s);
+
+        // чистим любые оставшиеся пробелы между цифрами
         $s = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $s);
 
-        if (preg_match('/^\d{4,6}$/', $s)) {
-            $v = ((int)$s) / 100.0;
+        // Делить на 100 только по явному разрешению
+        if ($allowDiv100 && preg_match('/^\d{4,6}$/', $s)) {
+            $v = ((int)$s) / 100.0;                 // 30799 → 307.99
             return ($v > 0 && $v <= 99999) ? $v : null;
         }
 
+        // финальный разделитель копеек — точка
         $s = str_replace('#', '.', $s);
 
+        // Явно валидное число: целое или с копейками
         if (preg_match('/^\d+(?:\.\d{1,2})?$/', $s)) {
             $v = (float)$s;
             return ($v > 0 && $v <= 99999) ? $v : null;
         }
 
+        // просто целое: допустим
         if (preg_match('/^\d+$/', $s)) {
             $v = (float)$s;
             return ($v > 0 && $v <= 99999) ? $v : null;
@@ -239,18 +256,27 @@ class ScanController extends Controller
         return null;
     }
 
+
     /**
      * Фолбэк парсер из общего текста
      */
-    private function extractAmount(string $text): float
+    /**
+     * Фолбэк из общего текста.
+     * Деление 4–6 цифр на 100 — ТОЛЬКО если $allowDiv100=true.
+     */
+    private function extractAmount(string $text, bool $allowDiv100 = false): float
     {
+        // Нормализация
         $text = str_replace(["\xC2\xA0", ' ', '﻿'], ' ', $text);
+        // Помечаем возможный разделитель копеек: 307 99 / 307,99 / 307·99 → 307#99
         $tmp  = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $text);
+        // Убираем тысячные разделители
         $tmp  = preg_replace('/(?<=\d)[\s\.·•](?=\d{3}\b)/u', '', $tmp);
+        // Убираем пробелы внутри числа
         $tmp  = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $tmp);
         $normalized = str_replace('#', '.', $tmp);
 
-        // 1) Явные десятичные
+        // 1) Явные десятичные — выбираем по скорингу (штраф «перевёртышам» .66 и слишком малым)
         if (preg_match_all('/\d+(?:\.\d{1,2})/', $normalized, $m1)) {
             $best = 0.0; $bestScore = 0.0;
             foreach ($m1[0] as $s) {
@@ -262,10 +288,11 @@ class ScanController extends Controller
                 if (in_array($frac, [99,95,90,89], true)) $score *= 1.25;
                 if ($v < 100 && preg_match('~\b\d{3,}\b~', $normalized)) $score *= 0.6;
 
+                // штраф «все шестерки»
                 $sDigits = preg_replace('/\D/','', number_format($v, 2, '.', ''));
                 if ($sDigits !== '') {
                     $ratio6 = substr_count($sDigits, '6') / strlen($sDigits);
-                    if ($ratio6 >= 0.7) $score *= 0.45; // «666.66»
+                    if ($ratio6 >= 0.7) $score *= 0.45;
                 }
 
                 if ($score > $bestScore || ($score === $bestScore && $v > $best)) {
@@ -275,7 +302,7 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        // 2) «целое + 2 цифры»
+        // 2) «целое + 2 цифры» рядом (без Overlay): 307 99 / 307, 99
         if (preg_match_all('/\b(\d{1,5})\b(?:\s{0,3}[.,]?)\s*(\d{2})\b/u', $text, $m2)) {
             $best = 0.0;
             foreach ($m2[1] as $i => $int) {
@@ -286,8 +313,8 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        // 3) Делить 4–6 цифр на 100 — только если нет пары «целое+две»
-        if (!preg_match('/\b\d{1,5}\D{0,3}\d{2}\b/u', $normalized)) {
+        // 3) Глухие слитые 4–6 цифр → ÷100 — ТОЛЬКО если явно позволили
+        if ($allowDiv100 && !preg_match('/\b\d{1,5}\D{0,3}\d{2}\b/u', $normalized)) {
             if (preg_match_all('/\b(\d{4,6})\b/u', $normalized, $m3)) {
                 $best = 0.0;
                 foreach ($m3[1] as $raw) {
@@ -298,7 +325,7 @@ class ScanController extends Controller
             }
         }
 
-        // 4) Последний шанс — максимум целое
+        // 4) Последний шанс — максимум целое разумного размера (1–5 цифр)
         if (preg_match_all('/\b(\d{1,5})\b/u', $normalized, $m4)) {
             $best = 0.0;
             foreach ($m4[1] as $raw) {
@@ -310,6 +337,7 @@ class ScanController extends Controller
 
         return 0.0;
     }
+
 
     /**
      * Мягкая предобработка исходника
@@ -452,7 +480,7 @@ class ScanController extends Controller
 
                 // строковый фолбэк с вычитанием зачёркнутых слов
                 $cleanText = $this->stripStrikethroughText($recognized, $recognized['ParsedText'] ?? '');
-                $amount = $this->extractAmount($cleanText);
+                $amount = $this->extractAmount($cleanText, false);
                 if (!$amount) {
                     return ['error' => 'no_amount', 'reason' => 'no_amount', 'recognized' => $recognized];
                 }
@@ -640,9 +668,11 @@ class ScanController extends Controller
     }
 
     /**
-     * Кроп вокруг основной цены + повторный OCR по этому фрагменту.
-     * Извлекаем кандидатов (X.XX / "целое+две" / 4–6 цифр ÷100), чистим зачёркнутые,
-     * выбираем лучший по скору. $digitsInGroup — ожидаемая длина целой части по Overlay-группе.
+     * Кроп вокруг основной цены и повторный OCR только на этом участке.
+     * Делает извлечение кандидатов (X.XX / "целое+две" / 4–6 цифр ÷100 по условию),
+     * вычищает зачёркнутые слова из текста кропа и выбирает лучший по скору.
+     * $digitsInGroup — сколько цифр нашли в основной группе Overlay (ожидаемая длина целой части).
+     * Деление «слитных» 4–6 цифр на 100 разрешаем ТОЛЬКО если $digitsInGroup <= 3.
      */
     private function refinePriceFromCrop(string $imagePath, array $mainBbox, int $digitsInGroup = 0): ?float
     {
@@ -657,10 +687,10 @@ class ScanController extends Controller
             $Wg = (int)$mainBbox['W'];
             $Hg = (int)$mainBbox['H'];
 
-            // левый паддинг увеличен, чтобы не терять первый разряд
+            // Увеличенный левый паддинг — чтобы не терять первый разряд
             $padL = max((int)round($Wg * 0.30), 28);
             $padT = max((int)round($Hg * 0.18), 12);
-            $padR = max((int)round($Wg * 1.35), 60); // зона копеек
+            $padR = max((int)round($Wg * 1.35), 60); // хвост копеек
             $padB = max((int)round($Hg * 0.25), 14);
 
             $x = max(0, $L - $padL);
@@ -673,7 +703,7 @@ class ScanController extends Controller
             $crop->cropImage($w, $h, $x, $y);
             $crop->setImagePage(0,0,0,0);
 
-            // аккуратная локальная обработка
+            // Аккуратная локальная обработка
             $crop->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
             $crop->normalizeImage();
             $crop->modulateImage(100, 110, 100);
@@ -686,7 +716,7 @@ class ScanController extends Controller
             $crop->clear(); $crop->destroy();
             $im->clear();   $im->destroy();
 
-            // OCR по кропу
+            // OCR только по кропу
             $raw = \Yii::$app->ocr->parseImage($tmp, ['eng','rus'], [
                 'isOverlayRequired' => true,
                 'scale'             => true,
@@ -697,13 +727,13 @@ class ScanController extends Controller
 
             $res   = $raw['ParsedResults'][0] ?? [];
             $text0 = (string)($res['ParsedText'] ?? '');
-            // чистим зачёркнутые слова (если вдруг попали)
+            // Вырезаем зачёркнутые слова, если они попали в кроп
             $text  = $this->stripStrikethroughText(['TextOverlay' => $res['TextOverlay'] ?? []], $text0);
 
-            // кандидаты
+            // Собираем кандидатов
             $cands = [];
 
-            // (A) X.XX
+            // (A) Явные X.XX
             if (preg_match_all('/\b\d+(?:[.,]\d{2})\b/u', $text, $ma)) {
                 foreach ($ma[0] as $s) {
                     $v = (float)str_replace(',', '.', $s);
@@ -711,7 +741,7 @@ class ScanController extends Controller
                 }
             }
 
-            // (B) целое + 2 цифры
+            // (B) «целое + любые 2 цифры» рядом
             if (preg_match_all('/\b(\d{1,6})\D{0,3}(\d{2})\b/u', $text, $mb)) {
                 foreach ($mb[1] as $i => $int) {
                     $v = (int)$int + ((int)$mb[2][$i]) / 100.0;
@@ -719,8 +749,8 @@ class ScanController extends Controller
                 }
             }
 
-            // (C) 4–6 цифр → ÷100, только если (A)/(B) пусты
-            if (empty($cands)) {
+            // (C) 4–6 цифр слитно → ÷100 (ТОЛЬКО если целая часть в основной группе короткая)
+            if (empty($cands) && $digitsInGroup <= 3) {
                 if (preg_match_all('/\b(\d{4,6})\b/u', $text, $mc)) {
                     foreach ($mc[1] as $rawNum) {
                         $v = ((int)$rawNum) / 100.0;
@@ -731,6 +761,7 @@ class ScanController extends Controller
 
             if (!$cands) return null;
 
+            // Скоринг кандидатов: бонус .99, штраф «все шестерки», штраф за слишком малое значение
             $expectIntDigits = max(0, min(6, $digitsInGroup));
             $bestV = null; $bestScore = -INF;
 
@@ -746,11 +777,11 @@ class ScanController extends Controller
                     if ($ratio6 >= 0.7) $score *= 0.45; // «666.66»
                 }
 
-                // гасим 1.09, если ожидаем минимум 2–3 цифры в целой части
+                // Если ожидаем ≥2–3 цифры в целой части, а значение слишком малое — штраф (ловим 1.09 вместо 109.99)
                 if ($v < 10 && $expectIntDigits >= 2)  $score *= 0.25;
                 if ($v < 100 && $expectIntDigits >= 3) $score *= 0.35;
 
-                // лёгкий бонус за «крупнее»
+                // Лёгкий бонус за большее число (помогает 99.99 победить 9.99)
                 $score += min(0.4, log10(max($v, 1.0)) * 0.15);
 
                 return $score;
@@ -767,6 +798,7 @@ class ScanController extends Controller
             return null;
         }
     }
+
 
     /**
      * Узкий ROI справа-сверху от основной цены для вычитки копеек (2 цифры)
