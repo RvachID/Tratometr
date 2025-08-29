@@ -188,8 +188,11 @@ class ScanController extends Controller
         // Если внутри уже есть копейки — готово
         if ($main['hasCents']) return $main['val'];
 
-        // --- НОВОЕ: кропаем область цены и перепроверяем «X.XX» только по кропу
-        $refined = $this->refinePriceFromCrop($imagePath, $main['bbox']);
+        // оценим сколько цифр реально в основной группе (по raw)
+        $digitsInGroup = preg_match_all('~\d~', (string)$main['raw']);
+
+        // КРОП и перепроверка только по цене (учитывая ожидаемую длину целой части)
+        $refined = $this->refinePriceFromCrop($imagePath, $main['bbox'], $digitsInGroup);
         if ($refined !== null) return $refined;
 
         // «307%» как артефакт верстки — считаем .99
@@ -744,100 +747,130 @@ class ScanController extends Controller
     }
 
     /**
-     * Делает кроп вокруг основной цены (с захватом копеек справа-сверху),
-     * локально усиливает контраст и повторно запускает OCR только на этом фрагменте.
-     * Возвращает число X.XX если удалось извлечь; иначе null.
+     * Кроп вокруг основной цены и повторный OCR только на этом участке.
+     * Делает несколько извлечений и выбирает лучший кандидат по скорингу.
+     * $digitsInGroup — сколько цифр мы увидели в основной группе Overlay (ожидание длины целой части).
      */
-    private function refinePriceFromCrop(string $imagePath, array $mainBbox): ?float
+    private function refinePriceFromCrop(string $imagePath, array $mainBbox, int $digitsInGroup = 0): ?float
     {
         try {
             $im = new \Imagick($imagePath);
             $im->autoOrient();
-
             $W = $im->getImageWidth();
             $H = $im->getImageHeight();
 
-            $L = (int)$mainBbox['L'];
-            $T = (int)$mainBbox['T'];
-            $Wg= (int)$mainBbox['W'];
-            $Hg= (int)$mainBbox['H'];
+            $L  = (int)$mainBbox['L'];
+            $T  = (int)$mainBbox['T'];
+            $Wg = (int)$mainBbox['W'];
+            $Hg = (int)$mainBbox['H'];
 
-            // --- Расширяем окно: берём всю основную цену + область копеек справа-сверху
-            // слева/сверху небольшой отступ, вправо сильно шире, вниз чуть-чуть
-            $padL = (int)round($Wg * 0.08);
-            $padT = (int)round($Hg * 0.15);
-            $padR = (int)round($Wg * 1.20);   // главное — захватить «99»
-            $padB = (int)round($Hg * 0.25);
+            // Увеличил левую «полку», чтобы не терять первый разряд
+            $padL = max((int)round($Wg * 0.30), 28);
+            $padT = max((int)round($Hg * 0.18), 12);
+            $padR = max((int)round($Wg * 1.35), 60); // захват зоны копеек
+            $padB = max((int)round($Hg * 0.25), 14);
 
             $x = max(0, $L - $padL);
             $y = max(0, $T - $padT);
             $w = min($W - $x, $Wg + $padL + $padR);
             $h = min($H - $y, $Hg + $padT + $padB);
-
             if ($w < 24 || $h < 24) return null;
 
             $crop = clone $im;
             $crop->cropImage($w, $h, $x, $y);
             $crop->setImagePage(0,0,0,0);
 
-            // --- Локальная обработка только для кропа
-            // 1) апскейл для OCR
+            // Локальная обработка (аккуратная, без пережога)
             $crop->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
-            // 2) легкая нормализация уровней/контраст, не «пережечь»
             $crop->normalizeImage();
-            $crop->modulateImage(100, 110, 100);    // +немного насыщенности
+            $crop->modulateImage(100, 110, 100);
             $crop->unsharpMaskImage(0.6, 0.6, 1.2, 0.02);
-            // 3) мягкая бинаризация (улучшает мелкие "99")
-            $crop->setImageColorspace(\Imagick::COLORSPACE_GRAY);
-            $crop->adaptiveThresholdImage(255, 25, 25); // win-параметры под мелкий шрифт
-            // сохраняем во временный файл
+
+            // Сохраняем как JPEG
             $crop->setImageFormat('jpeg');
             $crop->setImageCompressionQuality(92);
-
             $tmp = \Yii::getAlias('@runtime/' . uniqid('price_roi_', true) . '.jpg');
             $crop->writeImage($tmp);
             $crop->clear(); $crop->destroy();
             $im->clear();   $im->destroy();
 
-            // --- Второй OCR только по кропу
+            // OCR по кропу (клиент сам перепробует eng→rus и движки при необходимости)
             $raw = \Yii::$app->ocr->parseImage($tmp, ['eng','rus'], [
                 'isOverlayRequired' => true,
                 'scale'             => true,
                 'detectOrientation' => true,
-                'OCREngine'         => 2, // сначала 2, внутри клиента упадёт на 1 при надобности
+                'OCREngine'         => 2,
             ]);
             @unlink($tmp);
 
             $res  = $raw['ParsedResults'][0] ?? [];
             $text = (string)($res['ParsedText'] ?? '');
 
-            // Прямые X.XX — приоритет
-            if (preg_match_all('/\b\d+(?:[.,]\d{2})\b/u', $text, $m)) {
-                $best = 0.0;
-                foreach ($m[0] as $s) {
+            // --- собираем кандидатов
+            $cands = [];
+
+            // (A) Явные десятичные X.XX
+            if (preg_match_all('/\b\d+(?:[.,]\d{2})\b/u', $text, $ma)) {
+                foreach ($ma[0] as $s) {
                     $v = (float)str_replace(',', '.', $s);
-                    if ($v > $best && $v < 100000) $best = $v;
+                    if ($v > 0 && $v < 100000) $cands[] = $v;
                 }
-                if ($best > 0) return $best;
             }
 
-            // «целое + маленькие 2 цифры» с пробелом/шумом
-            if (preg_match('/\b(\d{1,5})\D{0,3}(\d{2})\b/u', $text, $m2)) {
-                $v = (int)$m2[1] + ((int)$m2[2])/100.0;
-                if ($v > 0 && $v < 100000) return $v;
+            // (B) «целое + любые 2 цифры» рядом
+            if (preg_match_all('/\b(\d{1,6})\D{0,3}(\d{2})\b/u', $text, $mb)) {
+                foreach ($mb[1] as $i => $int) {
+                    $v = (int)$int + ((int)$mb[2][$i]) / 100.0;
+                    if ($v > 0 && $v < 100000) $cands[] = $v;
+                }
             }
 
-            // Слитно 4–6 цифр (типа 30799) — делим на 100
-            if (preg_match('/\b(\d{4,6})\b/u', $text, $m3)) {
-                $v = ((int)$m3[1]) / 100.0;
-                if ($v > 0 && $v < 100000) return $v;
+            // (C) Слитно 4–6 цифр — делим на 100 (но только если (A)/(B) не дали кандидатов)
+            if (empty($cands)) {
+                if (preg_match_all('/\b(\d{4,6})\b/u', $text, $mc)) {
+                    foreach ($mc[1] as $rawNum) {
+                        $v = ((int)$rawNum) / 100.0;
+                        if ($v > 0 && $v < 100000) $cands[] = $v;
+                    }
+                }
             }
 
-            return null;
+            if (!$cands) return null;
+
+            // --- скоринг кандидатов
+            $expectIntDigits = max(0, min(6, $digitsInGroup)); // из Overlay группы
+            $bestV = null; $bestScore = -INF;
+
+            foreach ($cands as $v) {
+                $score = 1.0;
+
+                // бонус за типичные .99/.95/.90
+                $frac = (int)round(($v - floor($v)) * 100);
+                if (in_array($frac, [99,95,90,89], true)) $score += 0.6;
+
+                // штраф «все шестерки»
+                $sDigits = preg_replace('/\D/','', number_format($v, 2, '.', ''));
+                if ($sDigits !== '') {
+                    $ratio6 = substr_count($sDigits, '6') / strlen($sDigits);
+                    if ($ratio6 >= 0.7) $score *= 0.45;
+                }
+
+                // если ожидаем 2–3 цифры слева, а число < 10 — жёсткий штраф (ловим 1.09 вместо 109.99)
+                if ($v < 10 && $expectIntDigits >= 2) $score *= 0.25;
+                if ($v < 100 && $expectIntDigits >= 3) $score *= 0.35;
+
+                // лёгкий бонус за «покрупнее» значение
+                $score += min(0.4, log10(max($v, 1.0)) * 0.15);
+
+                if ($score > $bestScore) { $bestScore = $score; $bestV = $v; }
+            }
+
+            return $bestV ?? null;
         } catch (\Throwable $e) {
             \Yii::warning('refinePriceFromCrop failed: '.$e->getMessage(), __METHOD__);
             return null;
         }
     }
+
 
 }
