@@ -89,7 +89,7 @@ class ScanController extends Controller
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
         if (!$lines || !is_array($lines)) return null;
 
-        // --- Собираем токены из Overlay
+        // Токены (сразу отбрасываем зачёркнутые)
         $tokens = [];
         foreach ($lines as $ln) {
             foreach (($ln['Words'] ?? []) as $w) {
@@ -110,14 +110,14 @@ class ScanController extends Controller
         }
         if (!$tokens) return null;
 
-        // --- Сортировка «строкой»
+        // Сортировка «строкой»
         usort($tokens, function($a,$b){
             $dy = $a['T'] - $b['T'];
             if (abs($dy) > 8) return $dy;
             return $a['L'] <=> $b['L'];
         });
 
-        // --- Группировка по строкам с антисклейкой «99»
+        // Группировка по строкам (антисклейка «99»)
         $groups = [];
         $cur = []; $curTop = null; $curBaseH = 0;
         $isNumLike = fn($t) => $t !== '' && preg_match('~^[\d.,\s]+$~u', $t) && preg_match('~\d~', $t);
@@ -179,30 +179,27 @@ class ScanController extends Controller
 
         if (!$groups) return null;
 
-        // --- Выбираем «главную» группу
+        // Выбор главной группы
         usort($groups, fn($a,$b) => $b['score'] <=> $a['score']);
         $main = null;
         foreach ($groups as $g) { if ($g['val'] !== null) { $main = $g; break; } }
         if (!$main) return null;
 
-        // Если внутри уже есть копейки — готово
         if ($main['hasCents']) return $main['val'];
 
-        // оценим сколько цифр реально в основной группе (по raw)
+        // Кроп-рефайн строго вокруг цены (учитываем ожидаемую длину целой части)
         $digitsInGroup = preg_match_all('~\d~', (string)$main['raw']);
-
-        // КРОП и перепроверка только по цене (учитывая ожидаемую длину целой части)
         $refined = $this->refinePriceFromCrop($imagePath, $main['bbox'], $digitsInGroup);
         if ($refined !== null) return $refined;
 
-        // «307%» как артефакт верстки — считаем .99
+        // «307%» внутри группы → .99
         foreach ($main['tokens'] as $tk) {
             if (!empty($tk['hasPct'])) {
                 return floor($main['val']) + 0.99;
             }
         }
 
-        // ROI: отдельный хвостик «копеек»
+        // ROI: мелкие копейки справа-сверху
         $bbox = [
             'left'   => $main['bbox']['L'],
             'top'    => $main['bbox']['T'],
@@ -214,11 +211,9 @@ class ScanController extends Controller
             return floor($main['val']) + min(99, max(0, (int)$cents))/100.0;
         }
 
-        // Не нашли копейки — отдаём целую часть
+        // Нет копеек — возвращаем целую часть
         return $main['val'];
     }
-
-
 
     /**
      * Пробуем вычитать копейки из маленького «хвоста» справа от основной цены.
@@ -370,14 +365,6 @@ class ScanController extends Controller
      */
     private function extractAmount(string $text): float
     {
-        // Кейс "307%" → 307.99
-        if (preg_match_all('/\b(\d{3,6})\s*%/u', $text, $mp)) {
-            foreach ($mp[1] as $s) {
-                $n = (int)$s;
-                if ($n >= 100 && $n <= 999999) return floor($n) + 0.99;
-            }
-        }
-
         // Нормализация
         $text = str_replace(["\xC2\xA0", ' ', '﻿'], ' ', $text);
         $tmp  = preg_replace('/(?<=\d)[\s,\.·•](?=\d{2}\b)/u', '#', $text);
@@ -385,7 +372,7 @@ class ScanController extends Controller
         $tmp  = preg_replace('/(?<=\d)\s+(?=\d)/u', '', $tmp);
         $normalized = str_replace('#', '.', $tmp);
 
-        // (1) Явные десятичные — но выбираем по score, чтобы не брать "99.45"
+        // (1) Явные десятичные — выбираем по скорингу (штраф «перевёртышам»)
         if (preg_match_all('/\d+(?:\.\d{1,2})/', $normalized, $m1)) {
             $best = 0.0; $bestScore = 0.0;
             foreach ($m1[0] as $s) {
@@ -394,15 +381,15 @@ class ScanController extends Controller
 
                 $frac  = (int)round(($v - floor($v)) * 100);
                 $score = 1.0;
-
-                // Частые дроби цен: 99/95/90/89 — бонус
                 if (in_array($frac, [99,95,90,89], true)) $score *= 1.25;
-
-                // Если в тексте вообще встречаются 3+ значные числа и текущая целая часть < 100 — штраф (перевёртыш)
                 if ($v < 100 && preg_match('~\b\d{3,}\b~', $normalized)) $score *= 0.6;
 
-                // Рядом встречается валюта — небольшой бонус
-                if (preg_match('~RSD|DIN|КОМ~ui', $text)) $score *= 1.05;
+                // штраф «все шестерки»
+                $sDigits = preg_replace('/\D/','', number_format($v, 2, '.', ''));
+                if ($sDigits !== '') {
+                    $ratio6 = substr_count($sDigits, '6') / strlen($sDigits);
+                    if ($ratio6 >= 0.7) $score *= 0.45;
+                }
 
                 if ($score > $bestScore || ($score === $bestScore && $v > $best)) {
                     $best = $v; $bestScore = $score;
@@ -411,7 +398,7 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        // (2) «целое + 2 цифры» без явной точки/запятой
+        // (2) «целое + 2 цифры»
         if (preg_match_all('/\b(\d{1,5})\b(?:\s{0,3}[.,]?)\s*(\d{2})\b/u', $text, $m2)) {
             $best = 0.0;
             foreach ($m2[1] as $i => $int) {
@@ -422,7 +409,7 @@ class ScanController extends Controller
             if ($best > 0) return $best;
         }
 
-        // (3) Делим 4–6 цифр на 100 ТОЛЬКО если нет «целое+две цифры» рядом
+        // (3) Делить 4–6 цифр на 100 — только если нет пары «целое+две»
         if (!preg_match('/\b\d{1,5}\D{0,3}\d{2}\b/u', $normalized)) {
             if (preg_match_all('/\b(\d{4,6})\b/u', $normalized, $m3)) {
                 $best = 0.0;
@@ -434,7 +421,7 @@ class ScanController extends Controller
             }
         }
 
-        // (4) Последний шанс — максимальное целое разумного размера
+        // (4) Последний шанс — максимум целое разумного размера
         if (preg_match_all('/\b(\d{1,5})\b/u', $normalized, $m4)) {
             $best = 0.0;
             foreach ($m4[1] as $raw) {
@@ -446,7 +433,6 @@ class ScanController extends Controller
 
         return 0.0;
     }
-
 
     /**
      * Предобработка изображения: ресайз, ч/б, контраст
@@ -566,9 +552,6 @@ class ScanController extends Controller
 
                 $cleanText = $this->stripStrikethroughText($recognized, $recognized['ParsedText'] ?? '');
                 $amount = $this->extractAmount($cleanText);
-
-                // Крайний случай — строковый парсер
-                $amount = $this->extractAmount($recognized['ParsedText'] ?? '');
                 if (!$amount) {
                     return ['error' => 'no_amount', 'reason' => 'no_amount', 'recognized' => $recognized];
                 }
@@ -875,19 +858,32 @@ class ScanController extends Controller
         }
     }
 
+    /** Удаляет из ParsedText все слова, помеченные в Overlay как IsStrikethrough=true */
     private function stripStrikethroughText(array $recognized, string $parsedText): string
     {
-        if (empty($recognized['TextOverlay']['Lines'])) return $parsedText;
+        if (empty($recognized['TextOverlay']['Lines']) || $parsedText === '') return $parsedText;
 
+        // Собираем список зачёркнутых слов (как есть и с «очисткой» пробелов)
+        $needles = [];
         foreach ($recognized['TextOverlay']['Lines'] as $ln) {
             foreach (($ln['Words'] ?? []) as $w) {
                 if (!empty($w['IsStrikethrough']) && !empty($w['WordText'])) {
-                    $txt = preg_quote($w['WordText'], '/');
-                    $parsedText = preg_replace('/\b'.$txt.'\b/u', '', $parsedText);
+                    $t = trim((string)$w['WordText']);
+                    if ($t !== '') $needles[$t] = true;
                 }
             }
         }
-        return $parsedText;
+        if (!$needles) return $parsedText;
+
+        // Вырезаем их из общего текста как отдельные «слова»
+        foreach (array_keys($needles) as $t) {
+            $q = preg_quote($t, '/');
+            $parsedText = preg_replace('/\b'.$q.'\b/u', ' ', $parsedText);
+        }
+        // нормализуем пробелы
+        $parsedText = preg_replace('/\s{2,}/u', ' ', $parsedText);
+        return trim($parsedText);
     }
+
 
 }
