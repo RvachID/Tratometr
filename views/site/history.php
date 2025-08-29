@@ -46,7 +46,7 @@ function rowValueAndLabel(array $r): array
 
 ?>
 <div class="container mt-3">
-    <h1 class="h4 mb-3">📜 История</h1>
+    <h1 class="h4 mb-3">📝 История</h1>
 
     <!-- ≥ sm: таблица -->
     <div class="d-none d-sm-block">
