@@ -216,97 +216,6 @@ class ScanController extends Controller
     }
 
     /**
-     * Пробуем вычитать копейки из маленького «хвоста» справа от основной цены.
-     * Возвращает 0..99 или null.
-     */
-    private function tryFindCentsViaRoi(string $imagePath, array $bbox): ?int
-    {
-        try {
-            $im = new \Imagick($imagePath);
-            $im->autoOrient();
-
-            $W = $im->getImageWidth();
-            $H = $im->getImageHeight();
-
-            $L  = (int)$bbox['left'];
-            $T  = (int)$bbox['top'];
-            $Wg = (int)$bbox['width'];
-            $Hg = (int)$bbox['height'];
-
-            // ROI справа-вверх от большой цены
-            $x = (int)round($L + $Wg * 1.02);
-            $y = (int)round($T - $Hg * 0.25);
-            $w = (int)round(max($Wg * 0.60, 40));
-            $h = (int)round(max($Hg * 0.90, 32));
-
-            $x = max(0, min($x, $W - 1));
-            $y = max(0, min($y, $H - 1));
-            if ($x + $w > $W) $w = $W - $x;
-            if ($y + $h > $H) $h = $H - $y;
-            if ($w < 16 || $h < 16) return null;
-
-            $roi = clone $im;
-            $roi->cropImage($w, $h, $x, $y);
-            $roi->setImagePage(0,0,0,0);
-
-            // Усиление для мелкого текста (только в ROI!)
-            $roi->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
-            $roi->modulateImage(100, 120, 100);   // немного насыщенности
-            $roi->normalizeImage();                // авто-нормализация уровней
-            $roi->adaptiveSharpenImage(1, 0.8);    // аккуратная резкость
-            $roi->setImageFormat('jpeg');
-            $roi->setImageCompressionQuality(92);
-
-            $tmp = \Yii::getAlias('@runtime/' . uniqid('roi_', true) . '.jpg');
-            $roi->writeImage($tmp);
-            $roi->clear(); $roi->destroy();
-            $im->clear();  $im->destroy();
-
-            // Второй проход по ROI: движок 1, ENG
-            $raw = \Yii::$app->ocr->parseImage($tmp, 'eng', [
-                'isOverlayRequired' => true,
-                'scale'             => true,
-                'detectOrientation' => true,
-                'OCREngine'         => 1,
-            ]);
-            @unlink($tmp);
-
-            $res  = $raw['ParsedResults'][0] ?? [];
-            $text = (string)($res['ParsedText'] ?? '');
-
-            if (strpos($text, '%') !== false) return 99;
-
-            if (preg_match('/\b(\d{2})\b/u', $text, $m)) {
-                $c = (int)$m[1];
-                if ($c >= 0 && $c <= 99) return $c;
-            }
-
-            $best = null;
-            if (!empty($res['TextOverlay']['Lines'])) {
-                foreach ($res['TextOverlay']['Lines'] as $ln) {
-                    foreach (($ln['Words'] ?? []) as $w) {
-                        $t = preg_replace('~\D+~u', '', (string)($w['WordText'] ?? ''));
-                        if ($t === '') continue;
-                        if (strlen($t) <= 2) {
-                            $c = (int)$t;
-                            if ($c >= 0 && $c <= 99) {
-                                if (strlen($t) === 2) return $c;
-                                $best = $c; // одна цифра → ~90
-                            }
-                        }
-                    }
-                }
-            }
-            if ($best !== null) return $best * 10;
-
-            return null;
-        } catch (\Throwable $e) {
-            \Yii::warning('ROI cents OCR failed: '.$e->getMessage(), __METHOD__);
-            return null;
-        }
-    }
-
-    /**
      * Нормализуем «числовое» слово из OCR в float.
      * Чиним: '449 99' / '449,99' / '449·99' / '1 299,90' / '44999' → 449.99.
      * Отсекаем проценты/дроби, мусор и нереалистичные значения.
@@ -351,7 +260,6 @@ class ScanController extends Controller
 
         return null;
     }
-
 
     /**
      * Умный разбор суммы из распознанного текста.
@@ -734,8 +642,9 @@ class ScanController extends Controller
 
     /**
      * Кроп вокруг основной цены и повторный OCR только на этом участке.
-     * Делает несколько извлечений и выбирает лучший кандидат по скорингу.
-     * $digitsInGroup — сколько цифр мы увидели в основной группе Overlay (ожидание длины целой части).
+     * Делает извлечение кандидатов (X.XX / "целое+две" / 4–6 цифр ÷100),
+     * вычищает зачёркнутые слова из текста кропа и выбирает лучший по скору.
+     * $digitsInGroup — сколько цифр нашли в основной группе Overlay (ожидаемая длина целой части).
      */
     private function refinePriceFromCrop(string $imagePath, array $mainBbox, int $digitsInGroup = 0): ?float
     {
@@ -750,10 +659,10 @@ class ScanController extends Controller
             $Wg = (int)$mainBbox['W'];
             $Hg = (int)$mainBbox['H'];
 
-            // Увеличил левую «полку», чтобы не терять первый разряд
+            // Увеличенный левый паддинг — чтобы не терять первый разряд
             $padL = max((int)round($Wg * 0.30), 28);
             $padT = max((int)round($Hg * 0.18), 12);
-            $padR = max((int)round($Wg * 1.35), 60); // захват зоны копеек
+            $padR = max((int)round($Wg * 1.35), 60); // хвост копеек
             $padB = max((int)round($Hg * 0.25), 14);
 
             $x = max(0, $L - $padL);
@@ -766,13 +675,12 @@ class ScanController extends Controller
             $crop->cropImage($w, $h, $x, $y);
             $crop->setImagePage(0,0,0,0);
 
-            // Локальная обработка (аккуратная, без пережога)
+            // Аккуратная локальная обработка
             $crop->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
             $crop->normalizeImage();
             $crop->modulateImage(100, 110, 100);
             $crop->unsharpMaskImage(0.6, 0.6, 1.2, 0.02);
 
-            // Сохраняем как JPEG
             $crop->setImageFormat('jpeg');
             $crop->setImageCompressionQuality(92);
             $tmp = \Yii::getAlias('@runtime/' . uniqid('price_roi_', true) . '.jpg');
@@ -780,7 +688,7 @@ class ScanController extends Controller
             $crop->clear(); $crop->destroy();
             $im->clear();   $im->destroy();
 
-            // OCR по кропу (клиент сам перепробует eng→rus и движки при необходимости)
+            // OCR только по кропу (клиент сам фолбечит по языкам/движкам)
             $raw = \Yii::$app->ocr->parseImage($tmp, ['eng','rus'], [
                 'isOverlayRequired' => true,
                 'scale'             => true,
@@ -789,13 +697,15 @@ class ScanController extends Controller
             ]);
             @unlink($tmp);
 
-            $res  = $raw['ParsedResults'][0] ?? [];
-            $text = (string)($res['ParsedText'] ?? '');
+            $res   = $raw['ParsedResults'][0] ?? [];
+            $text0 = (string)($res['ParsedText'] ?? '');
+            // Вырезаем зачёркнутые слова, если они попали в кроп
+            $text  = $this->stripStrikethroughText(['TextOverlay' => $res['TextOverlay'] ?? []], $text0);
 
-            // --- собираем кандидатов
+            // Собираем кандидатов
             $cands = [];
 
-            // (A) Явные десятичные X.XX
+            // (A) Явные X.XX
             if (preg_match_all('/\b\d+(?:[.,]\d{2})\b/u', $text, $ma)) {
                 foreach ($ma[0] as $s) {
                     $v = (float)str_replace(',', '.', $s);
@@ -811,7 +721,7 @@ class ScanController extends Controller
                 }
             }
 
-            // (C) Слитно 4–6 цифр — делим на 100 (но только если (A)/(B) не дали кандидатов)
+            // (C) 4–6 цифр слитно → ÷100 (только если (A)/(B) ничего не дали)
             if (empty($cands)) {
                 if (preg_match_all('/\b(\d{4,6})\b/u', $text, $mc)) {
                     foreach ($mc[1] as $rawNum) {
@@ -823,37 +733,136 @@ class ScanController extends Controller
 
             if (!$cands) return null;
 
-            // --- скоринг кандидатов
-            $expectIntDigits = max(0, min(6, $digitsInGroup)); // из Overlay группы
+            // Скоринг кандидатов: бонус .99, штраф «все шестерки», штраф за слишком малое значение
+            $expectIntDigits = max(0, min(6, $digitsInGroup));
             $bestV = null; $bestScore = -INF;
 
-            foreach ($cands as $v) {
+            $scoreOf = function(float $v) use ($expectIntDigits): float {
                 $score = 1.0;
 
-                // бонус за типичные .99/.95/.90
                 $frac = (int)round(($v - floor($v)) * 100);
                 if (in_array($frac, [99,95,90,89], true)) $score += 0.6;
 
-                // штраф «все шестерки»
                 $sDigits = preg_replace('/\D/','', number_format($v, 2, '.', ''));
                 if ($sDigits !== '') {
                     $ratio6 = substr_count($sDigits, '6') / strlen($sDigits);
-                    if ($ratio6 >= 0.7) $score *= 0.45;
+                    if ($ratio6 >= 0.7) $score *= 0.45; // «666.66»
                 }
 
-                // если ожидаем 2–3 цифры слева, а число < 10 — жёсткий штраф (ловим 1.09 вместо 109.99)
-                if ($v < 10 && $expectIntDigits >= 2) $score *= 0.25;
+                // Если ожидаем ≥2–3 цифры в целой части, а значение слишком малое — штраф (ловим 1.09 вместо 109.99)
+                if ($v < 10 && $expectIntDigits >= 2)  $score *= 0.25;
                 if ($v < 100 && $expectIntDigits >= 3) $score *= 0.35;
 
-                // лёгкий бонус за «покрупнее» значение
+                // Лёгкий бонус за большее число (помогает 99.99 победить 9.99)
                 $score += min(0.4, log10(max($v, 1.0)) * 0.15);
 
-                if ($score > $bestScore) { $bestScore = $score; $bestV = $v; }
+                return $score;
+            };
+
+            foreach ($cands as $v) {
+                $sc = $scoreOf($v);
+                if ($sc > $bestScore) { $bestScore = $sc; $bestV = $v; }
             }
 
             return $bestV ?? null;
         } catch (\Throwable $e) {
             \Yii::warning('refinePriceFromCrop failed: '.$e->getMessage(), __METHOD__);
+            return null;
+        }
+    }
+
+    /**
+     * Узкий ROI справа-сверху от основной цены для вычитки двух цифр «копеек».
+     * Игнорирует зачёркнутые слова в Overlay результата ROI.
+     */
+    private function tryFindCentsViaRoi(string $imagePath, array $bbox): ?int
+    {
+        try {
+            $im = new \Imagick($imagePath);
+            $im->autoOrient();
+
+            $W = $im->getImageWidth();
+            $H = $im->getImageHeight();
+
+            $L  = (int)$bbox['left'];
+            $T  = (int)$bbox['top'];
+            $Wg = (int)$bbox['width'];
+            $Hg = (int)$bbox['height'];
+
+            // Узкий «хвостик» копеек
+            $x = (int)round($L + $Wg * 1.02);
+            $y = (int)round($T - $Hg * 0.25);
+            $w = (int)round(max($Wg * 0.60, 40));
+            $h = (int)round(max($Hg * 0.90, 32));
+
+            $x = max(0, min($x, $W - 1));
+            $y = max(0, min($y, $H - 1));
+            if ($x + $w > $W) $w = $W - $x;
+            if ($y + $h > $H) $h = $H - $y;
+            if ($w < 16 || $h < 16) return null;
+
+            $roi = clone $im;
+            $roi->cropImage($w, $h, $x, $y);
+            $roi->setImagePage(0,0,0,0);
+
+            // Локальная обработка для мелкого текста
+            $roi->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
+            $roi->normalizeImage();
+            $roi->modulateImage(100, 120, 100);
+            $roi->adaptiveSharpenImage(1, 0.8);
+
+            $roi->setImageFormat('jpeg');
+            $roi->setImageCompressionQuality(92);
+            $tmp = \Yii::getAlias('@runtime/' . uniqid('roi_', true) . '.jpg');
+            $roi->writeImage($tmp);
+            $roi->clear(); $roi->destroy();
+            $im->clear();  $im->destroy();
+
+            // OCR по ROI (движок 1 любит «дробить» мелкие цифры)
+            $raw = \Yii::$app->ocr->parseImage($tmp, ['eng','rus'], [
+                'isOverlayRequired' => true,
+                'scale'             => true,
+                'detectOrientation' => true,
+                'OCREngine'         => 1,
+            ]);
+            @unlink($tmp);
+
+            $res   = $raw['ParsedResults'][0] ?? [];
+            $text0 = (string)($res['ParsedText'] ?? '');
+            // Убираем зачёркнутые токены из текста ROI
+            $text  = $this->stripStrikethroughText(['TextOverlay' => $res['TextOverlay'] ?? []], $text0);
+
+            // % в ROI → 99 копеек
+            if (strpos($text, '%') !== false) return 99;
+
+            // Пробуем найти две цифры словом
+            if (preg_match('/\b(\d{2})\b/u', $text, $m)) {
+                $c = (int)$m[1];
+                if ($c >= 0 && $c <= 99) return $c;
+            }
+
+            // По Overlay ROI — короткие цифровые токены
+            if (!empty($res['TextOverlay']['Lines'])) {
+                $best = null;
+                foreach ($res['TextOverlay']['Lines'] as $ln) {
+                    foreach (($ln['Words'] ?? []) as $w) {
+                        if (!empty($w['IsStrikethrough'])) continue; // игнор зачёркнутого
+                        $t = preg_replace('~\D+~u', '', (string)($w['WordText'] ?? ''));
+                        if ($t === '') continue;
+
+                        if (strlen($t) === 2) {
+                            $c = (int)$t; if ($c >= 0 && $c <= 99) return $c;
+                        } elseif (strlen($t) === 1) {
+                            $best = max($best ?? 0, (int)$t); // одна цифра — как десятки
+                        }
+                    }
+                }
+                if ($best !== null) return min(99, $best * 10);
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            \Yii::warning('ROI cents OCR failed: '.$e->getMessage(), __METHOD__);
             return null;
         }
     }
