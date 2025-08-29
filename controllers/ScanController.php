@@ -89,7 +89,7 @@ class ScanController extends Controller
         $lines = $recognized['TextOverlay']['Lines'] ?? null;
         if (!$lines || !is_array($lines)) return null;
 
-        // 1) Собираем токены
+        // --- Собираем токены из Overlay
         $tokens = [];
         foreach ($lines as $ln) {
             foreach (($ln['Words'] ?? []) as $w) {
@@ -110,17 +110,16 @@ class ScanController extends Controller
         }
         if (!$tokens) return null;
 
-        // 2) Сортировка «строкой»
+        // --- Сортировка «строкой»
         usort($tokens, function($a,$b){
             $dy = $a['T'] - $b['T'];
             if (abs($dy) > 8) return $dy;
             return $a['L'] <=> $b['L'];
         });
 
-        // 3) Группировка по строкам (не склеиваем мелкие «копейки»)
+        // --- Группировка по строкам с антисклейкой «99»
         $groups = [];
         $cur = []; $curTop = null; $curBaseH = 0;
-
         $isNumLike = fn($t) => $t !== '' && preg_match('~^[\d.,\s]+$~u', $t) && preg_match('~\d~', $t);
 
         $flush = function() use (&$cur, &$groups, &$curTop, &$curBaseH) {
@@ -139,9 +138,8 @@ class ScanController extends Controller
             $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
             $digits   = preg_match_all('~\d~', $raw);
 
-            // Cкоринг: площадь + бонус за высоту шрифта, штрафы за «мелочь»
             $score = (float)($W*$H);
-            $score *= (1.0 + min(1.0, $H / 48.0) * 0.35); // крупный шрифт — плюс
+            $score *= (1.0 + min(1.0, $H / 48.0) * 0.35);
             if ($hasCents) $score *= 1.35;
             if ($digits <= 2) $score *= 0.4;
             if ($val !== null && $val < 1.0) $score *= 0.3;
@@ -166,8 +164,8 @@ class ScanController extends Controller
             $sameBaseline = abs($tk['T'] - $curTop) <= max(6, (int)round(0.35 * $curBaseH));
             $prev  = $cur[count($cur)-1];
             $gapX  = $tk['L'] - $prev['R'];
-            $nearX = $gapX <= max(8, (int)round(0.40 * $curBaseH)); // чуть строже
-            $heightOk = ($tk['H'] / max(1,$curBaseH)) >= 0.92;      // не склеивать маленькие
+            $nearX = $gapX <= max(8, (int)round(0.40 * $curBaseH));
+            $heightOk = ($tk['H'] / max(1,$curBaseH)) >= 0.92;
 
             if ($sameBaseline && $nearX && $heightOk) {
                 $cur[] = $tk;
@@ -181,23 +179,27 @@ class ScanController extends Controller
 
         if (!$groups) return null;
 
-        // 4) Выбор лучшей группы
+        // --- Выбираем «главную» группу
         usort($groups, fn($a,$b) => $b['score'] <=> $a['score']);
         $main = null;
         foreach ($groups as $g) { if ($g['val'] !== null) { $main = $g; break; } }
         if (!$main) return null;
 
-        // 5) Если есть копейки в самой группе — готово
+        // Если внутри уже есть копейки — готово
         if ($main['hasCents']) return $main['val'];
 
-        // 6) «307%» → 307.99 (встречается как слитая разметка)
+        // --- НОВОЕ: кропаем область цены и перепроверяем «X.XX» только по кропу
+        $refined = $this->refinePriceFromCrop($imagePath, $main['bbox']);
+        if ($refined !== null) return $refined;
+
+        // «307%» как артефакт верстки — считаем .99
         foreach ($main['tokens'] as $tk) {
             if (!empty($tk['hasPct'])) {
                 return floor($main['val']) + 0.99;
             }
         }
 
-        // 7) ROI: ищем мелкие копейки справа-сверху
+        // ROI: отдельный хвостик «копеек»
         $bbox = [
             'left'   => $main['bbox']['L'],
             'top'    => $main['bbox']['T'],
@@ -206,12 +208,14 @@ class ScanController extends Controller
         ];
         $cents = $this->tryFindCentsViaRoi($imagePath, $bbox);
         if ($cents !== null) {
-            return floor($main['val']) + min(99, max(0, (int)$cents)) / 100.0;
+            return floor($main['val']) + min(99, max(0, (int)$cents))/100.0;
         }
 
-        // 8) Нет копеек — возвращаем целую часть как есть (без строкового парсера)
+        // Не нашли копейки — отдаём целую часть
         return $main['val'];
     }
+
+
 
     /**
      * Пробуем вычитать копейки из маленького «хвоста» справа от основной цены.
@@ -739,5 +743,101 @@ class ScanController extends Controller
         return ['success' => true, 'total' => number_format($total, 2, '.', '')];
     }
 
+    /**
+     * Делает кроп вокруг основной цены (с захватом копеек справа-сверху),
+     * локально усиливает контраст и повторно запускает OCR только на этом фрагменте.
+     * Возвращает число X.XX если удалось извлечь; иначе null.
+     */
+    private function refinePriceFromCrop(string $imagePath, array $mainBbox): ?float
+    {
+        try {
+            $im = new \Imagick($imagePath);
+            $im->autoOrient();
+
+            $W = $im->getImageWidth();
+            $H = $im->getImageHeight();
+
+            $L = (int)$mainBbox['L'];
+            $T = (int)$mainBbox['T'];
+            $Wg= (int)$mainBbox['W'];
+            $Hg= (int)$mainBbox['H'];
+
+            // --- Расширяем окно: берём всю основную цену + область копеек справа-сверху
+            // слева/сверху небольшой отступ, вправо сильно шире, вниз чуть-чуть
+            $padL = (int)round($Wg * 0.08);
+            $padT = (int)round($Hg * 0.15);
+            $padR = (int)round($Wg * 1.20);   // главное — захватить «99»
+            $padB = (int)round($Hg * 0.25);
+
+            $x = max(0, $L - $padL);
+            $y = max(0, $T - $padT);
+            $w = min($W - $x, $Wg + $padL + $padR);
+            $h = min($H - $y, $Hg + $padT + $padB);
+
+            if ($w < 24 || $h < 24) return null;
+
+            $crop = clone $im;
+            $crop->cropImage($w, $h, $x, $y);
+            $crop->setImagePage(0,0,0,0);
+
+            // --- Локальная обработка только для кропа
+            // 1) апскейл для OCR
+            $crop->resizeImage($w * 3, 0, \Imagick::FILTER_LANCZOS, 1);
+            // 2) легкая нормализация уровней/контраст, не «пережечь»
+            $crop->normalizeImage();
+            $crop->modulateImage(100, 110, 100);    // +немного насыщенности
+            $crop->unsharpMaskImage(0.6, 0.6, 1.2, 0.02);
+            // 3) мягкая бинаризация (улучшает мелкие "99")
+            $crop->setImageColorspace(\Imagick::COLORSPACE_GRAY);
+            $crop->adaptiveThresholdImage(255, 25, 25); // win-параметры под мелкий шрифт
+            // сохраняем во временный файл
+            $crop->setImageFormat('jpeg');
+            $crop->setImageCompressionQuality(92);
+
+            $tmp = \Yii::getAlias('@runtime/' . uniqid('price_roi_', true) . '.jpg');
+            $crop->writeImage($tmp);
+            $crop->clear(); $crop->destroy();
+            $im->clear();   $im->destroy();
+
+            // --- Второй OCR только по кропу
+            $raw = \Yii::$app->ocr->parseImage($tmp, ['eng','rus'], [
+                'isOverlayRequired' => true,
+                'scale'             => true,
+                'detectOrientation' => true,
+                'OCREngine'         => 2, // сначала 2, внутри клиента упадёт на 1 при надобности
+            ]);
+            @unlink($tmp);
+
+            $res  = $raw['ParsedResults'][0] ?? [];
+            $text = (string)($res['ParsedText'] ?? '');
+
+            // Прямые X.XX — приоритет
+            if (preg_match_all('/\b\d+(?:[.,]\d{2})\b/u', $text, $m)) {
+                $best = 0.0;
+                foreach ($m[0] as $s) {
+                    $v = (float)str_replace(',', '.', $s);
+                    if ($v > $best && $v < 100000) $best = $v;
+                }
+                if ($best > 0) return $best;
+            }
+
+            // «целое + маленькие 2 цифры» с пробелом/шумом
+            if (preg_match('/\b(\d{1,5})\D{0,3}(\d{2})\b/u', $text, $m2)) {
+                $v = (int)$m2[1] + ((int)$m2[2])/100.0;
+                if ($v > 0 && $v < 100000) return $v;
+            }
+
+            // Слитно 4–6 цифр (типа 30799) — делим на 100
+            if (preg_match('/\b(\d{4,6})\b/u', $text, $m3)) {
+                $v = ((int)$m3[1]) / 100.0;
+                if ($v > 0 && $v < 100000) return $v;
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            \Yii::warning('refinePriceFromCrop failed: '.$e->getMessage(), __METHOD__);
+            return null;
+        }
+    }
 
 }
