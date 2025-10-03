@@ -183,27 +183,21 @@ class SiteController extends Controller
             return ['ok' => false, 'error' => 'Укажите магазин'];
         }
 
-        // 1) Закрываем предыдущую активную (если была)
+        // Закрываем прежнюю активную (если была)
         Yii::$app->ps->closeActive($uid, 'begin-new');
 
-        // 2) Парсим лимит (рубли) — если у тебя есть parseMoney, используем её
+        // Парсим лимит (рубли)
         $limitRub = null;
         if ($limitStr !== '') {
             if (method_exists($this, 'parseMoney')) {
-                $v = $this->parseMoney($limitStr);
+                $limitRub = $this->parseMoney($limitStr);
             } else {
-                // простая подстраховка, если parseMoney нет
                 $v = (float)str_replace([',', ' '], ['.', ''], $limitStr);
-                if (!is_finite($v) || $v <= 0) {
-                    $v = null;
-                }
-            }
-            if ($v !== null) {
-                $limitRub = $v;
+                $limitRub = (is_finite($v) && $v > 0) ? round($v, 2) : null;
             }
         }
 
-        // 3) Старт новой сессии через сервис
+        // Старт новой
         $ps = Yii::$app->ps->begin(
             $uid,
             $store,
@@ -211,14 +205,13 @@ class SiteController extends Controller
             $limitRub
         );
 
-        // (опционально) положим id в сессию, если где-то читаешь из PHP-сессии
         Yii::$app->session->set('purchase_session_id', $ps->id);
 
         return [
             'ok'       => true,
             'store'    => $ps->shop,
             'category' => $ps->category,
-            'limit'    => $limitRub,   // рубли числом или null
+            'limit'    => $limitRub,
         ];
     }
 
@@ -232,30 +225,27 @@ class SiteController extends Controller
 
         /** @var \app\components\PurchaseSessionService $psService */
         $psService = Yii::$app->ps;
-        $session   = $psService->active($uid);
 
+        // Берём активную (автозакрытие по TTL уже встроено в active())
+        $session = $psService->active($uid);
         if (!$session) {
             Yii::$app->session->setFlash('warning', 'Активная сессия не найдена.');
             return $this->redirect(['site/index']);
         }
 
         try {
-            // Закрываем
             $psService->finalize($session, 'manual');
 
-            // Перечитываем уже закрытую строку (т.к. кэш-поля обновлялись в БД)
-            $fresh = \app\models\PurchaseSession::findOne($session->id);
-            if (!$fresh) {
-                Yii::$app->session->setFlash('error', 'Сессия закрыта, но не найдена при повторном чтении.');
-                return $this->redirect(['site/index']);
-            }
+            // перечитаем свежие кэш-поля после finalize()
+            $session->refresh();
 
-            $fmt      = Yii::$app->formatter;
-            $totalRub = $fmt->asDecimal(((int)$fresh->total_amount) / 100, 2);
+            $fmt = Yii::$app->formatter;
 
+            $totalRub = $fmt->asDecimal(((int)$session->total_amount) / 100, 2);
             $msg = "Сессия закрыта. Итог: {$totalRub}.";
-            if ($fresh->limit_amount !== null) {
-                $leftRub = $fmt->asDecimal(((int)$fresh->limit_left) / 100, 2);
+
+            if ($session->limit_amount !== null) {
+                $leftRub = $fmt->asDecimal(((int)$session->limit_left) / 100, 2);
                 $msg .= " Остаток по лимиту: {$leftRub}.";
             }
 
