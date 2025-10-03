@@ -9,7 +9,6 @@ if (is_file($secretsFile)) {
 return [
     'appName' => 'Тратометр',
     'version' => '0.7.3',
-    'maint_secret' => 'put-a-long-random-string-here',
     'ocr' => [
         'endpoint' => getenv('OCR_ENDPOINT') ?: ($localSecrets['OCR_ENDPOINT'] ?? 'https://api.ocr.space/parse/image'),
         'apiKey' => getenv('OCR_API_KEY') ?: ($localSecrets['OCR_API_KEY'] ?? null),
