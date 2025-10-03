@@ -2,6 +2,7 @@
 namespace app\components;
 
 use app\models\PurchaseSession;
+use app\models\PriceEntry;
 use Yii;
 use yii\base\Component;
 use yii\db\Expression;
@@ -9,16 +10,25 @@ use yii\db\Transaction;
 
 class PurchaseSessionService extends Component
 {
-    /** @var int через DI в config: 'autocloseSeconds' => 10800 */
+    /** TTL автозакрытия, по умолчанию 3 часа; можно переопределить в params['ps']['autocloseSeconds'] */
     public int $autocloseSeconds = 10800;
 
+    public function init(): void
+    {
+        parent::init();
+        $p = Yii::$app->params['ps']['autocloseSeconds'] ?? null;
+        if (is_int($p) && $p > 0) {
+            $this->autocloseSeconds = $p;
+        }
+    }
+
     /**
-     * Вернуть активную сессию пользователя.
-     * Если «протухла» (updated_at старше now - TTL) — автозакрываем (finalize) и возвращаем null.
+     * Вернуть активную сессию пользователя или null.
+     * Если «протухла» — аккуратно финализируем и вернём null.
+     * ВНИМАНИЕ: никаких вызовов Yii::$app->ps->active() внутри — только прямой запрос!
      */
     public function active(int $userId): ?PurchaseSession
     {
-        // 1) Берём активную сессию из БД (НИКАКИХ вызовов Yii::$app->ps->active() здесь!)
         $ps = PurchaseSession::find()
             ->where(['user_id' => $userId, 'status' => PurchaseSession::STATUS_ACTIVE])
             ->orderBy(['updated_at' => SORT_DESC])
@@ -29,93 +39,132 @@ class PurchaseSessionService extends Component
             return null;
         }
 
-        // 2) TTL-автозакрытие
-        $tooOld = ($ps->updated_at <= (time() - $this->autocloseSeconds));
-        if ($tooOld) {
-            // аккуратно финализируем и НЕ возвращаем сессию
-            $this->finalize($ps, 'auto-ttl');
+        if ($ps->updated_at <= (time() - $this->autocloseSeconds)) {
+            $this->finalize($ps, 'auto-ttl'); // закроем и больше её не вернём
             return null;
         }
 
         return $ps;
     }
 
-    /** Обновить updated_at у активной сессии (без автозакрытия). */
+    /**
+     * Последнее «движение» в сессии:
+     * - для закрытых: момент закрытия
+     * - для активных: max(created_at из price_entry) или updated_at, или started_at
+     */
+    public function lastActivityTs(\app\models\PurchaseSession $ps): int
+    {
+        if ((int)$ps->status === \app\models\PurchaseSession::STATUS_CLOSED) {
+            return (int)$ps->closed_at ?: (int)$ps->updated_at ?: (int)$ps->started_at;
+        }
+
+        $lastScan = (new \yii\db\Query())
+            ->from('{{%price_entry}}')
+            ->where(['user_id' => $ps->user_id, 'session_id' => $ps->id])
+            ->max('created_at');
+
+        return (int)($lastScan ?: $ps->updated_at ?: $ps->started_at);
+    }
+
+    /** Обновить updated_at у сессии (продлеваем «жизнь»). */
     public function touch(PurchaseSession $ps): void
     {
         $ps->updateAttributes(['updated_at' => time()]);
     }
 
     /**
-     * Начать новую сессию (с опц. лимитом в рублях).
-     * Возвращает созданную активную сессию.
+     * Закрыть текущую активную сессию пользователя, если есть.
+     * Возвращает true, если что-то закрыли.
+     */
+    public function closeActive(int $userId, string $reason = 'manual'): bool
+    {
+        $ps = PurchaseSession::find()
+            ->where(['user_id' => $userId, 'status' => PurchaseSession::STATUS_ACTIVE])
+            ->orderBy(['updated_at' => SORT_DESC])
+            ->limit(1)
+            ->one();
+
+        if (!$ps) {
+            return false;
+        }
+        return $this->finalize($ps, $reason);
+    }
+
+    /**
+     * Начать новую активную сессию (лимит в РУБЛЯХ, сохраняем в копейках).
      */
     public function begin(int $userId, string $shop, ?string $category = null, ?float $limitRub = null): PurchaseSession
     {
         $now = time();
+
         $ps = new PurchaseSession();
-        $ps->user_id = $userId;
-        $ps->shop = $shop;
-        $ps->category = $category ?: null;
-        $ps->status = PurchaseSession::STATUS_ACTIVE;
-        $ps->started_at = $now;
-        $ps->updated_at = $now;
-        $ps->limit_amount = ($limitRub !== null) ? (int)round($limitRub * 100) : null; // в копейках
+        $ps->user_id     = $userId;
+        $ps->shop        = $shop;
+        $ps->category    = $category ?: null;
+        $ps->status      = PurchaseSession::STATUS_ACTIVE;
+        $ps->started_at  = $now;
+        $ps->updated_at  = $now;
         $ps->total_amount = 0;
-        $ps->limit_left = $ps->limit_amount === null ? null : $ps->limit_amount;
-        $ps->closed_at = null;
+        $ps->closed_at    = null;
+
+        if ($limitRub !== null) {
+            $ps->limit_amount = (int) round($limitRub * 100);     // копейки
+            $ps->limit_left   = $ps->limit_amount;
+        } else {
+            $ps->limit_amount = null;
+            $ps->limit_left   = null;
+        }
 
         if (!$ps->save(false)) {
             throw new \RuntimeException('Не удалось начать сессию');
         }
+
         return $ps;
     }
 
     /**
-     * Финализировать сессию: посчитать сумму, записать кэш и статус=9.
-     * Идём транзакцией и блокируем строку FOR UPDATE, чтобы избежать гонок.
-     *
-     * @param PurchaseSession|int $session модель или ID
-     * @param string $reason для логов
+     * Финализировать сессию: посчитать сумму, записать кэш (в копейках), закрыть.
+     * Возвращает true, если успешно.
      */
-    public function finalize($session, string $reason = 'manual'): void
+    public function finalize(PurchaseSession $ps, string $reason = 'manual'): bool
     {
-        /** @var PurchaseSession|null $ps */
-        $ps = $session instanceof PurchaseSession
-            ? $session
-            : PurchaseSession::findOne((int)$session);
-
-        if (!$ps) throw new \RuntimeException('Сессия не найдена');
-        if ((int)$ps->status === PurchaseSession::STATUS_CLOSED) return; // уже закрыта
+        if ((int)$ps->status === PurchaseSession::STATUS_CLOSED) {
+            return true; // уже закрыта
+        }
 
         $db = Yii::$app->db;
         $tx = $db->beginTransaction(Transaction::SERIALIZABLE);
+
         try {
-            // Повторно читаем и блокируем
+            // перечитываем и блокируем строку
             $ps = PurchaseSession::find()
                 ->where(['id' => $ps->id])
                 ->forUpdate()
                 ->one();
 
-            if (!$ps) throw new \RuntimeException('Сессия не найдена (repeatable read)');
-            if ((int)$ps->status === PurchaseSession::STATUS_CLOSED) { $tx->commit(); return; }
+            if (!$ps) {
+                throw new \RuntimeException('Сессия не найдена (повторное чтение)');
+            }
+            if ((int)$ps->status === PurchaseSession::STATUS_CLOSED) {
+                $tx->commit();
+                return true;
+            }
 
-            // Сумма в рублях
+            // сумма в РУБЛЯХ по позициям
             $sumRub = (float)(new \yii\db\Query())
-                ->from('price_entry')
+                ->from('{{%price_entry}}')
                 ->where(['user_id' => $ps->user_id, 'session_id' => $ps->id])
                 ->sum(new Expression('amount * qty'));
 
-            $sumCents = (int)round($sumRub * 100);
+            $totalCents = (int) round($sumRub * 100);
 
             $limitLeft = null;
             if ($ps->limit_amount !== null) {
-                $limitLeft = (int)$ps->limit_amount - $sumCents;
+                $limitLeft = (int)$ps->limit_amount - $totalCents;
             }
 
-            // Обновляем кэш полей в таблице purchase_session
             $db->createCommand()->update('{{%purchase_session}}', [
-                'total_amount' => $sumCents,
+                'total_amount' => $totalCents,
                 'limit_left'   => $limitLeft,
                 'status'       => PurchaseSession::STATUS_CLOSED,
                 'closed_at'    => $ps->closed_at ?: time(),
@@ -123,11 +172,13 @@ class PurchaseSessionService extends Component
             ], ['id' => (int)$ps->id])->execute();
 
             $tx->commit();
-            Yii::info("PS#{$ps->id} finalized ({$reason}), total={$sumCents}, limit_left=" . ($limitLeft ?? 'null'), __METHOD__);
+
+            Yii::info("PS#{$ps->id} finalized ({$reason}), total_cents={$totalCents}, limit_left=" . ($limitLeft ?? 'null'), __METHOD__);
+            return true;
         } catch (\Throwable $e) {
             $tx->rollBack();
             Yii::error("Finalize failed: " . $e->getMessage(), __METHOD__);
-            throw $e;
+            return false;
         }
     }
 }

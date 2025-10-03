@@ -166,37 +166,61 @@ class SiteController extends Controller
     }
 
     /** Создание новой серверной сессии из модалки */
+    /** Создание новой серверной сессии из модалки */
     public function actionBeginAjax()
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
-        if (Yii::$app->user->isGuest) return ['ok' => false, 'error' => 'Требуется вход'];
 
-        $store = trim((string)Yii::$app->request->post('store', ''));
-        $category = trim((string)Yii::$app->request->post('category', ''));
-        $limitStr = Yii::$app->request->post('limit', ''); // может быть пусто
-
-        if ($store === '') return ['ok' => false, 'error' => 'Укажите магазин'];
-
-        Yii::$app->ps->closeActive(Yii::$app->user->id);
-
-        $ps = new \app\models\PurchaseSession([
-            'user_id' => Yii::$app->user->id,
-            'shop' => $store,
-            'category' => $category,
-            'status' => \app\models\PurchaseSession::STATUS_ACTIVE,
-        ]);
-
-        // лимит (в копейках в БД)
-        $limitRub = null;
-        if (($v = $this->parseMoney($limitStr)) !== null) {
-            $limitRub = $v;
-            $ps->limit_amount = (int)round($v * 100);
+        if (Yii::$app->user->isGuest) {
+            return ['ok' => false, 'error' => 'Требуется вход'];
         }
 
-        $ps->save(false);
+        $uid      = Yii::$app->user->id;
+        $store    = trim((string)Yii::$app->request->post('store', ''));
+        $category = trim((string)Yii::$app->request->post('category', ''));
+        $limitStr = (string)Yii::$app->request->post('limit', ''); // может быть пусто
+
+        if ($store === '') {
+            return ['ok' => false, 'error' => 'Укажите магазин'];
+        }
+
+        // 1) Закрываем предыдущую активную (если была)
+        Yii::$app->ps->closeActive($uid, 'begin-new');
+
+        // 2) Парсим лимит (рубли) — если у тебя есть parseMoney, используем её
+        $limitRub = null;
+        if ($limitStr !== '') {
+            if (method_exists($this, 'parseMoney')) {
+                $v = $this->parseMoney($limitStr);
+            } else {
+                // простая подстраховка, если parseMoney нет
+                $v = (float)str_replace([',', ' '], ['.', ''], $limitStr);
+                if (!is_finite($v) || $v <= 0) {
+                    $v = null;
+                }
+            }
+            if ($v !== null) {
+                $limitRub = $v;
+            }
+        }
+
+        // 3) Старт новой сессии через сервис
+        $ps = Yii::$app->ps->begin(
+            $uid,
+            $store,
+            $category !== '' ? $category : null,
+            $limitRub
+        );
+
+        // (опционально) положим id в сессию, если где-то читаешь из PHP-сессии
         Yii::$app->session->set('purchase_session_id', $ps->id);
 
-        return ['ok' => true, 'store' => $store, 'category' => $category, 'limit' => $limitRub];
+        return [
+            'ok'       => true,
+            'store'    => $ps->shop,
+            'category' => $ps->category,
+            'limit'    => $limitRub,   // рубли числом или null
+        ];
     }
 
     public function actionCloseSession()
@@ -205,36 +229,23 @@ class SiteController extends Controller
             return $this->redirect(['auth/login']);
         }
 
-        $uid = Yii::$app->user->id;
-
-        // Берём активную сессию пользователя (если их гарантированно одна — ок)
         /** @var \app\components\PurchaseSessionService $psService */
         $psService = Yii::$app->ps;
-        $session = $psService->active(Yii::$app->user->id);
+        $session   = $psService->active(Yii::$app->user->id);
 
         if (!$session) {
             Yii::$app->session->setFlash('warning', 'Активная сессия не найдена.');
             return $this->redirect(['site/index']);
         }
 
-        /** @var \app\components\PurchaseSessionService $psService */
-        $psService = Yii::$app->ps;
-
         if ($psService->finalize($session, 'manual')) {
-
-            $fmt = Yii::$app->formatter;
-
-            // total_amount в копейках → рубли
+            $fmt      = Yii::$app->formatter;
             $totalRub = $fmt->asDecimal(((int)$session->total_amount) / 100, 2);
-
-            $msg = "Сессия закрыта. Итог: {$totalRub}.";
-
-            // остаток выводим ТОЛЬКО если лимит был указан
+            $msg      = "Сессия закрыта. Итог: {$totalRub}.";
             if ($session->limit_amount !== null) {
                 $leftRub = $fmt->asDecimal(((int)$session->limit_left) / 100, 2);
-                $msg .= " Остаток по лимиту: {$leftRub}.";
+                $msg    .= " Остаток по лимиту: {$leftRub}.";
             }
-
             Yii::$app->session->setFlash('success', $msg);
         } else {
             Yii::$app->session->setFlash('error', 'Не удалось закрыть сессию. Повторите позже.');

@@ -795,7 +795,6 @@ class ScanController extends Controller
         }
     }
 
-
     /**
      * Узкий ROI справа-сверху от основной цены для вычитки копеек (2 цифры)
      */
