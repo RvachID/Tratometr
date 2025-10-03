@@ -27,6 +27,10 @@ class PurchaseSessionService extends Component
      * Если «протухла» — аккуратно финализируем и вернём null.
      * ВНИМАНИЕ: никаких вызовов Yii::$app->ps->active() внутри — только прямой запрос!
      */
+    /**
+     * Вернуть активную сессию пользователя.
+     * Если «протухла» (updated_at старше now - TTL) — аккуратно автозакрываем и возвращаем null.
+     */
     public function active(int $userId): ?PurchaseSession
     {
         $ps = PurchaseSession::find()
@@ -39,8 +43,19 @@ class PurchaseSessionService extends Component
             return null;
         }
 
-        if ($ps->updated_at <= (time() - $this->autocloseSeconds)) {
-            $this->finalize($ps, 'auto-ttl'); // закроем и больше её не вернём
+        // На всякий — если кто-то пометил как закрыт, не возвращаем её
+        if ((int)$ps->status === PurchaseSession::STATUS_CLOSED) {
+            return null;
+        }
+
+        // TTL: если сессия «протухла» — пробуем финализировать и не возвращаем её
+        $tooOld = ($ps->updated_at <= (time() - (int)$this->autocloseSeconds));
+        if ($tooOld) {
+            try {
+                $this->finalize($ps, 'auto-ttl');
+            } catch (\Throwable $e) {
+                Yii::warning('Auto-finalize failed in active(): ' . $e->getMessage(), __METHOD__);
+            }
             return null;
         }
 
