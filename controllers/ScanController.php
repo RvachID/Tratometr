@@ -545,11 +545,7 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Требуется вход'];
             }
 
-            $ps = PurchaseSession::find()
-                ->where(['user_id' => Yii::$app->user->id, 'status' => PurchaseSession::STATUS_ACTIVE])
-                ->orderBy(['updated_at' => SORT_DESC])
-                ->limit(1)->one();
-
+            $ps = Yii::$app->ps->active(Yii::$app->user->id);
             if (!$ps) {
                 return ['success' => false, 'error' => 'Нет активной покупки. Начните или возобновите сессию.'];
             }
@@ -580,7 +576,7 @@ class ScanController extends Controller
                 return ['success' => false, 'error' => 'Ошибка сохранения'];
             }
 
-            $ps->updateAttributes(['updated_at' => time()]);
+            Yii::$app->ps->touch($ps);
 
             $total = (float)PriceEntry::find()
                 ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])

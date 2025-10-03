@@ -102,7 +102,7 @@ $config = [
         ],
         'ps' => [
             'class' => app\components\PurchaseSessionService::class,
-            'autocloseSeconds' => 10800,
+            'autocloseSeconds' => 60, //10800
         ],
 
         'formatter' => [

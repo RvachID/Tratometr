@@ -47,7 +47,6 @@ class SiteController extends Controller
         ];
     }
 
-
     public function actionIndex()
     {
         $this->layout = '@app/views/layouts/index_layout';
@@ -209,17 +208,20 @@ class SiteController extends Controller
         $uid = Yii::$app->user->id;
 
         // Берём активную сессию пользователя (если их гарантированно одна — ок)
-        $session = \app\models\PurchaseSession::find()
-            ->where(['user_id' => $uid, 'status' => \app\models\PurchaseSession::STATUS_ACTIVE])
-            ->orderBy(['started_at' => SORT_DESC])
-            ->one();
+        /** @var \app\components\PurchaseSessionService $psService */
+        $psService = Yii::$app->ps;
+        $session = $psService->active(Yii::$app->user->id);
 
         if (!$session) {
             Yii::$app->session->setFlash('warning', 'Активная сессия не найдена.');
             return $this->redirect(['site/index']);
         }
 
-        if ($session->finalize()) {
+        /** @var \app\components\PurchaseSessionService $psService */
+        $psService = Yii::$app->ps;
+
+        if ($psService->finalize($session, 'manual')) {
+
             $fmt = Yii::$app->formatter;
 
             // total_amount в копейках → рубли
@@ -237,7 +239,6 @@ class SiteController extends Controller
         } else {
             Yii::$app->session->setFlash('error', 'Не удалось закрыть сессию. Повторите позже.');
         }
-
 
         return $this->redirect(['site/index']);
     }
@@ -330,7 +331,6 @@ class SiteController extends Controller
 
         return $this->render('history', ['items' => $rows]);
     }
-
 
     private function parseMoney($raw): ?float
     {
