@@ -166,7 +166,6 @@ class SiteController extends Controller
     }
 
     /** Создание новой серверной сессии из модалки */
-    /** Создание новой серверной сессии из модалки */
     public function actionBeginAjax()
     {
         Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
@@ -229,11 +228,22 @@ class SiteController extends Controller
             return $this->redirect(['auth/login']);
         }
 
-        // Закрываем и, если всё ок, перечитываем свежую строку из БД
-        try {
-            Yii::$app->ps->finalize($session, 'manual');
+        $uid = Yii::$app->user->id;
 
-            // важно: перечитать, т.к. кэш-поля обновлены в БД
+        /** @var \app\components\PurchaseSessionService $psService */
+        $psService = Yii::$app->ps;
+        $session   = $psService->active($uid);
+
+        if (!$session) {
+            Yii::$app->session->setFlash('warning', 'Активная сессия не найдена.');
+            return $this->redirect(['site/index']);
+        }
+
+        try {
+            // Закрываем
+            $psService->finalize($session, 'manual');
+
+            // Перечитываем уже закрытую строку (т.к. кэш-поля обновлялись в БД)
             $fresh = \app\models\PurchaseSession::findOne($session->id);
             if (!$fresh) {
                 Yii::$app->session->setFlash('error', 'Сессия закрыта, но не найдена при повторном чтении.');
@@ -251,7 +261,7 @@ class SiteController extends Controller
 
             Yii::$app->session->setFlash('success', $msg);
         } catch (\Throwable $e) {
-            Yii::error('Manual finalize failed: '.$e->getMessage(), __METHOD__);
+            Yii::error('Manual finalize failed: ' . $e->getMessage(), __METHOD__);
             Yii::$app->session->setFlash('error', 'Не удалось закрыть сессию. Повторите позже.');
         }
 
@@ -483,7 +493,6 @@ class SiteController extends Controller
             'period' => [$dateFrom, $dateTo],
         ]);
     }
-
 
     public function actionAbout()
     {

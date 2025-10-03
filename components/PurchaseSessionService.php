@@ -126,45 +126,37 @@ class PurchaseSessionService extends Component
      * Финализировать сессию: посчитать сумму, записать кэш (в копейках), закрыть.
      * Возвращает true, если успешно.
      */
-    public function finalize(PurchaseSession $ps, string $reason = 'manual'): bool
+    public function finalize($session, string $reason = 'manual'): bool
     {
+        /** @var PurchaseSession|null $ps */
+        $ps = $session instanceof PurchaseSession ? $session : PurchaseSession::findOne((int)$session);
+        if (!$ps) throw new \RuntimeException('Сессия не найдена');
+
         if ((int)$ps->status === PurchaseSession::STATUS_CLOSED) {
-            return true; // уже закрыта
+            // уже закрыта — считаем успехом
+            return true;
         }
 
         $db = Yii::$app->db;
-        $tx = $db->beginTransaction(Transaction::SERIALIZABLE);
-
+        $tx = $db->beginTransaction(\yii\db\Transaction::SERIALIZABLE);
         try {
-            // перечитываем и блокируем строку
-            $ps = PurchaseSession::find()
-                ->where(['id' => $ps->id])
-                ->forUpdate()
-                ->one();
-
-            if (!$ps) {
-                throw new \RuntimeException('Сессия не найдена (повторное чтение)');
-            }
+            $ps = PurchaseSession::find()->where(['id' => $ps->id])->forUpdate()->one();
+            if (!$ps) throw new \RuntimeException('Сессия не найдена (repeatable read)');
             if ((int)$ps->status === PurchaseSession::STATUS_CLOSED) {
                 $tx->commit();
                 return true;
             }
 
-            // сумма в РУБЛЯХ по позициям
-            $sumRub = (float)(new \yii\db\Query())
-                ->from('{{%price_entry}}')
+            $sumRub   = (float)(new \yii\db\Query())
+                ->from('price_entry')
                 ->where(['user_id' => $ps->user_id, 'session_id' => $ps->id])
-                ->sum(new Expression('amount * qty'));
+                ->sum(new \yii\db\Expression('amount * qty'));
+            $sumCents = (int)round($sumRub * 100);
 
-            $totalCents = (int) round($sumRub * 100);
-
-            $limitLeft = null;
-            if ($ps->limit_amount !== null) {
-                $limitLeft = (int)$ps->limit_amount - $totalCents;
-            }
+            $limitLeft = $ps->limit_amount !== null ? ((int)$ps->limit_amount - $sumCents) : null;
 
             $db->createCommand()->update('{{%purchase_session}}', [
-                'total_amount' => $totalCents,
+                'total_amount' => $sumCents,
                 'limit_left'   => $limitLeft,
                 'status'       => PurchaseSession::STATUS_CLOSED,
                 'closed_at'    => $ps->closed_at ?: time(),
@@ -172,13 +164,13 @@ class PurchaseSessionService extends Component
             ], ['id' => (int)$ps->id])->execute();
 
             $tx->commit();
-
-            Yii::info("PS#{$ps->id} finalized ({$reason}), total_cents={$totalCents}, limit_left=" . ($limitLeft ?? 'null'), __METHOD__);
+            Yii::info("PS#{$ps->id} finalized ({$reason}), total={$sumCents}, limit_left=" . ($limitLeft ?? 'null'), __METHOD__);
             return true;
         } catch (\Throwable $e) {
             $tx->rollBack();
             Yii::error("Finalize failed: " . $e->getMessage(), __METHOD__);
-            return false;
+            throw $e;
         }
     }
+
 }
