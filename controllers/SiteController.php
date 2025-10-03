@@ -229,25 +229,29 @@ class SiteController extends Controller
             return $this->redirect(['auth/login']);
         }
 
-        /** @var \app\components\PurchaseSessionService $psService */
-        $psService = Yii::$app->ps;
-        $session   = $psService->active(Yii::$app->user->id);
+        // Закрываем и, если всё ок, перечитываем свежую строку из БД
+        try {
+            Yii::$app->ps->finalize($session, 'manual');
 
-        if (!$session) {
-            Yii::$app->session->setFlash('warning', 'Активная сессия не найдена.');
-            return $this->redirect(['site/index']);
-        }
-
-        if ($psService->finalize($session, 'manual')) {
-            $fmt      = Yii::$app->formatter;
-            $totalRub = $fmt->asDecimal(((int)$session->total_amount) / 100, 2);
-            $msg      = "Сессия закрыта. Итог: {$totalRub}.";
-            if ($session->limit_amount !== null) {
-                $leftRub = $fmt->asDecimal(((int)$session->limit_left) / 100, 2);
-                $msg    .= " Остаток по лимиту: {$leftRub}.";
+            // важно: перечитать, т.к. кэш-поля обновлены в БД
+            $fresh = \app\models\PurchaseSession::findOne($session->id);
+            if (!$fresh) {
+                Yii::$app->session->setFlash('error', 'Сессия закрыта, но не найдена при повторном чтении.');
+                return $this->redirect(['site/index']);
             }
+
+            $fmt      = Yii::$app->formatter;
+            $totalRub = $fmt->asDecimal(((int)$fresh->total_amount) / 100, 2);
+
+            $msg = "Сессия закрыта. Итог: {$totalRub}.";
+            if ($fresh->limit_amount !== null) {
+                $leftRub = $fmt->asDecimal(((int)$fresh->limit_left) / 100, 2);
+                $msg .= " Остаток по лимиту: {$leftRub}.";
+            }
+
             Yii::$app->session->setFlash('success', $msg);
-        } else {
+        } catch (\Throwable $e) {
+            Yii::error('Manual finalize failed: '.$e->getMessage(), __METHOD__);
             Yii::$app->session->setFlash('error', 'Не удалось закрыть сессию. Повторите позже.');
         }
 
