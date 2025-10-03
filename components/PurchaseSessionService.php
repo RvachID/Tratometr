@@ -16,14 +16,12 @@ class PurchaseSessionService extends Component
      * Вернуть активную сессию пользователя.
      * Если «протухла» (updated_at старше now - TTL) — автозакрываем (finalize) и возвращаем null.
      */
-    public function active(int $userId): ?\app\models\PurchaseSession
+    public function active(int $userId): ?PurchaseSession
     {
-        $ps = \app\models\PurchaseSession::find()
-            ->where([
-                'user_id' => $userId,
-                'status'  => \app\models\PurchaseSession::STATUS_ACTIVE,
-            ])
-            ->orderBy(['updated_at' => SORT_DESC, 'id' => SORT_DESC])
+        // 1) Берём активную сессию из БД (НИКАКИХ вызовов Yii::$app->ps->active() здесь!)
+        $ps = PurchaseSession::find()
+            ->where(['user_id' => $userId, 'status' => PurchaseSession::STATUS_ACTIVE])
+            ->orderBy(['updated_at' => SORT_DESC])
             ->limit(1)
             ->one();
 
@@ -31,15 +29,16 @@ class PurchaseSessionService extends Component
             return null;
         }
 
-        // TTL: если «протухла» — финализируем и возвращаем null
-        if ($ps->updated_at <= time() - (int)$this->autocloseSeconds) {
+        // 2) TTL-автозакрытие
+        $tooOld = ($ps->updated_at <= (time() - $this->autocloseSeconds));
+        if ($tooOld) {
+            // аккуратно финализируем и НЕ возвращаем сессию
             $this->finalize($ps, 'auto-ttl');
             return null;
         }
 
         return $ps;
     }
-
 
     /** Обновить updated_at у активной сессии (без автозакрытия). */
     public function touch(PurchaseSession $ps): void
