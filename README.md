@@ -131,15 +131,9 @@ CMD php yii migrate --interactive=0 && php -S 0.0.0.0:8080 -t web
 
 ## Скриншоты
 
-Добавьте 1–2 PNG в папку `assets/` и вставьте сюда:
-
-```text
 ![Главное меню](./docs/assets/main.jpg)
 ![Создание сессии](./docs/assets/create_session.jpg)
 ![Покупка с лимитом](./docs/assets/session.jpg)
-```
-
----
 
 ## Roadmap / Known limitations
 - [ ] Per-item скидки
@@ -147,6 +141,7 @@ CMD php yii migrate --interactive=0 && php -S 0.0.0.0:8080 -t web
 - [ ] Авторизация по токену
 - [ ] Массовый импорт из CSV/XLSX
 - [ ] Больше отчётов и фильтров
+- [ ] Подключение сценариев Яндекс Алисы для формирования списков
 
 ---
 
