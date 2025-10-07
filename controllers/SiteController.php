@@ -63,31 +63,28 @@ class SiteController extends Controller
         // активная покупка для панели
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
         $psInfo = null;
-
         if ($ps) {
             $lastTs = Yii::$app->ps->lastActivityTs($ps);
-
-            // «живая» сумма по активной сессии (в рублях)
-            $sumLiveRub = (float)\app\models\PriceEntry::find()
-                ->where(['user_id' => Yii::$app->user->id, 'session_id' => $ps->id])
-                ->sum('amount * qty');
-
-            // лимит/остаток в рублях
-            $limitRub = $ps->limit_amount !== null ? ((int)$ps->limit_amount) / 100 : null;
-            $leftRub  = $limitRub !== null ? round($limitRub - $sumLiveRub, 2) : null;
-
             $psInfo = [
-                'id'         => $ps->id,
-                'shop'       => (string)$ps->shop,
-                'category'   => (string)$ps->category,
-                'lastTs'     => $lastTs,
-
-                // новое:
-                'limit_rub'  => $limitRub,          // лимит (рубли) или null
-                'total_rub'  => round($sumLiveRub, 2), // текущий итог в рублях
-                'left_rub'   => $leftRub,           // остаток (может быть < 0)
-                'is_over'    => $leftRub !== null ? ($leftRub < 0) : null,
+                'id' => $ps->id,
+                'shop' => $ps->shop,
+                'category' => $ps->category,
+                'lastTs' => $lastTs,
+                'limit' => $ps->limit_amount,
             ];
+        }
+
+        // цитата (как было)
+        $db = Yii::$app->db;
+        $lastQuoteId = Yii::$app->session->get('last_quote_id');
+        $quotesTotal = (new Query())->from('quotes')->count('*', $db);
+        $quote = null;
+        if ($quotesTotal > 0) {
+            $q = (new Query())->from('quotes');
+            if ($quotesTotal > 1 && $lastQuoteId) $q->where(['<>', 'id', $lastQuoteId]);
+            $quote = $q->orderBy(new Expression('RAND()'))->limit(1)->one($db)
+                ?: (new Query())->from('quotes')->orderBy(new Expression('RAND()'))->limit(1)->one($db);
+            if ($quote) Yii::$app->session->set('last_quote_id', $quote['id']);
         }
 
         return $this->render('index', compact('entries', 'total', 'quote', 'psInfo'));
@@ -100,24 +97,26 @@ class SiteController extends Controller
             return $this->redirect(['auth/login']);
         }
 
-        // Активная покупка (серверная сессия)
+        // Активная серверная сессия (с учётом автозакрытия по TTL)
         $ps = Yii::$app->ps->active(Yii::$app->user->id);
 
         $needPrompt = $ps === null; // если сессии нет — покажем модалку выбора магазина
-        $store = $ps ? (string)$ps->shop : '';
-        $category = $ps ? (string)$ps->category : '';
+        $store     = $ps ? (string)$ps->shop     : '';
+        $category  = $ps ? (string)$ps->category : '';
+
+        // Лимит в рублях (из копеек в БД) или null
         $limit = ($ps && $ps->limit_amount !== null)
-            ? round(((int)$ps->limit_amount) / 100, 2) // копейки → рубли
+            ? round(((int)$ps->limit_amount) / 100, 2)
             : null;
 
-        // Данные текущей сессии
+        // Позиции текущей сессии и «живой» итог в рублях
         $entries = [];
-        $total = 0.0;
+        $total   = 0.0;
 
         if ($ps) {
             $entries = \app\models\PriceEntry::find()
                 ->where([
-                    'user_id' => Yii::$app->user->id,
+                    'user_id'    => Yii::$app->user->id,
                     'session_id' => $ps->id,
                 ])
                 ->orderBy(['id' => SORT_DESC])
@@ -126,24 +125,24 @@ class SiteController extends Controller
 
             $sum = \app\models\PriceEntry::find()
                 ->where([
-                    'user_id' => Yii::$app->user->id,
+                    'user_id'    => Yii::$app->user->id,
                     'session_id' => $ps->id,
                 ])
                 ->sum('amount * qty');
 
-            $total = (float)($sum ?? 0);
+            $total = (float)($sum ?? 0.0);
         }
-        $limit = ($ps && $ps->limit_amount !== null) ? round(((int)$ps->limit_amount) / 100, 2) : null;
 
         return $this->render('scan', [
-            'store' => $store,
-            'category' => $category,
-            'entries' => $entries,
-            'total' => $total,
+            'store'      => $store,
+            'category'   => $category,
+            'entries'    => $entries,
+            'total'      => $total, // ₽
             'needPrompt' => $needPrompt,
-            'limit' => $limit,
+            'limit'      => $limit, // ₽ или null
         ]);
     }
+
 
     /** Для фронта: есть ли активная покупка и сколько простаиваем */
     public function actionSessionStatus()
