@@ -134,9 +134,9 @@ CMD php yii migrate --interactive=0 && php -S 0.0.0.0:8080 -t web
 Добавьте 1–2 PNG в папку `assets/` и вставьте сюда:
 
 ```text
-![Главное меню](./assets/img.png)
-![Создание сессии](./assets/img_1.png)
-![Статистика за период](./assets/img_2.png)
+![Главное меню](./docs/assets/main.jpg)
+![Создание сессии](./docs/assets/create_session.jpg)
+![Покупка с лимитом](./docs/assets/session.jpg)
 ```
 
 ---
