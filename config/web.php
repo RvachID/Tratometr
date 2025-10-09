@@ -104,7 +104,9 @@ $config = [
             'class' => app\components\PurchaseSessionService::class,
             'autocloseSeconds' => 10800, //60
         ],
-
+        'alice' => [
+            'webhookSecret' => getenv('ALICE_WEBHOOK_SECRET') ?: '',
+        ],
         'formatter' => [
             'class' => yii\i18n\Formatter::class,
             'defaultTimeZone' => 'UTC',
