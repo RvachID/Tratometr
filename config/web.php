@@ -29,6 +29,9 @@ $config = [
                 'secure' => YII_ENV_PROD,
                 'path' => '/',
             ],
+            'parsers' => [
+                'application/json' => yii\web\JsonParser::class,
+            ],
         ],
 
         'session' => [
