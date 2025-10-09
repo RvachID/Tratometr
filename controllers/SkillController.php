@@ -20,73 +20,45 @@ class SkillController extends Controller
         return parent::beforeAction($action);
     }
 
-    /**
-     * Главный вебхук навыка.
-     * Просто логируем входящий JSON и эхо-ответом возвращаем то, что услышали.
-     */
     public function actionWebhook()
     {
-        // --- простейшая защита секретом из params (или ?s=..)
-        $cfgSecret = (string) (Yii::$app->params['alice']['webhookSecret'] ?? '');
-        $reqSecret = (string) Yii::$app->request->get('s', '');
-        if ($cfgSecret !== '' && $reqSecret !== $cfgSecret) {
-            Yii::$app->response->statusCode = 403;
-            return ['error' => 'forbidden'];
+        \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+        // читаем JSON (на случай, если парсер выключен — fallback на getRawBody)
+        $data = \Yii::$app->request->getBodyParams();
+        if (empty($data)) {
+            $raw  = \Yii::$app->request->getRawBody();
+            $data = json_decode($raw, true) ?: [];
         }
 
-        // --- читаем сырой JSON
-        $raw = file_get_contents('php://input') ?: '';
-        $json = [];
-        if ($raw !== '') {
-            try { $json = json_decode($raw, true, 512, JSON_THROW_ON_ERROR); }
-            catch (\Throwable $e) { /* оставим пустым */ }
+        // (секрет пока не проверяем — включим после теста)
+        // $cfgSecret = \Yii::$app->params['alice']['webhookSecret'] ?? '';
+        // $auth = \Yii::$app->request->headers->get('Authorization', '');
+        // if ($cfgSecret !== '' && !hash_equals("Bearer {$cfgSecret}", $auth)) { ... }
+
+        // лог всего, что пришло (для отладки в Railway logs)
+        try {
+            $hdrs = \Yii::$app->request->getHeaders()->toArray();
+            \Yii::info(
+                'ALICE INCOME headers=' . json_encode($hdrs, JSON_UNESCAPED_UNICODE)
+                . ' payload=' . json_encode($data, JSON_UNESCAPED_UNICODE),
+                __METHOD__
+            );
+        } catch (\Throwable $e) {
+            \Yii::warning('Alice logging failed: '.$e->getMessage(), __METHOD__);
         }
 
-        // --- вытаскиваем полезные поля (если есть)
-        $ver     = (string)($json['version'] ?? '1.0');
-        $session = $json['session'] ?? [];
-        $req     = $json['request'] ?? [];
-        $utt     = trim((string)($req['original_utterance'] ?? ''));
-        $cmd     = trim((string)($req['command'] ?? ''));
-        $tokens  = (array)($req['nlu']['tokens'] ?? []);
+        // простой ответ чтобы песочница перестала ругаться на 500
+        $text = 'Навык подключён. Скажи: «добавь молоко».';
 
-        // --- пишем лог (runtime/alice_webhook.log)
-        $logLine = sprintf(
-            "[%s] %s\nRAW: %s\nPARSED: %s\n\n",
-            date('Y-m-d H:i:s'),
-            $_SERVER['REMOTE_ADDR'] ?? '-',
-            $raw,
-            json_encode(['utterance'=>$utt,'command'=>$cmd,'tokens'=>$tokens], JSON_UNESCAPED_UNICODE)
-        );
-        @file_put_contents(Yii::getAlias('@runtime/alice_webhook.log'), $logLine, FILE_APPEND);
-
-        // --- формируем простой ответ Алисе
-        // протокол Диалогов ждёт {"response": {...}, "version":"1.0"}
-        $say = $utt !== '' ? "Слышал: «{$utt}»" : 'Скажи, что добавить в список покупок.';
-        if ($cmd !== '' && $cmd !== $utt) {
-            $say .= " (команда: {$cmd})";
-        }
-        if (!empty($tokens)) {
-            $say .= ' Токены: ' . implode(', ', $tokens) . '.';
-        }
-
-        $resp = [
+        return [
+            'version'  => '1.0',
+            'session'  => $data['session'] ?? [],
             'response' => [
-                'text'         => $say,
-                'tts'          => $say,
-                'end_session'  => false,
+                'text'        => $text,
+                'tts'         => $text,
+                'end_session' => false,
             ],
-            'version' => $ver ?: '1.0',
         ];
-
-        // можно вернуть ещё debug-блок (Алиса его игнорит, но удобно в curl)
-        if (YII_ENV_DEV) {
-            $resp['_debug'] = [
-                'session' => $session,
-                'request' => $req,
-            ];
-        }
-
-        return $resp;
     }
 }
