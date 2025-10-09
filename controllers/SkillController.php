@@ -9,7 +9,8 @@ class SkillController extends Controller
 {
     public $enableCsrfValidation = false;
 
-    public function beforeAction($action)
+    // ВАЖНО: совместимая сигнатура с типом возврата
+    public function beforeAction($action): bool
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
         return parent::beforeAction($action);
@@ -18,36 +19,34 @@ class SkillController extends Controller
     public function actionWebhook()
     {
         try {
-            // Тело запроса (работает даже без JsonParser)
-            $raw  = Yii::$app->request->getRawBody();
-            $data = json_decode($raw, true);
-            if (!is_array($data)) {
-                $data = Yii::$app->request->getBodyParams();
-                if (!is_array($data)) $data = [];
+            // Читаем тело запроса (работает c JsonParser и без него)
+            $data = Yii::$app->request->getBodyParams();
+            if (!is_array($data) || !$data) {
+                $data = json_decode(Yii::$app->request->getRawBody(), true) ?: [];
             }
 
-            // Очень простой ответ — чтобы песочница перестала видеть 500
-            $text = 'Навык подключён. Скажи, например: "добавь молоко".';
+            // Простейший ответ для песочницы
+            $text = 'Навык подключён. Скажи: «добавь молоко».';
 
-            // Возвращаем строго JSON (через helper), без сторонних побочек
-            return $this->asJson([
+            return [
                 'version'  => '1.0',
+                'session'  => $data['session'] ?? (object)[],
                 'response' => [
                     'text'        => $text,
                     'tts'         => $text,
                     'end_session' => false,
                 ],
-            ]);
+            ];
         } catch (\Throwable $e) {
-            // Логируем фатал/исключение и всё равно отвечаем 200
-            Yii::error('ALICE webhook exception: '.$e->getMessage().' @ '.$e->getFile().':'.$e->getLine(), __METHOD__);
-            return $this->asJson([
+            Yii::error('ALICE webhook exception: ' . $e->getMessage(), __METHOD__);
+            // даже при ошибке отдаём 200 с валидным JSON
+            return [
                 'version'  => '1.0',
                 'response' => [
-                    'text'        => 'Упс, что-то пошло не так, попробуй ещё раз.',
+                    'text'        => 'Упс, что-то пошло не так. Попробуй ещё раз.',
                     'end_session' => false,
                 ],
-            ]);
+            ];
         }
     }
 }
