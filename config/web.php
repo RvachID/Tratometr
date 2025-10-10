@@ -108,8 +108,10 @@ $config = [
             'autocloseSeconds' => 10800, //60
         ],
         'alice' => [
+            'class' => yii\base\Component::class,
             'webhookSecret' => getenv('ALICE_WEBHOOK_SECRET') ?: '',
         ],
+
         'formatter' => [
             'class' => yii\i18n\Formatter::class,
             'defaultTimeZone' => 'UTC',
