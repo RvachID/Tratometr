@@ -352,6 +352,9 @@ class SiteController extends Controller
         } else {
             $catsArray = is_array($rawCats) ? $rawCats : [$rawCats];
             $selectedCats = array_values(array_intersect($catsArray, $allCats));
+            if (!$selectedCats) {
+                $selectedCats = $allCats;
+            }
         }
 
         $data = $this->statsService->collectStats($uid, $period['tsFrom'], $period['tsTo'], $selectedCats);
