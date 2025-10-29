@@ -3,7 +3,6 @@
 namespace app\services\Purchase;
 
 use app\components\PurchaseSessionService;
-use app\models\PriceEntry;
 use app\models\PurchaseSession;
 use DomainException;
 use Yii;
@@ -63,8 +62,20 @@ class SessionManager
     {
         $tx = $this->db->beginTransaction();
         try {
-            PriceEntry::deleteAll(['user_id' => $session->user_id, 'session_id' => $session->id]);
-            $session->delete(false);
+            $this->db->createCommand()
+                ->delete('{{%price_entry}}', [
+                    'user_id'    => $session->user_id,
+                    'session_id' => $session->id,
+                ])
+                ->execute();
+
+            $this->db->createCommand()
+                ->delete('{{%purchase_session}}', [
+                    'id'      => $session->id,
+                    'user_id' => $session->user_id,
+                ])
+                ->execute();
+
             $tx->commit();
         } catch (\Throwable $e) {
             $tx->rollBack();
