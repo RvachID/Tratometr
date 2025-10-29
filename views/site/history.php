@@ -37,9 +37,19 @@ function rowValueAndLabel(array $r): array
 
     $isOver = $hasLimit && $value < 0;
 
-    $ts = (int)$r['last_ts'];
-    if ($ts <= 0) {
-        $ts = (int)$r['closed_at'] ?: (int)$r['updated_at'] ?: (int)$r['started_at'];
+    $tsCandidates = [
+        $r['last_ts']     ?? null,
+        $r['closed_at']   ?? null,
+        $r['updated_at']  ?? null,
+        $r['started_at']  ?? null,
+    ];
+
+    $ts = 0;
+    foreach ($tsCandidates as $candidate) {
+        if ($candidate !== null && (int)$candidate > 0) {
+            $ts = (int)$candidate;
+            break;
+        }
     }
 
     return [$value, $label, $isOver, $ts, $totalRub, $limitRub];
