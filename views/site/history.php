@@ -1,64 +1,60 @@
-﻿<?php
+<?php
 /** @var array $items */
 
 use yii\helpers\Html;
 
-$this->title = 'РСЃС‚РѕСЂРёСЏ';
+$this->title = 'История';
 $fmt = Yii::$app->formatter;
 
 function rowValueAndLabel(array $r): array
 {
     $hasLimit = $r['limit_amount'] !== null;
 
-    // Р’ СЂСѓР±Р»СЏС…
     $limitRub = $hasLimit ? ((int)$r['limit_amount']) / 100 : null;
-    $totalRub = ((int)$r['total_amount']) / 100; // РґР»СЏ Р°РєС‚РёРІРЅС‹С… РЅРёР¶Рµ РїРµСЂРµР·Р°РїРёС€РµРј РёР· sum_live
+    $totalRub = ((int)$r['total_amount']) / 100;
 
-    if ((int)$r['status'] === 9) { // Р—РђРљР Р«РўРђ
+    if ((int)$r['status'] === 9) { // закрыта
         if ($hasLimit) {
-            // РћСЃС‚Р°С‚РѕРє РїРµСЂРµСЃС‡РёС‚С‹РІР°РµРј РЅР°РїСЂСЏРјСѓСЋ, С‡С‚РѕР±С‹ РЅРµ Р·Р°РІРёСЃРµС‚СЊ РѕС‚ РєСЌС€Р° limit_left
             $leftRub = (((int)$r['limit_amount']) - ((int)$r['total_amount'])) / 100;
             $value   = $leftRub;
-            $label   = 'Р›РёРјРёС‚';
+            $label   = 'Лимит';
         } else {
             $value = $totalRub;
-            $label = 'РС‚РѕРіРѕ';
+            $label = 'Итого';
         }
-    } else { // РђРљРўРР’РќРђ
-        $sumLive = array_key_exists('sum_live', $r) ? (float)$r['sum_live'] : 0.0; // Р·РґРµСЃСЊ СѓР¶Рµ РІ СЂСѓР±Р»СЏС…
+    } else { // активна
+        $sumLive = array_key_exists('sum_live', $r) ? (float)$r['sum_live'] : 0.0;
         $totalRub = $sumLive;
         if ($hasLimit) {
-            $value = $limitRub - $sumLive; // РѕСЃС‚Р°С‚РѕРє РІ СЂСѓР±Р»СЏС…
-            $label = 'Р›РёРјРёС‚';
+            $value = $limitRub - $sumLive;
+            $label = 'Лимит';
         } else {
             $value = $sumLive;
-            $label = 'РС‚РѕРіРѕ';
+            $label = 'Итого';
         }
     }
 
     $isOver = $hasLimit && $value < 0;
     $ts = (int)$r['last_ts'];
 
-    // Р’РѕР·РІСЂР°С‰Р°РµРј: [РѕСЃРЅРѕРІРЅРѕРµ_Р·РЅР°С‡РµРЅРёРµ, СЏСЂР»С‹Рє, РїСЂРёР·РЅР°Рє_РїРµСЂРµСЂР°СЃС…РѕРґР°, ts, РёС‚РѕРіРѕРІР°СЏ_СЃСѓРјРјР°, Р»РёРјРёС‚]
     return [$value, $label, $isOver, $ts, $totalRub, $limitRub];
 }
-
 
 ?>
 <div class="container mt-3">
 
-    <h1 class="h4 mb-3">рџ“ќ РСЃС‚РѕСЂРёСЏ</h1>
-    <!-- в‰Ґ sm: С‚Р°Р±Р»РёС†Р° -->
+    <h1 class="h4 mb-3">История</h1>
+    <!-- ≥ sm: таблица -->
     <div class="d-none d-sm-block">
         <table class="table table-sm align-middle">
             <thead>
             <tr>
-                <th style="width:160px;">Р”Р°С‚Р° Рё РІСЂРµРјСЏ</th>
-                <th>РњР°РіР°Р·РёРЅ</th>
-                <th>РљР°С‚РµРіРѕСЂРёСЏ</th>
-                <th style="width:110px;">РўРёРї</th>
-                <th class="text-end" style="width:140px;">РЎСѓРјРјР°</th>
-                <th class="text-end" style="width:90px;">Р”РµР№СЃС‚РІРёСЏ</th>
+                <th style="width:160px;">Дата и время</th>
+                <th>Магазин</th>
+                <th>Категория</th>
+                <th style="width:110px;">Тип</th>
+                <th class="text-end" style="width:140px;">Сумма</th>
+                <th class="text-end" style="width:90px;">Действия</th>
             </tr>
             </thead>
             <tbody>
@@ -72,7 +68,7 @@ function rowValueAndLabel(array $r): array
                     </td>
                     <td><?= Html::encode($r['shop']) ?></td>
                     <td><?= Html::encode($r['category']) ?></td>
-                    <td><?= $label ?></td>
+                    <td><?= Html::encode($label) ?></td>
                     <td class="text-end <?= $isOver ? 'text-danger fw-bold' : '' ?>">
                         <?= number_format($value, 2, '.', ' ') ?>
                         <?php if ($limitRub !== null): ?>
@@ -81,9 +77,9 @@ function rowValueAndLabel(array $r): array
                     </td>
                     <td class="text-end">
                         <?= Html::beginForm(['site/delete-session', 'id' => (int)$r['id']], 'post', [
-                            'onsubmit' => "return confirm('РЈРґР°Р»РёС‚СЊ СЃРµСЃСЃРёСЋ Рё РІСЃРµ РµС‘ РїРѕР·РёС†РёРё? Р­С‚Рѕ РґРµР№СЃС‚РІРёРµ РЅРµРѕР±СЂР°С‚РёРјРѕ.');"
+                            'onsubmit' => "return confirm('Удалить сессию и все её позиции? Это действие необратимо.');"
                         ]) ?>
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">рџ—‘ РЈРґР°Р»РёС‚СЊ</button>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Удалить</button>
                         <?= Html::endForm() ?>
                     </td>
                 </tr>
@@ -92,7 +88,7 @@ function rowValueAndLabel(array $r): array
         </table>
     </div>
 
-    <!-- < sm: РєР°СЂС‚РѕС‡РєРё -->
+    <!-- < sm: карточки -->
     <div class="d-sm-none">
         <?php foreach ($items as $r):
             [$value, $label, $isOver, $ts, $sumRub, $limitRub] = rowValueAndLabel($r);
@@ -105,11 +101,11 @@ function rowValueAndLabel(array $r): array
                             <div class="text-muted small"><?= $fmt->asDate($ts, 'php:d.m.Y') ?></div>
                             <div class="small mt-1">
                                 <span class="fw-semibold"><?= Html::encode($r['shop']) ?></span>
-                                <span class="text-muted"> В· <?= Html::encode($r['category']) ?></span>
+                                <span class="text-muted"> · <?= Html::encode($r['category']) ?></span>
                             </div>
                         </div>
                         <div class="text-end">
-                            <div class="small text-muted"><?= $label ?></div>
+                            <div class="small text-muted"><?= Html::encode($label) ?></div>
                             <div class="<?= $isOver ? 'text-danger fw-bold' : 'fw-semibold' ?>">
                                 <?= number_format($value, 2, '.', ' ') ?>
                                 <?php if ($limitRub !== null): ?>
@@ -121,9 +117,9 @@ function rowValueAndLabel(array $r): array
 
                     <div class="d-flex justify-content-end mt-2">
                         <?= Html::beginForm(['site/delete-session', 'id' => (int)$r['id']], 'post', [
-                            'onsubmit' => "return confirm('РЈРґР°Р»РёС‚СЊ СЃРµСЃСЃРёСЋ Рё РІСЃРµ РµС‘ РїРѕР·РёС†РёРё? Р­С‚Рѕ РґРµР№СЃС‚РІРёРµ РЅРµРѕР±СЂР°С‚РёРјРѕ.');"
+                            'onsubmit' => "return confirm('Удалить сессию и все её позиции? Это действие необратимо.');"
                         ]) ?>
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">рџ—‘ РЈРґР°Р»РёС‚СЊ</button>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Удалить</button>
                         <?= Html::endForm() ?>
                     </div>
                 </div>
@@ -131,4 +127,3 @@ function rowValueAndLabel(array $r): array
         <?php endforeach; ?>
     </div>
 </div>
-
