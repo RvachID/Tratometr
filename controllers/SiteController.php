@@ -282,7 +282,7 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('success', 'Сессия удалена.');
         } catch (\Throwable $e) {
             Yii::error($e->getMessage() . "\n" . $e->getTraceAsString(), __METHOD__);
-            Yii::$app->session->setFlash('error', 'Не удалось удалить сессию.');
+            Yii::$app->session->setFlash('error', 'Не удалось удалить сессию: ' . $e->getMessage());
         }
 
         return $id === null ? $this->redirect(['site/index']) : $this->redirect(['site/history']);
