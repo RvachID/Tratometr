@@ -3,21 +3,32 @@
 namespace app\services\Auth;
 
 use Yii;
+use yii\base\Component;
 use yii\caching\CacheInterface;
 use yii\db\Connection;
 
 /**
- * Сервис, отвечающий за защитные механизмы авторизации/регистрации.
+ * Service that wraps anti-abuse logic for auth flows (rate limit, honeypot, TZ storage).
  */
-class AuthSecurityService
+class AuthSecurityService extends Component
 {
+    /** @var CacheInterface|null */
+    public $cacheComponent = null;
+    /** @var Connection|null */
+    public $dbConnection = null;
+
     private CacheInterface $cache;
     private Connection $db;
 
-    public function __construct(?CacheInterface $cache = null, ?Connection $db = null)
+    public function init(): void
     {
-        $this->cache = $cache ?? Yii::$app->cache;
-        $this->db = $db ?? Yii::$app->db;
+        parent::init();
+        $this->cache = $this->cacheComponent instanceof CacheInterface
+            ? $this->cacheComponent
+            : Yii::$app->get('cache');
+        $this->db = $this->dbConnection instanceof Connection
+            ? $this->dbConnection
+            : Yii::$app->getDb();
     }
 
     public function tooFastSubmit(int $renderTs, int $minSec = 2): bool
@@ -60,7 +71,7 @@ class AuthSecurityService
     public function isDisposableEmail(string $email): bool
     {
         $email = mb_strtolower(trim($email));
-        return (bool)preg_match('~@(?:mailinator\.com|guerrillamail\.com|10minutemail\.com|tempmail\.|yopmail\.com)$~', $email);
+        return (bool)preg_match('~@(?:mailinator\\.com|guerrillamail\\.com|10minutemail\\.com|tempmail\\.|yopmail\\.com)$~', $email);
     }
 
     public function rememberTimezone(int $userId, ?string $tz): void

@@ -1,4 +1,3 @@
-++ views/site/history.php
 <?php
 /** @var array $items */
 
