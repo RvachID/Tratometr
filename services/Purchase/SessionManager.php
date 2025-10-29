@@ -18,10 +18,10 @@ class SessionManager
     private PurchaseSessionService $service;
     private Connection $db;
 
-    public function __construct(PurchaseSessionService $service, Connection $db)
+    public function __construct(?PurchaseSessionService $service = null, ?Connection $db = null)
     {
-        $this->service = $service;
-        $this->db = $db;
+        $this->service = $service ?? Yii::$app->ps;
+        $this->db = $db ?? Yii::$app->db;
     }
 
     public function getActive(int $userId): ?PurchaseSession

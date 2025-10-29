@@ -6,6 +6,7 @@ use app\components\PurchaseSessionService;
 use app\models\PriceEntry;
 use app\models\PurchaseSession;
 use DomainException;
+use Yii;
 use yii\db\ActiveQuery;
 use yii\db\Query;
 
@@ -16,9 +17,9 @@ class PriceEntryService
 {
     private PurchaseSessionService $sessionService;
 
-    public function __construct(PurchaseSessionService $sessionService)
+    public function __construct(?PurchaseSessionService $sessionService = null)
     {
-        $this->sessionService = $sessionService;
+        $this->sessionService = $sessionService ?? Yii::$app->ps;
     }
 
     /**

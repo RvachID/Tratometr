@@ -14,10 +14,10 @@ class AuthSecurityService
     private CacheInterface $cache;
     private Connection $db;
 
-    public function __construct(CacheInterface $cache, Connection $db)
+    public function __construct(?CacheInterface $cache = null, ?Connection $db = null)
     {
-        $this->cache = $cache;
-        $this->db = $db;
+        $this->cache = $cache ?? Yii::$app->cache;
+        $this->db = $db ?? Yii::$app->db;
     }
 
     public function tooFastSubmit(int $renderTs, int $minSec = 2): bool

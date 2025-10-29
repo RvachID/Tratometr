@@ -11,14 +11,6 @@ $config = [
         '@bower' => '@vendor/bower-asset',
         '@npm'   => '@vendor/npm-asset',
     ],
-    'container' => [
-        'definitions' => [
-            app\components\PurchaseSessionService::class => \yii\di\Instance::of('ps'),
-            app\components\OcrClient::class => \yii\di\Instance::of('ocr'),
-            yii\caching\CacheInterface::class => \yii\di\Instance::of('cache'),
-            yii\db\Connection::class => \yii\di\Instance::of('db'),
-        ],
-    ],
 
     // локализация
     'language' => 'ru-RU',

@@ -16,9 +16,9 @@ class ScanService
 
     private OcrClient $ocrClient;
 
-    public function __construct(OcrClient $ocrClient)
+    public function __construct(?OcrClient $ocrClient = null)
     {
-        $this->ocrClient = $ocrClient;
+        $this->ocrClient = $ocrClient ?? Yii::$app->ocr;
     }
 
     /**
