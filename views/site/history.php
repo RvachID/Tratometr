@@ -1,3 +1,4 @@
+++ views/site/history.php
 <?php
 /** @var array $items */
 
@@ -35,7 +36,11 @@ function rowValueAndLabel(array $r): array
     }
 
     $isOver = $hasLimit && $value < 0;
+
     $ts = (int)$r['last_ts'];
+    if ($ts <= 0) {
+        $ts = (int)$r['closed_at'] ?: (int)$r['updated_at'] ?: (int)$r['started_at'];
+    }
 
     return [$value, $label, $isOver, $ts, $totalRub, $limitRub];
 }
