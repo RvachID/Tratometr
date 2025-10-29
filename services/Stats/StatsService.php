@@ -27,7 +27,7 @@ class StatsService
                 'ps.status',
                 new \yii\db\Expression('MAX(pe.created_at) AS last_ts'),
                 new \yii\db\Expression('COUNT(pe.id) AS items_count'),
-                new \yii\db\Expression('SUM(pe.amount * pe.qty) AS amount_sum'),
+                new \yii\db\Expression('COALESCE(SUM(pe.amount * pe.qty), 0) AS sum_live'),
             ])
             ->from(['ps' => 'purchase_session'])
             ->leftJoin(['pe' => 'price_entry'], 'pe.session_id = ps.id AND pe.user_id = ps.user_id AND ps.status <> 9')
