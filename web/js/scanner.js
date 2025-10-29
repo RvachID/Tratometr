@@ -54,6 +54,71 @@
     const totalWrap = document.getElementById('total-wrap');
     const totalLabelEl = document.getElementById('scan-total-label');
 
+    const ensureTotalsMarkup = () => {
+        const wrapEl = document.getElementById('total-wrap');
+        if (!wrapEl) return;
+
+        const limitAttr = wrapEl.dataset.limit ?? '';
+        const limitValue = parseFloat(limitAttr);
+        const hasLimit = limitAttr !== '' && !Number.isNaN(limitValue);
+
+        if (hasLimit) {
+            if (!document.getElementById('scan-remaining')) {
+                wrapEl.innerHTML = `
+                    <div class="total-total">
+                        <span class="me-1"><strong id="scan-remaining-label">До лимита:</strong></span>
+                        <strong id="scan-remaining"></strong>
+                    </div>
+                    <div class="text-muted small mt-1" id="scan-secondary">
+                        <span id="scan-sum-label">Итого:</span>
+                        <span id="scan-sum"></span>
+                        <span class="mx-1">/</span>
+                        <span id="scan-limit-label">Лимит:</span>
+                        <span id="scan-limit"></span>
+                    </div>
+                `;
+                if (!document.getElementById('scan-total')) {
+                    const hiddenTotal = document.createElement('strong');
+                    hiddenTotal.id = 'scan-total';
+                    hiddenTotal.style.display = 'none';
+                    wrapEl.appendChild(hiddenTotal);
+                }
+            } else {
+                const secondary = document.getElementById('scan-secondary');
+                if (secondary) secondary.classList.remove('d-none');
+            }
+        } else {
+            if (!document.getElementById('scan-total')) {
+                wrapEl.innerHTML = `
+                    <div class="total-total">
+                        <span class="me-1"><strong id="scan-total-label">Итого:</strong></span>
+                        <strong id="scan-total"></strong>
+                    </div>
+                `;
+            }
+            const secondary = document.getElementById('scan-secondary');
+            if (secondary) secondary.classList.add('d-none');
+        }
+    };
+
+    const originalUpdateTotal = typeof window.updateTotal === 'function' ? window.updateTotal : null;
+    window.updateTotal = function(total) {
+        ensureTotalsMarkup();
+        if (originalUpdateTotal) {
+            originalUpdateTotal(total);
+        }
+        const wrapEl = document.getElementById('total-wrap');
+        if (!wrapEl) return;
+        const limitAttr = wrapEl.dataset.limit ?? '';
+        const limitValue = parseFloat(limitAttr);
+        if (limitAttr !== '' && !Number.isNaN(limitValue)) {
+            const secondary = document.getElementById('scan-secondary');
+            if (secondary) secondary.classList.remove('d-none');
+        }
+    };
+
+    ensureTotalsMarkup();
+
     // [NEW] Управление отменой OCR
     const USE_CLIENT_BW = false;
     const MAX_W = 1600;
