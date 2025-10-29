@@ -3,6 +3,9 @@
 namespace app\controllers;
 
 use app\models\PriceEntry;
+use app\services\Price\PriceEntryService;
+use app\services\Purchase\SessionManager;
+use DomainException;
 use Yii;
 use yii\filters\AccessControl;
 use yii\web\Controller;
@@ -11,6 +14,16 @@ use yii\web\Response;
 
 class PriceController extends Controller
 {
+    private PriceEntryService $priceEntryService;
+    private SessionManager $sessionManager;
+
+    public function init()
+    {
+        parent::init();
+        $this->priceEntryService = Yii::$app->get('priceService');
+        $this->sessionManager = Yii::$app->get('sessionManager');
+    }
+
     public function behaviors()
     {
         return [
@@ -24,26 +37,19 @@ class PriceController extends Controller
         ];
     }
 
-    /** Рендерим один экран (SPA-like) */
     public function actionIndex()
     {
         return $this->render('index');
     }
 
-    /** Список записей (новые сверху) + текущий итог; пагинация offset/limit */
     public function actionList($offset = 0, $limit = 50)
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $query = PriceEntry::find()
-            ->where(['user_id' => Yii::$app->user->id])
-            ->orderBy(['created_at' => SORT_DESC]);
-
-        $items = $query->offset((int)$offset)->limit((int)$limit)->all();
-        $total = (float)$query->sum('amount * qty');
+        $data = $this->priceEntryService->getList(Yii::$app->user->id, (int)$offset, (int)$limit);
 
         return [
-            'total' => number_format($total, 2, '.', ''),
+            'total' => number_format($data['totalAmount'], 2, '.', ''),
             'items' => array_map(function (PriceEntry $m) {
                 return [
                     'id' => $m->id,
@@ -56,101 +62,79 @@ class PriceController extends Controller
                     'source' => (string)$m->source,
                     'note' => (string)$m->note,
                 ];
-            }, $items),
-            'hasMore' => $query->count() > ($offset + $limit),
+            }, $data['items']),
+            'hasMore' => $data['hasMore'],
         ];
     }
 
-    /** Создание/обновление (id опционален). Возвращает обновлённые totals строки/списка. */
     public function actionSave()
     {
-        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
         $userId = Yii::$app->user->id;
-        $ps = Yii::$app->ps->active($userId);
-        if (!$ps) return ['error' => 'Нет активной покупки.'];
+        $session = $this->sessionManager->getActive($userId);
+        if (!$session) {
+            return ['error' => 'Нет активной сессии.'];
+        }
 
         $id = (int)Yii::$app->request->post('id', 0);
         $model = $id
-            ? \app\models\PriceEntry::findOne(['id' => $id, 'user_id' => $userId])
-            : new \app\models\PriceEntry();
+            ? PriceEntry::findOne(['id' => $id, 'user_id' => $userId])
+            : new PriceEntry();
 
-        if (!$model) throw new \yii\web\NotFoundHttpException('Запись не найдена');
-
-        $model->load(Yii::$app->request->post(), '');
-        $model->user_id = $userId;
-        $model->session_id = $ps->id;
-        $model->store = $ps->shop;
-        $model->category = $ps->category ?: null;
-
-        if ($model->isNewRecord) {
-            $model->source = $model->source ?: 'manual';
-            $model->qty = $model->qty ?: 1;
-            $model->created_at = $model->created_at ?: time();
+        if (!$model) {
+            throw new NotFoundHttpException('Запись не найдена');
         }
 
-        if (!$model->validate()) return ['error' => current($model->firstErrors) ?: 'Ошибка валидации'];
-        $model->save(false);
-
-        Yii::$app->ps->touch($ps);
-
-        $total = (float)\app\models\PriceEntry::find()
-            ->where(['user_id' => $userId, 'session_id' => $ps->id])
-            ->sum('amount * qty');
+        try {
+            $result = $this->priceEntryService->saveManual(
+                $userId,
+                $session,
+                $model,
+                Yii::$app->request->post()
+            );
+        } catch (DomainException $e) {
+            return ['error' => $e->getMessage()];
+        }
 
         return [
-            'id' => $model->id,
-            'rowTotal' => number_format($model->amount * $model->qty, 2, '.', ''),
-            'listTotal' => number_format($total, 2, '.', ''),
+            'id' => $result['entry']->id,
+            'rowTotal' => number_format($result['entry']->amount * $result['entry']->qty, 2, '.', ''),
+            'listTotal' => number_format($result['sessionTotal'], 2, '.', ''),
         ];
     }
 
-
-    /** + / − / set(дробное) для qty */
     public function actionQty($id)
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $model = PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
-        if (!$model) throw new NotFoundHttpException('Запись не найдена');
-
-        $op = Yii::$app->request->post('op');
-        $value = Yii::$app->request->post('value');
-
-        if ($op === 'inc') {
-            $model->qty += 1;
-        } elseif ($op === 'dec') {
-            $model->qty = max(0.001, $model->qty - 1);
-        } elseif ($op === 'set') {
-            $model->qty = max(0.001, (float)$value);
+        try {
+            $data = $this->priceEntryService->adjustQuantity(
+                Yii::$app->user->id,
+                (int)$id,
+                (string)Yii::$app->request->post('op'),
+                Yii::$app->request->post('value')
+            );
+        } catch (DomainException $e) {
+            throw new NotFoundHttpException($e->getMessage());
         }
 
-        $model->save(false);
-
-        $listTotal = (float)PriceEntry::find()
-            ->where(['user_id' => Yii::$app->user->id])
-            ->sum('amount * qty');
-
         return [
-            'qty' => (float)$model->qty,
-            'rowTotal' => number_format($model->amount * $model->qty, 2, '.', ''),
-            'listTotal' => number_format($listTotal, 2, '.', ''),
+            'qty' => (float)$data['entry']->qty,
+            'rowTotal' => number_format($data['entry']->amount * $data['entry']->qty, 2, '.', ''),
+            'listTotal' => number_format($data['listTotal'], 2, '.', ''),
         ];
     }
 
-    /** Удаление записи */
     public function actionDelete($id)
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
-        $model = PriceEntry::findOne(['id' => (int)$id, 'user_id' => Yii::$app->user->id]);
-        if (!$model) throw new NotFoundHttpException('Запись не найдена');
-
-        $model->delete();
-
-        $listTotal = (float)PriceEntry::find()
-            ->where(['user_id' => Yii::$app->user->id])
-            ->sum('amount * qty');
+        try {
+            $listTotal = $this->priceEntryService->delete(Yii::$app->user->id, (int)$id);
+        } catch (DomainException $e) {
+            throw new NotFoundHttpException($e->getMessage());
+        }
 
         return ['listTotal' => number_format($listTotal, 2, '.', '')];
     }
@@ -162,20 +146,13 @@ class PriceController extends Controller
             return ['error' => 'Not authorized'];
         }
 
-        $row = (new \yii\db\Query())
-            ->from('price_entry')
-            ->where(['user_id' => Yii::$app->user->id])
-            ->orderBy(['created_at' => SORT_DESC])
-            ->limit(1)
-            ->one();
-
-        if ($row) {
+        $last = $this->priceEntryService->getLast(Yii::$app->user->id);
+        if ($last) {
             return [
-                'price' => $row['recognized_amount'] ?: $row['amount'],
-                'text' => $row['recognized_text']
+                'price' => $last['price'],
+                'text' => $last['text'],
             ];
         }
         return ['price' => null];
     }
-
 }

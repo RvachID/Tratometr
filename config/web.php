@@ -11,6 +11,14 @@ $config = [
         '@bower' => '@vendor/bower-asset',
         '@npm'   => '@vendor/npm-asset',
     ],
+    'container' => [
+        'definitions' => [
+            app\components\PurchaseSessionService::class => \yii\di\Instance::of('ps'),
+            app\components\OcrClient::class => \yii\di\Instance::of('ocr'),
+            yii\caching\CacheInterface::class => \yii\di\Instance::of('cache'),
+            yii\db\Connection::class => \yii\di\Instance::of('db'),
+        ],
+    ],
 
     // локализация
     'language' => 'ru-RU',
@@ -110,6 +118,21 @@ $config = [
         'alice' => [
             'class' => yii\base\Component::class,
             'webhookSecret' => getenv('ALICE_WEBHOOK_SECRET') ?: '',
+        ],
+        'scanService' => [
+            'class' => app\services\Scan\ScanService::class,
+        ],
+        'priceService' => [
+            'class' => app\services\Price\PriceEntryService::class,
+        ],
+        'sessionManager' => [
+            'class' => app\services\Purchase\SessionManager::class,
+        ],
+        'statsService' => [
+            'class' => app\services\Stats\StatsService::class,
+        ],
+        'authSecurity' => [
+            'class' => app\services\Auth\AuthSecurityService::class,
         ],
 
         'formatter' => [
