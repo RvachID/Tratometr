@@ -6,21 +6,23 @@ use app\components\PurchaseSessionService;
 use app\models\PurchaseSession;
 use DomainException;
 use Yii;
+use yii\base\Component;
 use yii\db\Connection;
 
 /**
- * Сервис работы с сессиями покупок.
- * Оборачивает компонент PurchaseSessionService и добавляет прикладную логику.
+ * Сервис управления сессиями покупок.
+ * Делегирует базовые операции компоненту PurchaseSessionService и добавляет прикладную логику.
  */
-class SessionManager
+class SessionManager extends Component
 {
     private PurchaseSessionService $service;
     private Connection $db;
 
-    public function __construct(?PurchaseSessionService $service = null, ?Connection $db = null)
+    public function init(): void
     {
-        $this->service = $service ?? Yii::$app->ps;
-        $this->db = $db ?? Yii::$app->db;
+        parent::init();
+        $this->service = Yii::$app->get('ps');
+        $this->db = Yii::$app->getDb();
     }
 
     public function getActive(int $userId): ?PurchaseSession
@@ -32,7 +34,7 @@ class SessionManager
     {
         $session = $this->getActive($userId);
         if (!$session) {
-            throw new DomainException('Активная сессия не найдена');
+            throw new DomainException('Активная сессия не найдена.');
         }
         return $session;
     }
