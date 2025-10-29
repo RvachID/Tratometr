@@ -339,20 +339,29 @@ class SiteController extends Controller
         $tzId = Yii::$app->formatter->timeZone;
         $tz = new \DateTimeZone($tzId);
 
-        $dateTo = Yii::$app->request->get('date_to');
-        $dateFrom = Yii::$app->request->get('date_from');
-        $cats = Yii::$app->request->get('categories', []);
-        if (!is_array($cats)) {
-            $cats = [$cats];
-        }
+        $request = Yii::$app->request;
+        $dateTo = $request->get('date_to');
+        $dateFrom = $request->get('date_from');
 
         $period = $this->statsService->resolvePeriod($dateFrom, $dateTo, $tz);
-        $data = $this->statsService->collectStats($uid, $period['tsFrom'], $period['tsTo'], $cats);
+        $allCats = $this->statsService->getCategories($uid, $period['tsFrom'], $period['tsTo']);
+
+        $rawCats = $request->getQueryParam('categories', null);
+        if ($rawCats === null) {
+            $selectedCats = $allCats;
+        } else {
+            $catsArray = is_array($rawCats) ? $rawCats : [$rawCats];
+            $selectedCats = array_values(array_intersect($catsArray, $allCats));
+        }
+
+        $data = $this->statsService->collectStats($uid, $period['tsFrom'], $period['tsTo'], $selectedCats);
 
         return $this->asJson([
             'ok'     => true,
             'labels' => $data['labels'],
             'values' => $data['values'],
+            'categories' => array_values($allCats),
+            'selectedCategories' => array_values($selectedCats),
             'period' => [$period['dateFrom'], $period['dateTo']],
         ]);
     }

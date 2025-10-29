@@ -1,9 +1,8 @@
-<?php
+﻿<?php
 /** @var string $dateFrom */
 /** @var string $dateTo */
-/** @var array $allCats */
-
-/** @var array $selectedCats */
+/** @var array  $allCats */
+/** @var array  $selectedCats */
 
 use yii\helpers\Html;
 use yii\helpers\Url;
@@ -12,142 +11,204 @@ $this->title = 'Статистика';
 ?>
 
 <div class="container mt-3">
-    <h1 class="h4 mb-3">📈 Статистика</h1>
+    <h1 class="h4 mb-3">Итоги расходов</h1>
 
     <form id="stats-form" class="row g-2 align-items-end mb-3" action="<?= Url::to(['site/stats']) ?>" method="get">
         <div class="col-6 col-sm-3">
-            <label class="form-label small text-muted mb-1">От</label>
+            <label class="form-label small text-muted mb-1">С даты</label>
             <input type="date" name="date_from" class="form-control form-control-sm"
                    value="<?= Html::encode($dateFrom) ?>">
         </div>
         <div class="col-6 col-sm-3">
-            <label class="form-label small text-muted mb-1">До</label>
+            <label class="form-label small text-muted mb-1">По дату</label>
             <input type="date" name="date_to" class="form-control form-control-sm"
                    value="<?= Html::encode($dateTo) ?>">
         </div>
 
         <div class="col-12 col-sm-4">
             <label class="form-label small text-muted mb-1 d-block">Категории</label>
-            <div class="d-flex flex-wrap gap-2">
-                <?php foreach ($allCats as $cat): ?>
-                    <label class="form-check form-check-inline small">
-                        <input class="form-check-input" type="checkbox" name="categories[]"
-                               value="<?= Html::encode($cat) ?>"
-                            <?= in_array($cat, $selectedCats, true) ? 'checked' : '' ?>>
-                        <span class="form-check-label"><?= Html::encode($cat) ?></span>
-                    </label>
-                <?php endforeach; ?>
-                <?php if (empty($allCats)): ?>
-                    <div class="text-muted small">Категории не найдены в выбранном периоде</div>
+            <div id="stats-categories" class="d-flex flex-wrap gap-2">
+                <?php if (!empty($allCats)): ?>
+                    <?php foreach ($allCats as $cat): ?>
+                        <label class="form-check form-check-inline small">
+                            <input class="form-check-input" type="checkbox" name="categories[]"
+                                   value="<?= Html::encode($cat) ?>"
+                                <?= in_array($cat, $selectedCats, true) ? 'checked' : '' ?>>
+                            <span class="form-check-label"><?= Html::encode($cat) ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="text-muted small">Категории за выбранный период отсутствуют</div>
                 <?php endif; ?>
             </div>
         </div>
 
         <div class="col-12 col-sm-2">
-            <button class="btn btn-outline-secondary w-100 btn-sm">Применить</button>
+            <button class="btn btn-outline-secondary w-100 btn-sm" type="submit">Показать</button>
         </div>
     </form>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <!-- canvas и заглушка: показываем один из них -->
             <canvas id="statsChart" height="150" class="d-none"></canvas>
             <div id="statsEmpty" class="text-center py-5 small">
-                <div class="fw-semibold" style="color:#7C4F35">Нет данных за выбранный период</div>
-                <div class="text-muted" style="color:#A98467">Учитываются только завершённые сессии</div>
+                <div class="fw-semibold" style="color:#7C4F35">Данных пока нет: попробуйте выбрать другой период</div>
+                <div class="text-muted" style="color:#A98467">Измените диапазон дат или категории, чтобы увидеть статистику</div>
             </div>
         </div>
     </div>
 
-    <p class="text-center mt-2 small" style="color:#000;">
-        Нажмите на диаграмму для информации
+    <p class="text-center mt-2 small text-body">
+        Обновление статистики может занимать до нескольких секунд
     </p>
-
 </div>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
     (function () {
         const form = document.getElementById('stats-form');
-        const ctx = document.getElementById('statsChart').getContext('2d');
+        if (!form) {
+            return;
+        }
+
+        const categoriesWrap = document.getElementById('stats-categories');
+        const canvasEl = document.getElementById('statsChart');
+        const ctx = canvasEl.getContext('2d');
+        const emptyEl = document.getElementById('statsEmpty');
+        const apiUrl = '<?= Url::to(['site/stats-data']) ?>';
+        const noCategoriesHtml = '<div class="text-muted small">Категории за выбранный период отсутствуют</div>';
+
         let chart;
 
-        async function loadAndRender() {
-            const formEl = document.getElementById('stats-form');
-            const canvasEl = document.getElementById('statsChart');
-            const emptyEl = document.getElementById('statsEmpty');
+        if (typeof ChartDataLabels !== 'undefined') {
+            Chart.register(ChartDataLabels);
+        }
 
-            const api = '<?= \yii\helpers\Url::to(['site/stats-data']) ?>'; // index.php?r=site%2Fstats-data
-            const url = new URL(api, window.location.origin);
+        const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (ch) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        })[ch]);
 
+        function appendFormDataToUrl(url, formEl) {
             const fd = new FormData(formEl);
-            for (const [k, v] of fd.entries()) url.searchParams.append(k, v);
+            let hasCategoryParam = false;
 
-            // локальные помощники
-            function showEmpty(msgMain = 'Нет данных за выбранный период', msgSub = 'Учитываются только завершённые сессии') {
-                canvasEl.classList.add('d-none');
-                emptyEl.classList.remove('d-none');
-                emptyEl.innerHTML =
-                    `<div class="fw-semibold" style="color:#7C4F35">${msgMain}</div>` +
-                    `<div class="text-muted" style="color:#A98467">${msgSub}</div>`;
+            for (const [key, value] of fd.entries()) {
+                url.searchParams.append(key, value);
+                if (key === 'categories[]' || key === 'categories') {
+                    hasCategoryParam = true;
+                }
             }
 
-            function showChart() {
-                emptyEl.classList.add('d-none');
-                canvasEl.classList.remove('d-none');
+            const catInputs = formEl.querySelectorAll('input[name="categories[]"]');
+            const checked = formEl.querySelectorAll('input[name="categories[]"]:checked');
+            if (catInputs.length > 0 && checked.length === 0 && !hasCategoryParam) {
+                url.searchParams.append('categories', '');
             }
+        }
+
+        function renderCategories(allCats, selectedCats) {
+            if (!categoriesWrap) {
+                return;
+            }
+            const cats = Array.isArray(allCats) ? allCats : [];
+            const selected = new Set(Array.isArray(selectedCats) ? selectedCats : []);
+
+            if (cats.length === 0) {
+                categoriesWrap.innerHTML = noCategoriesHtml;
+                return;
+            }
+
+            const html = cats.map((cat) => {
+                const safe = escapeHtml(cat);
+                const checked = selected.has(cat) ? 'checked' : '';
+                return `<label class="form-check form-check-inline small">
+    <input class="form-check-input" type="checkbox" name="categories[]" value="${safe}" ${checked}>
+    <span class="form-check-label">${safe}</span>
+</label>`;
+            }).join('');
+
+            categoriesWrap.innerHTML = html;
+        }
+
+        function showEmpty(mainText = 'Данных пока нет: попробуйте выбрать другой период',
+                           subText = 'Измените диапазон дат или категории, чтобы увидеть статистику') {
+            canvasEl.classList.add('d-none');
+            emptyEl.classList.remove('d-none');
+            emptyEl.innerHTML = `<div class="fw-semibold" style="color:#7C4F35">${mainText}</div>` +
+                `<div class="text-muted" style="color:#A98467">${subText}</div>`;
+        }
+
+        function showChart() {
+            emptyEl.classList.add('d-none');
+            canvasEl.classList.remove('d-none');
+        }
+
+        const hexToRgba = (hex, alpha) => {
+            const clean = hex.replace('#', '');
+            const r = parseInt(clean.slice(0, 2), 16);
+            const g = parseInt(clean.slice(2, 4), 16);
+            const b = parseInt(clean.slice(4, 6), 16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        };
+
+        const labelColor = (rgba) => {
+            const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+            if (!match) {
+                return '#000';
+            }
+            const [r, g, b] = [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
+            const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            return L < 140 ? '#fff' : '#3b2b1a';
+        };
+
+        async function loadAndRender() {
+            const url = new URL(apiUrl, window.location.origin);
+            appendFormDataToUrl(url, form);
 
             try {
-                const res = await fetch(url.toString(), {
-                    headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-                    cache: 'no-store'
-                });
-                const text = await res.text();
-                let json;
-                try {
-                    json = JSON.parse(text);
-                } catch {
-                    showEmpty('Ошибка данных');
-                    return;
-                }
-                if (!json.ok) {
-                    showEmpty('Нет доступа');
-                    return;
+                const response = await fetch(url.toString(), {credentials: 'same-origin'});
+                if (!response.ok) {
+                    throw new Error(`Network error ${response.status}`);
                 }
 
-                const total = (json.values || []).reduce((a, b) => a + b, 0);
-                if (!json.values || json.values.length === 0 || total === 0) {
-                    if (window.chart) {
-                        window.chart.destroy();
-                        window.chart = null;
-                    }
+                const json = await response.json();
+                if (!json || json.ok !== true) {
+                    renderCategories([], []);
                     showEmpty();
                     return;
                 }
 
-                // Палитра от САМЫХ СВЕТЛЫХ к тёмным
-                const base = ['#F0DAB7', '#E3C59B', '#D1B280', '#C19A6B', '#B08D57', '#A98467', '#9C6B45', '#8C5A3C', '#7C4F35', '#5E3B29'];
-                const fill = json.values.map((_, i) => hexToRgba(base[i % base.length], 0.95));
-                const hover = json.values.map((_, i) => hexToRgba(base[i % base.length], 1.00));
+                renderCategories(json.categories || [], json.selectedCategories || []);
 
-                // Вспомогалка: вычислить читаемый цвет шрифта на фоне сектора
-                const labelColor = (rgba) => {
-                    const m = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-                    if (!m) return '#000';
-                    const [r, g, b] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
-                    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b; // относительная яркость
-                    return (L < 140) ? '#fff' : '#3b2b1a';
-                };
+                const labels = Array.isArray(json.labels) ? json.labels : [];
+                const values = Array.isArray(json.values) ? json.values.map(Number) : [];
+
+                if (!labels.length || !values.length) {
+                    showEmpty('Нет данных для выбранных условий');
+                    return;
+                }
+
+                const total = values.reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
+                if (!total) {
+                    showEmpty('Сумма по выбранным категориям равна нулю');
+                    return;
+                }
+
+                const palette = ['#F7C59F', '#A98467', '#8A5A44', '#7C4F35', '#DBA37A', '#EED7C5', '#F1DEC6', '#C68B59'];
+                const background = labels.map((_, idx) => palette[idx % palette.length]);
+                const hover = background.map((color) => hexToRgba(color, 0.85));
 
                 const data = {
-                    labels: json.labels,
+                    labels,
                     datasets: [{
-                        label: 'Расходы, ₽',
-                        data: json.values,
-                        backgroundColor: fill,
+                        label: 'Сумма расходов, ₽',
+                        data: values,
+                        backgroundColor: background,
                         hoverBackgroundColor: hover,
                         borderColor: '#FFFFFF',
                         borderWidth: 1,
@@ -155,44 +216,39 @@ $this->title = 'Статистика';
                     }]
                 };
 
-                const opts = {
+                const options = {
                     responsive: true,
                     plugins: {
                         legend: {position: 'bottom', labels: {color: '#7C4F35'}},
                         tooltip: {
                             callbacks: {
                                 label: (ctx) => {
-                                    const val = Number(ctx.parsed);
-                                    const p = total ? (val / total * 100).toFixed(1) : '0.0';
-                                    return ` ${ctx.label}: ${val.toFixed(2)} ₽ (${p}%)`;
+                                    const val = Number(ctx.parsed) || 0;
+                                    const percent = total ? (val / total * 100).toFixed(1) : '0.0';
+                                    return ` ${ctx.label}: ${val.toFixed(2)} ₽ (${percent}%)`;
                                 }
                             }
                         },
-                        // Подписи прямо на кусках
                         datalabels: {
                             formatter: (value, ctx) => {
-                                const p = total ? (value / total * 100) : 0;
-                                // Показываем «Название 45%» для значимых кусков, иначе – только %
-                                return p >= 6 ? `${ctx.chart.data.labels[ctx.dataIndex]} ${p.toFixed(0)}%`
-                                    : `${p.toFixed(0)}%`;
+                                const percent = total ? (value / total * 100) : 0;
+                                return percent >= 6
+                                    ? `${ctx.chart.data.labels[ctx.dataIndex]} ${percent.toFixed(0)}%`
+                                    : `${percent.toFixed(0)}%`;
                             },
                             color: (ctx) => labelColor(ctx.dataset.backgroundColor[ctx.dataIndex]),
-                            font: {weight: '600', size: 11},
-                            // Для мелких долей чуть выносим подпись наружу
+                            font: {weight: 600, size: 11},
                             anchor: (ctx) => {
-                                const v = ctx.dataset.data[ctx.dataIndex];
-                                const p = total ? v / total * 100 : 0;
-                                return p < 6 ? 'end' : 'center';
+                                const percent = total ? (ctx.dataset.data[ctx.dataIndex] / total * 100) : 0;
+                                return percent < 6 ? 'end' : 'center';
                             },
                             align: (ctx) => {
-                                const v = ctx.dataset.data[ctx.dataIndex];
-                                const p = total ? v / total * 100 : 0;
-                                return p < 6 ? 'end' : 'center';
+                                const percent = total ? (ctx.dataset.data[ctx.dataIndex] / total * 100) : 0;
+                                return percent < 6 ? 'end' : 'center';
                             },
                             offset: (ctx) => {
-                                const v = ctx.dataset.data[ctx.dataIndex];
-                                const p = total ? v / total * 100 : 0;
-                                return p < 6 ? 8 : 0;
+                                const percent = total ? (ctx.dataset.data[ctx.dataIndex] / total * 100) : 0;
+                                return percent < 6 ? 8 : 0;
                             },
                             clamp: true,
                             clip: false
@@ -201,41 +257,26 @@ $this->title = 'Статистика';
                 };
 
                 showChart();
-                if (window.chart) window.chart.destroy();
-                window.chart = new Chart(canvasEl.getContext('2d'), {type: 'pie', data, options: opts});
-            } catch (err) {
-                console.error('Failed to load stats:', err);
-                showEmpty('Не удалось загрузить данные');
-            }
-
-            // helpers
-            function hexToRgba(hex, a) {
-                const h = hex.replace('#', '');
-                const r = parseInt(h.slice(0, 2), 16);
-                const g = parseInt(h.slice(2, 4), 16);
-                const b = parseInt(h.slice(4, 6), 16);
-                return `rgba(${r},${g},${b},${a})`;
+                if (chart) {
+                    chart.destroy();
+                }
+                chart = new Chart(ctx, {type: 'pie', data, options});
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+                showEmpty('Не удалось загрузить статистику');
             }
         }
 
-
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
             loadAndRender();
 
-            const baseHref = '<?= \yii\helpers\Url::to(['site/stats']) ?>';
-            const u = new URL(baseHref, window.location.origin);
-
-            const fd = new FormData(form);
-            for (const [k, v] of fd.entries()) {
-                u.searchParams.append(k, v);
-            }
-
-            history.replaceState(null, '', u.toString());
+            const baseHref = '<?= Url::to(['site/stats']) ?>';
+            const url = new URL(baseHref, window.location.origin);
+            appendFormDataToUrl(url, form);
+            history.replaceState(null, '', url.toString());
         });
-
 
         loadAndRender();
     })();
 </script>
-
