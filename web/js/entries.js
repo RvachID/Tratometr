@@ -194,20 +194,58 @@
 
     function updateTotal(total) {
         const wrap = document.getElementById('total-wrap');
-        const labelEl = document.getElementById('scan-total-label');
-        const valueEl = document.getElementById('scan-total');
-        if (!wrap || !valueEl) return;
+        if (!wrap) return;
+
+        const labelEl = document.getElementById('scan-total-label')
+            || document.getElementById('scan-remaining-label');
+        const totalEl = document.getElementById('scan-total');
+        const remainingEl = document.getElementById('scan-remaining');
+        const secondaryEl = document.getElementById('scan-secondary');
+        const sumEl = document.getElementById('scan-sum');
+        const limitEl = document.getElementById('scan-limit');
+
+        const formatValue = (num) => Number(num || 0).toLocaleString('ru-RU', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
 
         const limAttr = wrap.dataset.limit || '';
         const limit = limAttr === '' ? NaN : parseFloat(limAttr);
+        const sum = Number(total || 0);
 
-        let out = Number(total || 0), over = false;
-        if (!isNaN(limit)) { out = limit - out; over = out < 0; labelEl.textContent = 'Лимит:'; }
-        else { labelEl.textContent = 'Общая сумма:'; }
+        if (Number.isNaN(limit)) {
+            if (labelEl) labelEl.textContent = 'Общая сумма:';
+            if (totalEl) {
+                totalEl.textContent = formatValue(sum);
+                totalEl.classList.remove('text-danger', 'fw-bold');
+            }
+            if (remainingEl) {
+                remainingEl.textContent = formatValue(sum);
+                remainingEl.classList.remove('text-danger', 'fw-bold');
+            }
+            if (secondaryEl) secondaryEl.classList.add('d-none');
+            if (sumEl) sumEl.textContent = formatValue(sum);
+            if (limitEl) limitEl.textContent = '';
+        } else {
+            const remaining = limit - sum;
+            const formattedRemaining = formatValue(remaining);
+            if (labelEl) labelEl.textContent = 'До лимита:';
 
-        valueEl.textContent = out.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        valueEl.classList.toggle('text-danger', over);
-        valueEl.classList.toggle('fw-bold', over);
+            const targetEl = remainingEl || totalEl;
+            if (targetEl) {
+                targetEl.textContent = formattedRemaining;
+                targetEl.classList.toggle('text-danger', remaining < 0);
+                targetEl.classList.toggle('fw-bold', remaining < 0);
+            }
+            if (totalEl && totalEl !== targetEl) {
+                totalEl.textContent = formattedRemaining;
+                totalEl.classList.toggle('text-danger', remaining < 0);
+                totalEl.classList.toggle('fw-bold', remaining < 0);
+            }
+            if (secondaryEl) secondaryEl.classList.remove('d-none');
+            if (sumEl) sumEl.textContent = formatValue(sum);
+            if (limitEl) limitEl.textContent = formatValue(limit);
+        }
     }
 
 

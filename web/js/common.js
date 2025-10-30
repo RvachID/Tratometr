@@ -1,4 +1,4 @@
-// common.js
+﻿// common.js
 (function () {
     const getCsrf = () =>
         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -12,11 +12,11 @@
 
     function resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg) {
         if (mPhotoWrap) mPhotoWrap.style.display = 'none';
-        if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Показать скан';
+        if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'РџРѕРєР°Р·Р°С‚СЊ СЃРєР°РЅ';
         if (mPhotoImg) mPhotoImg.src = '';
     }
 
-    // Рендер заметки в слот .entry-note-wrap (или создаём перед кнопками)
+    // Р РµРЅРґРµСЂ Р·Р°РјРµС‚РєРё РІ СЃР»РѕС‚ .entry-note-wrap (РёР»Рё СЃРѕР·РґР°С‘Рј РїРµСЂРµРґ РєРЅРѕРїРєР°РјРё)
     function renderNote(container, note) {
         let slot = container.querySelector('.entry-note-wrap');
         if (!slot) {
@@ -44,7 +44,7 @@
         const TOGGLE = document.createElement('button');
         TOGGLE.type = 'button';
         TOGGLE.className = 'entry-note-toggle';
-        TOGGLE.textContent = 'Ещё';
+        TOGGLE.textContent = 'Р•С‰С‘';
         TOGGLE.style.background = 'none';
         TOGGLE.style.border = 'none';
         TOGGLE.style.padding = '0';
@@ -60,11 +60,11 @@
             if (expanded) {
                 TEXT.style.webkitLineClamp = 'unset';
                 TEXT.style.display = 'block';
-                TOGGLE.textContent = 'Свернуть';
+                TOGGLE.textContent = 'РЎРІРµСЂРЅСѓС‚СЊ';
             } else {
                 TEXT.style.display = '-webkit-box';
                 TEXT.style.webkitLineClamp = '2';
-                TOGGLE.textContent = 'Ещё';
+                TOGGLE.textContent = 'Р•С‰С‘';
             }
         };
 
@@ -74,9 +74,9 @@
 
     window.Utils = { getCsrf, debounce, fmt2, resetPhotoPreview, renderNote };
 
-    // ===== Итоги/лимит =====
+    // ===== РС‚РѕРіРё/Р»РёРјРёС‚ =====
     (function(){
-        // Форматирование: 12 345,67
+        // Р¤РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёРµ: 12 345,67
         function fmt(v){
             try {
                 return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2})
@@ -86,7 +86,7 @@
             }
         }
 
-        // Универсальный парсер "12 345,67" / "12345.67" / с NBSP
+        // РЈРЅРёРІРµСЂСЃР°Р»СЊРЅС‹Р№ РїР°СЂСЃРµСЂ "12 345,67" / "12345.67" / СЃ NBSP
         function parseNum(s){
             if (!s) return NaN;
             s = (''+s)
@@ -96,7 +96,7 @@
             return parseFloat(s);
         }
 
-        // Сумма по всем позициям (amount * qty)
+        // РЎСѓРјРјР° РїРѕ РІСЃРµРј РїРѕР·РёС†РёСЏРј (amount * qty)
         function calcSum(){
             var forms = document.querySelectorAll('.entry-form');
             var sum = 0;
@@ -110,76 +110,19 @@
             return sum;
         }
 
-        // Главный апдейтер
-        function updateTotals(){
+        // Р“Р»Р°РІРЅС‹Р№ Р°РїРґРµР№С‚РµСЂ
+                function updateTotals(){
             var wrap = document.getElementById('total-wrap');
             if (!wrap) return;
 
             var sum = calcSum();
-
-            // Новая вёрстка?
-            var remEl = document.getElementById('scan-remaining');
-            var sumEl = document.getElementById('scan-sum');
-            var limEl = document.getElementById('scan-limit');
-
-            // Определяем наличие лимита
-            var dsLimit = (wrap.getAttribute('data-limit') || '').trim();
-            var limit = parseNum(dsLimit);
-            var hasLimit = !!dsLimit;
-
-            // Фолбэк: пробуем вытащить лимит из текста "Лимит: ..."
-            if (!hasLimit && limEl) {
-                var limTxt = limEl.textContent || '';
-                var num = parseNum(limTxt);
-                if (!isNaN(num)) { limit = num; hasLimit = true; }
-            }
-            // Явный флаг
-            if (!hasLimit && wrap.getAttribute('data-has-limit') === '1') {
-                hasLimit = true;
-                if (isNaN(limit)) limit = 0;
-            }
-
-            if (remEl || sumEl || limEl) {
-                // Новая двухстрочная вёрстка
-                if (hasLimit) {
-                    var rest = limit - sum;
-                    if (remEl){
-                        remEl.textContent = fmt(rest);
-                        remEl.classList.toggle('text-danger', rest < 0);
-                        remEl.classList.toggle('fw-bold', rest < 0);
-                    }
-                    if (sumEl) sumEl.textContent = fmt(sum);
-                    if (limEl) limEl.textContent = fmt(limit);
-                } else {
-                    // Без лимита: показываем просто сумму
-                    if (sumEl) sumEl.textContent = fmt(sum);
-                    if (remEl){
-                        remEl.textContent = fmt(sum);
-                        remEl.classList.remove('text-danger','fw-bold');
-                    }
-                }
-                return;
-            }
-
-            // Старая вёрстка (одна строка с #scan-total)
-            var totalEl = document.getElementById('scan-total');
-            if (!totalEl) return;
-
-            if (hasLimit) {
-                var restOld = limit - sum;
-                totalEl.textContent = fmt(restOld);
-                totalEl.classList.toggle('text-danger', restOld < 0);
-                totalEl.classList.toggle('fw-bold', restOld < 0);
-            } else {
-                totalEl.textContent = fmt(sum);
-                totalEl.classList.remove('text-danger', 'fw-bold');
+            if (typeof window.updateTotal === 'function') {
+                window.updateTotal(sum);
             }
         }
+window.updateTotals = updateTotals;
 
-        // Делаем функцию доступной извне
-        window.updateTotals = updateTotals;
-
-        // ----- Слушатели (в capture, на случай stopPropagation) -----
+        // ----- РЎР»СѓС€Р°С‚РµР»Рё (РІ capture, РЅР° СЃР»СѓС‡Р°Р№ stopPropagation) -----
         var handler = function(e){
             var t = e.target;
             if (!t) return;
@@ -188,25 +131,25 @@
         };
         document.addEventListener('input', handler, true);   // capture
         document.addEventListener('change', handler, true);  // capture
-        document.addEventListener('keyup', handler, true);   // на всякий
+        document.addEventListener('keyup', handler, true);   // РЅР° РІСЃСЏРєРёР№
 
-        // Клики по кнопкам сохранения/удаления
+        // РљР»РёРєРё РїРѕ РєРЅРѕРїРєР°Рј СЃРѕС…СЂР°РЅРµРЅРёСЏ/СѓРґР°Р»РµРЅРёСЏ
         document.addEventListener('click', function(e){
             var t = e.target;
             if (!t) return;
             if (t.closest('.save-entry') || t.closest('.delete-entry') || t.closest('#m-save')) {
-                setTimeout(updateTotals, 0); // после DOM-правок
+                setTimeout(updateTotals, 0); // РїРѕСЃР»Рµ DOM-РїСЂР°РІРѕРє
             }
         }, true);
 
-        // Наблюдаем за списком позиций — реакция на добавление/удаление
+        // РќР°Р±Р»СЋРґР°РµРј Р·Р° СЃРїРёСЃРєРѕРј РїРѕР·РёС†РёР№ вЂ” СЂРµР°РєС†РёСЏ РЅР° РґРѕР±Р°РІР»РµРЅРёРµ/СѓРґР°Р»РµРЅРёРµ
         var entriesRoot = document.querySelector('.mt-3.text-start');
         if (entriesRoot && 'MutationObserver' in window) {
             var mo = new MutationObserver(debounce(updateTotals, 50));
             mo.observe(entriesRoot, {childList: true, subtree: true});
         }
 
-        // Первый запуск
+        // РџРµСЂРІС‹Р№ Р·Р°РїСѓСЃРє
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', updateTotals);
         } else {
@@ -214,3 +157,11 @@
         }
     })();
 })();
+
+
+
+
+
+
+
+
