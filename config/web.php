@@ -136,6 +136,9 @@ $config = [
             'thousandSeparator' => ' ',
             'decimalSeparator'  => ',',
         ],
+        'response' => [
+            'charset' => 'UTF-8',
+        ],
 
         'i18n' => [
             'translations' => [
