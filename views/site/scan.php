@@ -126,7 +126,7 @@ $entries = $entries ?? [];
                     </div>
                     <div class="modal-footer d-flex justify-content-between flex-wrap gap-2">
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-secondary" id="m-show-photo" type="button">Показать скан</button>
+                            <button class="btn btn-outline-secondary" id="m-show-photo" type="button"></button>
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>

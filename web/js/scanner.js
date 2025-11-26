@@ -407,20 +407,33 @@
     }
 
     if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
-        mShowPhotoBtn.onclick = (e) => {
-            e.preventDefault();
-            const isHidden = mPhotoWrap.style.display !== 'block';
-            if (isHidden) {
+        const SHOW = 'Показать скан';
+        const HIDE = 'Скрыть скан';
+
+        // Функция синхронизации UI с фактом видимости блока
+        const sync = (visible) => {
+            if (visible) {
                 mPhotoWrap.style.display = 'block';
                 mPhotoImg.src = lastPhotoURL || '';
-                mShowPhotoBtn.textContent = 'Скрыть скан';
+                mShowPhotoBtn.textContent = HIDE;
             } else {
                 mPhotoWrap.style.display = 'none';
-                mShowPhotoBtn.textContent = 'Показать скан';
                 mPhotoImg.src = '';
+                mShowPhotoBtn.textContent = SHOW;
             }
         };
+
+        // Начальное состояние — по реальному рендеру
+        const initiallyVisible = getComputedStyle(mPhotoWrap).display === 'block';
+        sync(initiallyVisible);
+
+        mShowPhotoBtn.onclick = (e) => {
+            e.preventDefault();
+            const isVisible = getComputedStyle(mPhotoWrap).display === 'block';
+            sync(!isVisible);
+        };
     }
+
 
     if (mRetakeBtn) {
         mRetakeBtn.onclick = () => { bootstrapModal?.hide(); };
