@@ -12,11 +12,11 @@
 
     function resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg) {
         if (mPhotoWrap) mPhotoWrap.style.display = 'none';
-        if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'РџРѕРєР°Р·Р°С‚СЊ СЃРєР°РЅ';
+        if (mShowPhotoBtn) mShowPhotoBtn.textContent = 'Показать скан';
         if (mPhotoImg) mPhotoImg.src = '';
     }
 
-    // Р РµРЅРґРµСЂ Р·Р°РјРµС‚РєРё РІ СЃР»РѕС‚ .entry-note-wrap (РёР»Рё СЃРѕР·РґР°С‘Рј РїРµСЂРµРґ РєРЅРѕРїРєР°РјРё)
+    // Рендер заметки в слот .entry-note-wrap (или создаём перед кнопками)
     function renderNote(container, note) {
         let slot = container.querySelector('.entry-note-wrap');
         if (!slot) {
@@ -74,9 +74,7 @@
 
     window.Utils = { getCsrf, debounce, fmt2, resetPhotoPreview, renderNote };
 
-    // ===== РС‚РѕРіРё/Р»РёРјРёС‚ =====
     (function(){
-        // Р¤РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёРµ: 12 345,67
         function fmt(v){
             try {
                 return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2})
@@ -86,7 +84,7 @@
             }
         }
 
-        // РЈРЅРёРІРµСЂСЃР°Р»СЊРЅС‹Р№ РїР°СЂСЃРµСЂ "12 345,67" / "12345.67" / СЃ NBSP
+
         function parseNum(s){
             if (!s) return NaN;
             s = (''+s)
@@ -96,7 +94,7 @@
             return parseFloat(s);
         }
 
-        // РЎСѓРјРјР° РїРѕ РІСЃРµРј РїРѕР·РёС†РёСЏРј (amount * qty)
+
         function calcSum(){
             var forms = document.querySelectorAll('.entry-form');
             var sum = 0;
@@ -110,7 +108,7 @@
             return sum;
         }
 
-        // Р“Р»Р°РІРЅС‹Р№ Р°РїРґРµР№С‚РµСЂ
+
                 function updateTotals(){
             var wrap = document.getElementById('total-wrap');
             if (!wrap) return;
@@ -122,7 +120,7 @@
         }
 window.updateTotals = updateTotals;
 
-        // ----- РЎР»СѓС€Р°С‚РµР»Рё (РІ capture, РЅР° СЃР»СѓС‡Р°Р№ stopPropagation) -----
+
         var handler = function(e){
             var t = e.target;
             if (!t) return;
@@ -133,7 +131,7 @@ window.updateTotals = updateTotals;
         document.addEventListener('change', handler, true);  // capture
         document.addEventListener('keyup', handler, true);   // РЅР° РІСЃСЏРєРёР№
 
-        // РљР»РёРєРё РїРѕ РєРЅРѕРїРєР°Рј СЃРѕС…СЂР°РЅРµРЅРёСЏ/СѓРґР°Р»РµРЅРёСЏ
+
         document.addEventListener('click', function(e){
             var t = e.target;
             if (!t) return;
@@ -142,14 +140,13 @@ window.updateTotals = updateTotals;
             }
         }, true);
 
-        // РќР°Р±Р»СЋРґР°РµРј Р·Р° СЃРїРёСЃРєРѕРј РїРѕР·РёС†РёР№ вЂ” СЂРµР°РєС†РёСЏ РЅР° РґРѕР±Р°РІР»РµРЅРёРµ/СѓРґР°Р»РµРЅРёРµ
+
         var entriesRoot = document.querySelector('.mt-3.text-start');
         if (entriesRoot && 'MutationObserver' in window) {
             var mo = new MutationObserver(debounce(updateTotals, 50));
             mo.observe(entriesRoot, {childList: true, subtree: true});
         }
 
-        // РџРµСЂРІС‹Р№ Р·Р°РїСѓСЃРє
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', updateTotals);
         } else {

@@ -137,11 +137,6 @@ $entries = $entries ?? [];
                 </div>
             </div>
         </div>
-        <script> const btn = document.getElementById('m-show-photo');
-        if (btn) {
-        new MutationObserver(() => { console.trace('m-show-photo.changed:', btn.textContent); })
-        .observe(btn, {childList:true, characterData:true, subtree:true});
-        }</script>
 
         <?php
         $sum   = (float)($total ?? 0.0);
