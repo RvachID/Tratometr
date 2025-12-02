@@ -116,43 +116,31 @@ class ScanService
     private function runRecognition(string $path): array
     {
         try {
-            $res = $this->ocrClient->extractPriceFromImage($path, ['eng', 'rus'], [
-                'isOverlayRequired' => true,
-                'OCREngine'         => 2,
-                'scale'             => true,
-                'detectOrientation' => true,
-            ]);
-
-            if (!empty($res['success']) && $res['success'] === true && !empty($res['amount'])) {
-                return [
-                    'amount'     => (float)$res['amount'],
-                    'recognized' => [
-                        'ParsedText' => (string)($res['text'] ?? ''),
-                    ],
-                ];
+            // Сразу работаем через универсальный pipeline:
+            // parseImage() -> extractAmountByOverlay() -> fallback extractAmount()
+            $recognized = $this->recognizeText($path);
+            if (isset($recognized['error'])) {
+                return ['error' => $recognized['error'], 'reason' => 'ocr', 'recognized' => $recognized];
             }
-        } catch (\Throwable $e) {
-            Yii::warning('extractPriceFromImage failed: ' . $e->getMessage(), __METHOD__);
-        }
 
-        $recognized = $this->recognizeText($path);
-        if (isset($recognized['error'])) {
-            return ['error' => $recognized['error'], 'reason' => 'ocr', 'recognized' => $recognized];
-        }
+            $amount = $this->extractAmountByOverlay($recognized, $path);
+            if ($amount !== null && $amount > 0.0) {
+                return ['amount' => $amount, 'recognized' => $recognized];
+            }
 
-        $amount = $this->extractAmountByOverlay($recognized, $path);
-        if ($amount !== null && $amount > 0.0) {
+            $cleanText = $this->stripStrikethroughText($recognized, $recognized['ParsedText'] ?? '');
+            $amount = $this->extractAmount($cleanText, false);
+            if (!$amount) {
+                return ['error' => 'no_amount', 'reason' => 'no_amount', 'recognized' => $recognized];
+            }
+
             return ['amount' => $amount, 'recognized' => $recognized];
+        } catch (\Throwable $e) {
+            Yii::warning('runRecognition failed: ' . $e->getMessage(), __METHOD__);
+            return ['error' => 'exception', 'reason' => 'ocr', 'recognized' => ['ParsedText' => '']];
         }
-
-        $cleanText = $this->stripStrikethroughText($recognized, $recognized['ParsedText'] ?? '');
-        $amount = $this->extractAmount($cleanText, false);
-        if (!$amount) {
-            return ['error' => 'no_amount', 'reason' => 'no_amount', 'recognized' => $recognized];
-        }
-
-        return ['amount' => $amount, 'recognized' => $recognized];
     }
+
 
     private function recognizeText(string $filePath): array
     {
