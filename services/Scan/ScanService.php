@@ -213,7 +213,7 @@ class ScanService
                     'W' => $W,
                     'R' => $L + $W,
                     'B' => $T + $H,
-                    'underlined' => !empty($w['IsUnderlined']),
+
                 ];
             }
         }
@@ -336,11 +336,6 @@ class ScanService
 
         if ($main['hasCents']) {
             return $main['val'];
-        }
-
-        $underlineCents = $this->tryFindCentsByUnderline($tokens, $main);
-        if ($underlineCents !== null && $main['val'] !== null) {
-            return floor($main['val']) + $underlineCents / 100.0;
         }
 
         $digitsInGroup = preg_match_all('~\d~', (string)$main['raw']);
@@ -714,70 +709,6 @@ class ScanService
         $kop = (int) substr($digits, 2, 2);
 
         return $rub + $kop / 100.0; // рубли
-    }
-
-    private function tryFindCentsByUnderline(array $allTokens, array $mainGroup): ?int
-    {
-        $bbox  = $mainGroup['bbox'];
-        $baseH = max(1, (int)$mainGroup['baseH']);
-
-        $candidates = [];
-
-        foreach ($allTokens as $tk) {
-            // Игнорируем токены из самой основной группы
-            if (in_array($tk, $mainGroup['tokens'], true)) {
-                continue;
-            }
-
-            if (empty($tk['underlined'])) {
-                continue;
-            }
-
-            // Достаём только цифры
-            $digits = preg_replace('~\D~', '', (string)$tk['text']);
-            if ($digits === '' || strlen($digits) > 2) {
-                continue;
-            }
-
-            $cents = (int)$digits;
-            if ($cents < 0 || $cents > 99) {
-                continue;
-            }
-
-            // Должны быть заметно меньше основного шрифта
-            $ratioH = $tk['H'] / $baseH;
-            if ($ratioH >= 1.0 || $ratioH < 0.3) {
-                continue;
-            }
-
-            // И находиться рядом с основной ценой (обычно справа/чуть выше)
-            $nearHoriz = $tk['L'] >= $bbox['L'] - (int)round(0.2 * $bbox['W'])
-                && $tk['L'] <= $bbox['R'] + (int)round(0.8 * $bbox['W']);
-            $nearVert  = $tk['T'] >= $bbox['T'] - (int)round(0.8 * $bbox['H'])
-                && $tk['T'] <= $bbox['B'] + (int)round(0.3 * $bbox['H']);
-
-            if (!$nearHoriz || !$nearVert) {
-                continue;
-            }
-
-            // Чем ближе к правому верхнему углу цены — тем лучше
-            $dx = $tk['L'] - $bbox['R'];
-            $dy = $bbox['T'] - $tk['T'];
-            $dist2 = $dx * $dx + $dy * $dy;
-
-            $candidates[] = [
-                'cents' => $cents,
-                'dist2' => $dist2,
-            ];
-        }
-
-        if (!$candidates) {
-            return null;
-        }
-
-        usort($candidates, fn($a, $b) => $a['dist2'] <=> $b['dist2']);
-
-        return $candidates[0]['cents'];
     }
 
 
