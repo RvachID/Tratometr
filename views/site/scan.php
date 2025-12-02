@@ -126,11 +126,11 @@ $entries = $entries ?? [];
                     </div>
                     <div class="modal-footer d-flex justify-content-between flex-wrap gap-2">
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-secondary" id="m-show-photo" type="button">111111</button>
+                            <button class="btn btn-outline-secondary" id="m-show-photo" type="button"></button>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-secondary" id="m-retake" type="button">11Переснять</button>
-                            <button class="btn btn-outline-secondary" id="m-save" type="button">11Сохранить</button>
+                            <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>
+                            <button class="btn btn-outline-secondary" id="m-save" type="button">Сохранить</button>
                         </div>
                     </div>
 

@@ -388,7 +388,6 @@
         }
     }
 
-
     // Кнопки модалки
     if (mQtyMinusEl && mQtyPlusEl && mQtyEl) {
         mQtyMinusEl.onclick = () => {
@@ -433,7 +432,6 @@
             sync(!isVisible);
         };
     }
-
 
     if (mRetakeBtn) {
         mRetakeBtn.onclick = () => { bootstrapModal?.hide(); };

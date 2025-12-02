@@ -249,11 +249,17 @@ class ScanService
 
             $raw = implode('', array_map(fn($g) => preg_replace('~\s+~u', '', $g['text']), $cur));
 
-            $val = $this->normalizeOcrNumber($raw, false);
+            // Пытаемся распознать "слитые" копейки типа 9999 = 99.99
+            $mergedVal = $this->parseMergedCents($raw);
+            if ($mergedVal !== null) {
+                $val = $mergedVal;
+                $hasCents = true; // считаем, что копейки есть, чтобы не лезть в доп. OCR
+            } else {
+                $val = $this->normalizeOcrNumber($raw, false);
+                $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
+            }
 
-            $hasCents = (bool)preg_match('~[.,]\d{2}\b~', $raw);
             $digits   = preg_match_all('~\d~', $raw);
-
             $score = (float)($W * $H);
             $score *= (1.0 + min(1.0, $H / 48.0) * 0.35);
             if ($hasCents) {
@@ -365,21 +371,59 @@ class ScanService
             return null;
         }
 
+        // Уберём только пробелы для анализа формата
+        $noSpaces = str_replace(' ', '', $s);
+
+        // 1) Формат тысяч с точкой: 3.999 / 12.345 / 1.234.567
+        if (preg_match('~^\d{1,3}(\.\d{3})+$~', $noSpaces)) {
+            $digits = str_replace('.', '', $noSpaces);
+            if ($digits === '') {
+                return null;
+            }
+            // Это целая сумма в рублях, без копеек
+            return (float) $digits;
+        }
+
+        // 2) Формат тысяч с пробелом: 1 299 / 12 345
+        if (preg_match('~^\d{1,3}( \d{3})+$~', $s)) {
+            $digits = str_replace(' ', '', $s);
+            if ($digits === '') {
+                return null;
+            }
+            return (float) $digits;
+        }
+
+        // 3) Обычный путь: десятичная точка/запятая
         $s = str_replace([' ', ','], ['', '.'], $s);
         if (!preg_match('~^\d+(?:\.\d+)?$~', $s)) {
             return null;
         }
 
         $value = (float)$s;
+
+        // Старый хак "делим на 100 только при allowDiv100"
         if ($allowDiv100 && $value > 1000) {
             $value /= 100.0;
         }
+
         return round($value, 2);
     }
 
     private function extractAmount(string $text, bool $allowDiv100 = false): float
     {
         $candidates = [];
+
+        // 0) Сначала — числа с разделителем тысяч (3.999, 12.345, 1 299)
+        if (preg_match_all('~\b\d{1,3}(?:[.\s]\d{3})+\b~', $text, $mThousands)) {
+            foreach ($mThousands[0] as $hit) {
+                $val = $this->normalizeOcrNumber($hit, false);
+                if ($val !== null) {
+                    $candidates[] = $val;
+                }
+            }
+        }
+
+        // 1) Классический формат с копейками 29.99 / 29,99
         if (preg_match_all('~(\d+[.,]\d{2})~', $text, $m)) {
             foreach ($m[1] as $hit) {
                 $val = $this->normalizeOcrNumber($hit, $allowDiv100);
@@ -388,14 +432,27 @@ class ScanService
                 }
             }
         }
+
         if ($candidates) {
             rsort($candidates, SORT_NUMERIC);
             return (float)$candidates[0];
         }
 
+        // 2) Сухие числа 2–4 цифры: тут включаем и "99⁹⁹" → 99.99
         if (preg_match_all('~\b(\d{2,4})\b~', $text, $m)) {
             foreach ($m[1] as $hit) {
-                $n = (int)$hit;
+                $digitsOnly = preg_replace('~\D~', '', $hit);
+
+                // Хак "99⁹⁹ без точки" включаем только когда НЕ делим на 100
+                if (!$allowDiv100) {
+                    $merged = $this->parseMergedCents($digitsOnly);
+                    if ($merged !== null) {
+                        $candidates[] = $merged;
+                        continue; // не добавляем это же число как целое
+                    }
+                }
+
+                $n = (int)$digitsOnly;
                 if ($n >= 2 && $n <= 1000) {
                     $candidates[] = $n;
                 }
@@ -413,6 +470,7 @@ class ScanService
 
         return 0.0;
     }
+
 
     private function preprocessImage(string $filePath): bool
     {
@@ -627,4 +685,30 @@ class ScanService
 
         return $clean;
     }
+
+    private function parseMergedCents(string $raw): ?float
+    {
+        // Если уже есть десятичный разделитель — не трогаем
+        // (чтобы не мешать "29.99" и похожим форматам).
+        if (strpos($raw, '.') !== false || strpos($raw, ',') !== false) {
+            return null;
+        }
+
+        $digits = preg_replace('~\D~', '', $raw);
+        if (strlen($digits) !== 4) {
+            return null;
+        }
+
+        // Берём только классический маркетинговый формат XX99
+        if (substr($digits, -2) !== '99') {
+            return null;
+        }
+
+        $rub = (int) substr($digits, 0, 2);
+        $kop = (int) substr($digits, 2, 2);
+
+        return $rub + $kop / 100.0; // рубли
+    }
+
+
 }
