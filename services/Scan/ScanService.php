@@ -334,12 +334,28 @@ class ScanService
             return null;
         }
 
+        /**
+         * 1) Попытка: целое число + маленькие «99» рядом → 149⁹⁹ → 149.99
+         * Работает только если в самой группе НЕТ точки/запятой.
+         */
+        $smallCentsVal = $this->tryAttachSmallCentsByOverlay($groups, $main);
+        if ($smallCentsVal !== null) {
+            return $smallCentsVal;
+        }
+
+        /**
+         * 2) Если у группы уже есть копейки (29.99, 3.999 и т.п.) — просто возвращаем.
+         */
         if ($main['hasCents']) {
             return $main['val'];
         }
 
+        /**
+         * 3) Как и раньше: refinePriceFromCrop / ROI и т.д.
+         */
         $digitsInGroup = preg_match_all('~\d~', (string)$main['raw']);
         $refined = $this->refinePriceFromCrop($imagePath, $main['bbox'], $digitsInGroup);
+
         if ($refined !== null) {
             return $refined;
         }
@@ -657,6 +673,100 @@ class ScanService
             return null;
         }
     }
+
+    /**
+     * Пытается приклеить «мелкие копейки» к основной цене по Overlay.
+     *
+     * Пример: крупное "149" + меньшим шрифтом "99" справа/чуть выше → 149.99.
+     *
+     * Условия, чтобы не сломать другие форматы:
+     * - в raw основной группы НЕТ '.' или ',' (то есть это целое число, а не 29.99);
+     * - берём только группы из ровно двух цифр (99, 95 и т.п.);
+     * - высота группы с копейками заметно меньше (0.3–0.9 от высоты основной);
+     * - геометрически расположены рядом с основной ценой.
+     */
+    private function tryAttachSmallCentsByOverlay(array $groups, array $main): ?float
+    {
+        if (!isset($main['val'], $main['raw'], $main['bbox'], $main['baseH'])) {
+            return null;
+        }
+
+        // В самой группе уже есть десятичный разделитель — ничего не делаем.
+        if (preg_match('~[.,]~', (string)$main['raw'])) {
+            return null;
+        }
+
+        $baseVal = (float)$main['val'];
+        if ($baseVal <= 0) {
+            return null;
+        }
+
+        $baseBox = $main['bbox'];
+        $baseH   = max(1, (int)$main['baseH']);
+
+        $best = null;
+
+        foreach ($groups as $g) {
+            // Пропускаем саму основную группу
+            if ($g === $main) {
+                continue;
+            }
+
+            if (empty($g['raw']) || empty($g['bbox']) || empty($g['baseH'])) {
+                continue;
+            }
+
+            // Извлекаем только цифры из raw
+            $digits = preg_replace('~\D~', '', (string)$g['raw']);
+            if ($digits === '' || strlen($digits) !== 2) {
+                // Нас интересуют строго две цифры — кандидаты на копейки.
+                continue;
+            }
+
+            $cents = (int)$digits;
+            if ($cents < 0 || $cents > 99) {
+                continue;
+            }
+
+            // Группа должна быть заметно меньше по высоте, чем основная.
+            $hRatio = ((int)$g['baseH']) / $baseH;
+            if ($hRatio >= 0.9 || $hRatio <= 0.3) {
+                continue;
+            }
+
+            $box = $g['bbox'];
+
+            // Должна находиться рядом: обычно справа и чуть выше/на уровне.
+            $nearHoriz = $box['L'] >= $baseBox['L'] - (int)round(0.2 * $baseBox['W'])
+                && $box['L'] <= $baseBox['R'] + (int)round(0.8 * $baseBox['W']);
+
+            $nearVert  = $box['T'] >= $baseBox['T'] - (int)round(0.6 * $baseBox['H'])
+                && $box['T'] <= $baseBox['B'] + (int)round(0.3 * $baseBox['H']);
+
+            if (!$nearHoriz || !$nearVert) {
+                continue;
+            }
+
+            // Чем ближе к правому верхнему углу основной цены — тем лучше.
+            $dx = $box['L'] - $baseBox['R'];
+            $dy = $box['T'] - $baseBox['T'];
+            $dist2 = $dx * $dx + $dy * $dy;
+
+            if ($best === null || $dist2 < $best['dist2']) {
+                $best = [
+                    'cents' => $cents,
+                    'dist2' => $dist2,
+                ];
+            }
+        }
+
+        if ($best === null) {
+            return null;
+        }
+
+        return floor($baseVal) + $best['cents'] / 100.0;
+    }
+
 
     private function stripStrikethroughText(array $recognized, string $parsedText): string
     {
