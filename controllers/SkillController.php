@@ -69,8 +69,8 @@ final class SkillController extends Controller
             }
 
             $titlesAdded = array_map(fn($i) => $i->title, $added);
-            $list        = $service->getActiveList($userId);
-            $count       = count($list);
+            $list = $service->getActiveList($userId);
+            $count = count($list);
 
             $addedText = implode(', ', $titlesAdded);
 
@@ -88,7 +88,7 @@ final class SkillController extends Controller
                 return 'Список покупок пуст. Скажи: добавь молоко.';
             }
 
-            $names  = array_map(fn($i) => $i->title, $list);
+            $names = array_map(fn($i) => $i->title, $list);
             $joined = implode(', ', $names);
 
             return 'В списке: ' . $joined . '.';
@@ -107,7 +107,6 @@ final class SkillController extends Controller
         // дефолт
         return 'Я могу вести список покупок. Скажи: «добавь молоко» или «что в списке».';
     }
-
 
 
     // ===== helpers =====

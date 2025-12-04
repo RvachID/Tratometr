@@ -1,4 +1,5 @@
 <?php
+
 namespace app\services\Alice;
 
 use app\models\AliceItem;
@@ -35,7 +36,7 @@ class AliceListService
      */
     public function addFromCommand(int $userId, string $command): array
     {
-        // вытаскиваем часть после "добавь/добавить"
+        // вытаскиваем всё после "добавь/добавить"
         if (!preg_match('~^добав(ь|ить)\b(.*)$~u', $command, $m)) {
             return [];
         }
@@ -45,8 +46,18 @@ class AliceListService
             return [];
         }
 
-        // нормализуем: "молоко и яйца, и краску" -> "молоко, яйца, краску"
+        // убираем "в список" в начале, если есть
+        $tail = preg_replace('~^в\s+список\s+~u', '', $tail);
+
+        // нормализуем разделители:
+        // "молоко и яйца и краску" -> "молоко, яйца, краску"
         $tail = preg_replace('~\s+и\s+~u', ', ', $tail);
+
+        // если в итоге нет ни одной запятой — считем это одним товаром
+        // (чтобы не порезать "масло 2 литра" и т.п.)
+        if (mb_strpos($tail, ',') === false) {
+            return [$this->addItem($userId, $tail)];
+        }
 
         // режем по запятым
         $parts = preg_split('~\s*,\s*~u', $tail);
@@ -58,12 +69,12 @@ class AliceListService
                 continue;
             }
 
-            // используем уже существующий метод
             $added[] = $this->addItem($userId, $title);
         }
 
         return $added;
     }
+
 
     /**
      * Активный список (не купленные).
