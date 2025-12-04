@@ -200,6 +200,15 @@ $entries = $entries ?? [];
         <div class="mt-3 text-start">
             <?php foreach ($entries as $entry): ?>
                 <div class="border p-2 mb-2">
+
+                    <?php if ($entry->aliceItem): ?>
+                        <div class="mb-1 small">
+                    <span class="badge bg-light text-dark">
+                        По списку: <?= Html::encode($entry->aliceItem->title) ?>
+                    </span>
+                        </div>
+                    <?php endif; ?>
+
                     <form class="entry-form" data-id="<?= $entry->id ?>">
                         Цена:
                         <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
@@ -226,6 +235,7 @@ $entries = $entries ?? [];
                 </div>
             <?php endforeach; ?>
         </div>
+
 
     </div>
     </div>

@@ -139,6 +139,7 @@ class SiteController extends Controller
                     'user_id'    => $userId,
                     'session_id' => $session->id,
                 ])
+                ->with('aliceItem')
                 ->orderBy(['id' => SORT_DESC])
                 ->limit(200)
                 ->all();
