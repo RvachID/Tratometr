@@ -125,15 +125,13 @@ class SiteController extends Controller
         $userId  = Yii::$app->user->id;
         $session = $this->sessionManager->getActive($userId);
 
-        $needPrompt = $session === null;
+        $needPrompt = ($session === null);
         $store      = $session ? (string)$session->shop     : '';
         $category   = $session ? (string)$session->category : '';
         $limit      = $session ? $this->sessionManager->formatLimit($session) : null;
 
-        $entries      = [];
-        $total        = 0.0;
-        $aliceItems   = [];
-        $aliceOptions = [];
+        $entries = [];
+        $total   = 0.0;
 
         if ($session) {
             $entries = PriceEntry::find()
@@ -146,28 +144,20 @@ class SiteController extends Controller
                 ->all();
 
             $total = $this->priceEntryService->getUserTotal($userId, $session->id);
-
-            $service    = new AliceListService();
-            /** @var AliceItem[] $aliceItems */
-            $aliceItems = $service->getActiveList($userId);
-
-            $aliceOptions = array_map(static function (AliceItem $item) {
-                return [
-                    'id'    => $item->id,
-                    'title' => $item->title,
-                ];
-            }, $aliceItems);
         }
 
+        // <-- ВСЕГДА грузим актуальный список покупок Алисы
+        $aliceService = new AliceListService();
+        $aliceItems   = $aliceService->getActiveList($userId); // только is_done = 0
+
         return $this->render('scan', [
-            'store'       => $store,
-            'category'    => $category,
-            'entries'     => $entries,
-            'total'       => $total,
-            'needPrompt'  => $needPrompt,
-            'limit'       => $limit,
-            'aliceItems'  => $aliceItems,
-            'aliceOptions'=> $aliceOptions,
+            'store'      => $store,
+            'category'   => $category,
+            'entries'    => $entries,
+            'total'      => $total,
+            'needPrompt' => $needPrompt,
+            'limit'      => $limit,
+            'aliceItems' => $aliceItems,
         ]);
     }
 
