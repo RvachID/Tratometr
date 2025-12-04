@@ -36,7 +36,7 @@ class AliceListService
      */
     public function addFromCommand(int $userId, string $command): array
     {
-        // вытаскиваем всё после "добавь/добавить"
+        // Забираем хвост после "добавь/добавить"
         if (!preg_match('~^добав(ь|ить)\b(.*)$~u', $command, $m)) {
             return [];
         }
@@ -46,34 +46,70 @@ class AliceListService
             return [];
         }
 
-        // убираем "в список" в начале, если есть
-        $tail = preg_replace('~^в\s+список\s+~u', '', $tail);
+        // --- Определяем спец-режим: "по отдельности"/"по пунктам" ---
+        $separateMode = false;
 
-        // нормализуем разделители:
-        // "молоко и яйца и краску" -> "молоко, яйца, краску"
-        $tail = preg_replace('~\s+и\s+~u', ', ', $tail);
-
-        // если в итоге нет ни одной запятой — считем это одним товаром
-        // (чтобы не порезать "масло 2 литра" и т.п.)
-        if (mb_strpos($tail, ',') === false) {
-            return [$this->addItem($userId, $tail)];
+        if (preg_match('~по\s+отдельности~u', $tail)) {
+            $separateMode = true;
+            $tail = preg_replace('~по\s+отдельности~u', ' ', $tail);
+        }
+        if (preg_match('~по\s+пунктам~u', $tail)) {
+            $separateMode = true;
+            $tail = preg_replace('~по\s+пунктам~u', ' ', $tail);
         }
 
-        // режем по запятым
-        $parts = preg_split('~\s*,\s*~u', $tail);
+        // Убираем "в список" где бы ни встретилось
+        $tail = preg_replace('~\bв\s+список\b~u', ' ', $tail);
+        $tail = trim(preg_replace('~\s+~u', ' ', $tail));
+
+        if ($tail === '') {
+            return [];
+        }
+
         $added = [];
 
-        foreach ($parts as $part) {
-            $title = trim($part, " \t\n\r\0\x0B.,;");
-            if ($title === '') {
-                continue;
+        // ===== РЕЖИМ "ПО ОТДЕЛЬНОСТИ / ПО ПУНКТАМ" =====
+        if ($separateMode) {
+            // Каждое слово (кроме стоп-слов) — отдельная позиция
+            $words = preg_split('~\s+~u', $tail);
+            $stopWords = ['и', 'в', 'во', 'на', 'к', 'по', 'с', 'со', 'список'];
+
+            foreach ($words as $w) {
+                $w = trim($w, " \t\n\r\0\x0B.,;");
+                if ($w === '') {
+                    continue;
+                }
+
+                $lw = mb_strtolower($w, 'UTF-8');
+                if (in_array($lw, $stopWords, true)) {
+                    continue;
+                }
+
+                $added[] = $this->addItem($userId, $w);
             }
 
-            $added[] = $this->addItem($userId, $title);
+            return $added;
         }
 
-        return $added;
+        // ===== ОБЫЧНЫЙ РЕЖИМ "ДОБАВЬ МОЛОКО И ЯЙЦА" =====
+
+        // "молоко и яйца и краску" → делим по "и"
+        if (preg_match('~\s+и\s+~u', $tail)) {
+            $parts = preg_split('~\s+и\s+~u', $tail);
+            foreach ($parts as $part) {
+                $title = trim($part, " \t\n\r\0\x0B.,;");
+                if ($title === '') {
+                    continue;
+                }
+                $added[] = $this->addItem($userId, $title);
+            }
+            return $added;
+        }
+
+        // Без "и" — считаем всё хвостом одного товара
+        return [$this->addItem($userId, $tail)];
     }
+
 
 
     /**
