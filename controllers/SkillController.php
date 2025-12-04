@@ -61,7 +61,7 @@ final class SkillController extends Controller
 
     private function handleCommand(AliceListService $service, int $userId, string $command): string
     {
-        // 1) "добавь молоко", "добавь хлеб, яйца, муку и перец"
+        // 1) "добавь молоко", "добавь молоко, яйца, краску"
         if (preg_match('~^добав(ь|ить)\b~u', $command)) {
             $added = $service->addFromCommand($userId, $command);
             if (!$added) {
@@ -69,12 +69,12 @@ final class SkillController extends Controller
             }
 
             $titlesAdded = array_map(fn($i) => $i->title, $added);
-            $list = $service->getActiveList($userId);
-            $count = count($list);
+            $list        = $service->getActiveList($userId);
+            $count       = count($list);
 
             $addedText = implode(', ', $titlesAdded);
 
-            if ($count === 1) {
+            if ($count === 1 && count($titlesAdded) === 1) {
                 return 'Добавила в список: ' . $addedText . '. В списке одна позиция.';
             }
 
@@ -88,7 +88,7 @@ final class SkillController extends Controller
                 return 'Список покупок пуст. Скажи: добавь молоко.';
             }
 
-            $names = array_map(fn($i) => $i->title, $list);
+            $names  = array_map(fn($i) => $i->title, $list);
             $joined = implode(', ', $names);
 
             return 'В списке: ' . $joined . '.';
@@ -107,6 +107,7 @@ final class SkillController extends Controller
         // дефолт
         return 'Я могу вести список покупок. Скажи: «добавь молоко» или «что в списке».';
     }
+
 
 
     // ===== helpers =====

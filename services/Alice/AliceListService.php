@@ -35,17 +35,34 @@ class AliceListService
      */
     public function addFromCommand(int $userId, string $command): array
     {
-        $titles = $this->extractItemsFromCommand($command);
-        if (!$titles) {
+        // вытаскиваем часть после "добавь/добавить"
+        if (!preg_match('~^добав(ь|ить)\b(.*)$~u', $command, $m)) {
             return [];
         }
 
-        $saved = [];
-        foreach ($titles as $title) {
-            $saved[] = $this->addItem($userId, $title);
+        $tail = trim($m[2]);
+        if ($tail === '') {
+            return [];
         }
 
-        return $saved;
+        // нормализуем: "молоко и яйца, и краску" -> "молоко, яйца, краску"
+        $tail = preg_replace('~\s+и\s+~u', ', ', $tail);
+
+        // режем по запятым
+        $parts = preg_split('~\s*,\s*~u', $tail);
+        $added = [];
+
+        foreach ($parts as $part) {
+            $title = trim($part, " \t\n\r\0\x0B.,;");
+            if ($title === '') {
+                continue;
+            }
+
+            // используем уже существующий метод
+            $added[] = $this->addItem($userId, $title);
+        }
+
+        return $added;
     }
 
     /**
