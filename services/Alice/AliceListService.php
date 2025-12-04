@@ -14,6 +14,21 @@ class AliceListService
             throw new DomainException('Пустое название товара');
         }
 
+        // --- проверка на дубликаты в активном списке ---
+        $existing = AliceItem::find()
+            ->where([
+                'user_id' => $userId,
+                'is_done' => 0,
+                'title' => $title,   // с учётом коллации БД обычно и так case-insensitive
+            ])
+            ->one();
+
+        if ($existing !== null) {
+            // уже есть в активном списке – ничего не добавляем
+            return $existing;
+        }
+        // -----------------------------------------------
+
         $item = new AliceItem();
         $item->user_id = $userId;
         $item->title = mb_substr($title, 0, 255);
@@ -109,8 +124,6 @@ class AliceListService
         // Без "и" — считаем всё хвостом одного товара
         return [$this->addItem($userId, $tail)];
     }
-
-
 
     /**
      * Активный список (не купленные).
