@@ -122,21 +122,23 @@ class SiteController extends Controller
             return $this->redirect(['auth/login']);
         }
 
-        $userId = Yii::$app->user->id;
+        $userId  = Yii::$app->user->id;
         $session = $this->sessionManager->getActive($userId);
 
         $needPrompt = $session === null;
-        $store = $session ? (string)$session->shop : '';
-        $category = $session ? (string)$session->category : '';
-        $limit = $session ? $this->sessionManager->formatLimit($session) : null;
+        $store      = $session ? (string)$session->shop     : '';
+        $category   = $session ? (string)$session->category : '';
+        $limit      = $session ? $this->sessionManager->formatLimit($session) : null;
 
-        $entries = [];
-        $total = 0.0;
+        $entries      = [];
+        $total        = 0.0;
+        $aliceItems   = [];
+        $aliceOptions = [];
 
         if ($session) {
             $entries = PriceEntry::find()
                 ->where([
-                    'user_id' => $userId,
+                    'user_id'    => $userId,
                     'session_id' => $session->id,
                 ])
                 ->orderBy(['id' => SORT_DESC])
@@ -144,33 +146,28 @@ class SiteController extends Controller
                 ->all();
 
             $total = $this->priceEntryService->getUserTotal($userId, $session->id);
-            $aliceItems = [];
-            $aliceOptions = [];
 
-            if ($session) {
-                $service = new AliceListService();
-                /** @var AliceItem[] $aliceItems */
-                $aliceItems = $service->getActiveList($userId);
+            $service    = new AliceListService();
+            /** @var AliceItem[] $aliceItems */
+            $aliceItems = $service->getActiveList($userId);
 
-                $aliceOptions = array_map(static function (AliceItem $item) {
-                    return [
-                        'id'    => $item->id,
-                        'title' => $item->title,
-                    ];
-                }, $aliceItems);
-            }
-
+            $aliceOptions = array_map(static function (AliceItem $item) {
+                return [
+                    'id'    => $item->id,
+                    'title' => $item->title,
+                ];
+            }, $aliceItems);
         }
 
         return $this->render('scan', [
-            'store'      => $store,
-            'category'   => $category,
-            'entries'    => $entries,
-            'total'      => $total,
-            'needPrompt' => $needPrompt,
-            'limit'      => $limit,
-            'aliceItems' => $aliceItems,
-            'aliceOptions' => $aliceOptions,
+            'store'       => $store,
+            'category'    => $category,
+            'entries'     => $entries,
+            'total'       => $total,
+            'needPrompt'  => $needPrompt,
+            'limit'       => $limit,
+            'aliceItems'  => $aliceItems,
+            'aliceOptions'=> $aliceOptions,
         ]);
     }
 
