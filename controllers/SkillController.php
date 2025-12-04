@@ -1,9 +1,10 @@
 <?php
+
 namespace app\controllers;
 
+use app\services\Alice\AliceListService;
 use Yii;
 use yii\web\Controller;
-use app\services\Alice\AliceListService;
 
 final class SkillController extends Controller
 {
@@ -14,16 +15,16 @@ final class SkillController extends Controller
     public function actionWebhook()
     {
         $expected = $this->getExpectedSecret();
-        $gotKey   = (string)Yii::$app->request->get('key', '');
+        $gotKey = (string)Yii::$app->request->get('key', '');
         if ($expected !== '' && !hash_equals($expected, $gotKey)) {
             return $this->jsonOut([
-                'version'  => '1.0',
-                'session'  => new \stdClass(),
+                'version' => '1.0',
+                'session' => new \stdClass(),
                 'response' => ['text' => 'Unauthorized', 'end_session' => true],
             ]);
         }
 
-        $raw  = Yii::$app->request->getRawBody();
+        $raw = Yii::$app->request->getRawBody();
         $data = json_decode($raw, true);
         if (!is_array($data)) $data = [];
 
@@ -32,7 +33,7 @@ final class SkillController extends Controller
         $command = mb_strtolower(trim($request['command'] ?? ''), 'UTF-8');
 
         $service = new AliceListService();
-        $userId  = self::WEB_USER_ID;
+        $userId = self::WEB_USER_ID;
 
         $text = 'Навык подключён. Скажи: «добавь молоко».';
 
@@ -46,11 +47,11 @@ final class SkillController extends Controller
         }
 
         return $this->jsonOut([
-            'version'  => '1.0',
-            'session'  => $session ?: new \stdClass(),
+            'version' => '1.0',
+            'session' => $session ?: new \stdClass(),
             'response' => [
-                'text'        => $text,
-                'tts'         => $text,
+                'text' => $text,
+                'tts' => $text,
                 'end_session' => false,
             ],
         ]);
@@ -60,17 +61,24 @@ final class SkillController extends Controller
 
     private function handleCommand(AliceListService $service, int $userId, string $command): string
     {
-        // 1) "добавь молоко", "добавить хлеб"
-        if (preg_match('~^добав(ь|ить)\s+(.+)$~u', $command, $m)) {
-            $title = trim($m[2]);
-            $item  = $service->addItem($userId, $title);
-            $list  = $service->getActiveList($userId);
+        // 1) "добавь молоко", "добавь хлеб, яйца, муку и перец"
+        if (preg_match('~^добав(ь|ить)\b~u', $command)) {
+            $added = $service->addFromCommand($userId, $command);
+            if (!$added) {
+                return 'Не поняла, что добавить в список.';
+            }
+
+            $titlesAdded = array_map(fn($i) => $i->title, $added);
+            $list = $service->getActiveList($userId);
             $count = count($list);
 
+            $addedText = implode(', ', $titlesAdded);
+
             if ($count === 1) {
-                return 'Добавила в список: ' . $item->title . '. В списке одна позиция.';
+                return 'Добавила в список: ' . $addedText . '. В списке одна позиция.';
             }
-            return 'Добавила в список: ' . $item->title . ". Сейчас в списке {$count} позиций.";
+
+            return 'Добавила в список: ' . $addedText . ". Сейчас в списке {$count} позиций.";
         }
 
         // 2) "что в списке", "что купить", "список покупок"
@@ -86,8 +94,9 @@ final class SkillController extends Controller
             return 'В списке: ' . $joined . '.';
         }
 
-        // 3) "очисти список", "удали всё"
-        if (preg_match('~(очисти список|удали всё|удали все)$~u', $command)) {
+        // 3) "очисти список", "очистить список", "удали всё"
+        $cleanCmd = trim($command, " \t\n\r\0\x0B.!?,");
+        if (preg_match('~^(очист(и|ить) список|удали всё|удали все|удали список)$~u', $cleanCmd)) {
             $affected = $service->completeAll($userId);
             if ($affected === 0) {
                 return 'И так всё куплено, список уже пуст.';
@@ -99,6 +108,7 @@ final class SkillController extends Controller
         return 'Я могу вести список покупок. Скажи: «добавь молоко» или «что в списке».';
     }
 
+
     // ===== helpers =====
     private function getExpectedSecret(): string
     {
@@ -108,14 +118,20 @@ final class SkillController extends Controller
 
     private function jsonOut(array $payload)
     {
-        while (ob_get_level() > 0) { @ob_end_clean(); }
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8', true, 200);
             header('Cache-Control: no-store');
         }
         echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); }
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
         exit;
     }
+
+
 }
 
