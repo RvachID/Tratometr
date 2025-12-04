@@ -1,6 +1,8 @@
 <?php
 
 use yii\helpers\Html;
+/** @var \app\models\AliceItem[] $aliceItems */
+/** @var array $aliceOptions */
 
 $this->title = 'Сканнер';
 
@@ -119,6 +121,26 @@ $entries = $entries ?? [];
                             <input type="text" class="form-control" id="m-note">
                         </div>
 
+                        <?php if (!empty($aliceItems)): ?>
+                            <div class="mb-2 text-start">
+                                <label class="form-label">Из списка покупок (опц.)</label>
+                                <select id="m-alice-item" class="form-select">
+                                    <option value="">— не привязывать —</option>
+                                    <?php foreach ($aliceItems as $item): ?>
+                                        <option value="<?= (int)$item->id ?>">
+                                            <?= \yii\helpers\Html::encode($item->title) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted">
+                                    Выбранный пункт пометим как купленный, а запись свяжем с ним.
+                                </small>
+                            </div>
+                        <?php else: ?>
+                            <input type="hidden" id="m-alice-item" value="">
+                        <?php endif; ?>
+
+
                         <div class="mb-2" id="m-photo-wrap" style="display:none;">
                             <img id="m-photo" class="img-fluid" alt="Фото скана"/>
                         </div>
@@ -210,6 +232,11 @@ $entries = $entries ?? [];
 
 <?php
 // Подключения js постранично
+
+$this->registerJs(
+    'window.AliceOptions = ' . json_encode($aliceOptions ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . ';',
+    \yii\web\View::POS_HEAD
+);
 
 $this->registerJsFile('@web/js/common.js', [
     'depends' => [\yii\bootstrap5\BootstrapPluginAsset::class], // <= важно

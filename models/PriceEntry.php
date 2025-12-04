@@ -37,6 +37,12 @@ class PriceEntry extends ActiveRecord
             [['store', 'category', 'source', 'note', 'photo_path'], 'string', 'max' => 255],
             ['session_id', 'integer'],
             [['source'], 'in', 'range' => ['manual', 'price_tag', 'receipt']],
+            ['alice_item_id', 'integer'],
+            // если нужно — проверка, что такой пункт есть
+            ['alice_item_id', 'exist', 'skipOnEmpty' => true, 'skipOnError' => true,
+                'targetClass' => AliceItem::class,
+                'targetAttribute' => ['alice_item_id' => 'id'],
+            ],
         ];
     }
 
@@ -66,5 +72,8 @@ class PriceEntry extends ActiveRecord
     {
         return $this->hasOne(PurchaseSession::class, ['id' => 'session_id']);
     }
-
+    public function getAliceItem()
+    {
+        return $this->hasOne(\app\models\AliceItem::class, ['id' => 'alice_item_id']);
+    }
 }

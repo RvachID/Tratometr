@@ -4,36 +4,23 @@ use yii\db\Migration;
 
 class m251204_113810_add_flags_to_alice_item extends Migration
 {
-    /**
-     * {@inheritdoc}
-     */
     public function safeUp()
     {
+        $this->addColumn('alice_item', 'is_pinned', $this->boolean()->notNull()->defaultValue(0)->after('is_done'));
+        $this->addColumn('alice_item', 'is_archived', $this->boolean()->notNull()->defaultValue(0)->after('is_pinned'));
 
+        // Часто будем фильтровать по этим полям
+        $this->createIndex(
+            'idx_alice_item_user_flags',
+            'alice_item',
+            ['user_id', 'is_archived', 'is_done', 'is_pinned']
+        );
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function safeDown()
     {
-        echo "m251204_113810_add_flags_to_alice_item cannot be reverted.\n";
-
-        return false;
+        $this->dropIndex('idx_alice_item_user_flags', 'alice_item');
+        $this->dropColumn('alice_item', 'is_archived');
+        $this->dropColumn('alice_item', 'is_pinned');
     }
-
-    /*
-    // Use up()/down() to run migration code without a transaction.
-    public function up()
-    {
-
-    }
-
-    public function down()
-    {
-        echo "m251204_113810_add_flags_to_alice_item cannot be reverted.\n";
-
-        return false;
-    }
-    */
 }

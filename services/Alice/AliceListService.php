@@ -143,9 +143,15 @@ class AliceListService
     {
         return AliceItem::updateAll(
             ['is_done' => 1, 'updated_at' => time()],
-            ['user_id' => $userId, 'is_done' => 0]
+            [
+                'user_id'    => $userId,
+                'is_done'    => 0,
+                'is_archived'=> 0,
+                'is_pinned'  => 0, // закреплённых не трогаем
+            ]
         );
     }
+
 
     /**
      * Разобрать текст команды на отдельные пункты списка.
@@ -194,5 +200,29 @@ class AliceListService
 
         return $items;
     }
+
+    /**
+     * Список для выпадающего списка на странице скана.
+     * Логика:
+     *  - не архивные
+     *  - либо ещё не куплены, либо закреплённые
+     */
+    public function getForDropdown(int $userId): array
+    {
+        return AliceItem::find()
+            ->where(['user_id' => $userId, 'is_archived' => 0])
+            ->andWhere([
+                'or',
+                ['is_done' => 0],
+                ['is_pinned' => 1],
+            ])
+            ->orderBy([
+                'is_done'   => SORT_ASC,  // сначала не купленные
+                'is_pinned' => SORT_DESC, // закреплённые чуть выше
+                'title'     => SORT_ASC,
+            ])
+            ->all();
+    }
+
 }
 

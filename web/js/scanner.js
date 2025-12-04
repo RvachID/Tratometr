@@ -53,7 +53,7 @@
     let   shopModal    = (window.bootstrap && shopModalEl) ? new bootstrap.Modal(shopModalEl) : null;
     const totalWrap = document.getElementById('total-wrap');
     const totalLabelEl = document.getElementById('scan-total-label');
-
+    const mAliceSelect  = document.getElementById('m-alice-item');
     const ensureTotalsMarkup = () => {
         const wrapEl = document.getElementById('total-wrap');
         if (!wrapEl) return;
@@ -230,6 +230,10 @@
             mNoteEl.value = '';
             lastParsedText = '';
 
+            if (mAliceSelect) {
+                mAliceSelect.value = '';
+            }
+
             // Скрыть кнопки "Скан" и "Переснять"
             document.getElementById('m-show-photo').style.display = 'none';
             document.getElementById('m-retake').style.display = 'none';
@@ -351,6 +355,24 @@
                                 mNoteEl.value = '';
                                 lastParsedText = res.parsed_text || '';
 
+                                if (mAliceSelect) {
+                                    mAliceSelect.value = '';
+                                }
+
+                                if (mAliceSelect && mNoteEl) {
+                                    mAliceSelect.addEventListener('change', () => {
+                                        const val = mAliceSelect.value;
+                                        if (!val) return;
+
+                                        const text = mAliceSelect.options[mAliceSelect.selectedIndex]?.text || '';
+                                        // Если заметка пустая — подставляем название
+                                        if (!mNoteEl.value.trim() && text) {
+                                            mNoteEl.value = text;
+                                        }
+                                    });
+                                }
+
+
                                 // Явно скрываем и сбрасываем состояние превью в модалке
                                 resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
                                 // (кнопка "Показать скан" поднимет mPhotoWrap и возьмёт lastPhotoURL)
@@ -447,6 +469,11 @@
             fd.append('store',    metaStore);
             fd.append('category', metaCategory);
 
+            const selectedAliceId = mAliceSelect ? (mAliceSelect.value || '') : '';
+            if (selectedAliceId !== '') {
+                fd.append('alice_item_id', selectedAliceId);
+            }
+
             try {
                 const r = await fetch('/index.php?r=scan/store', {
                     method:'POST', headers:{'X-CSRF-Token':csrf}, body:fd, credentials:'include'
@@ -456,10 +483,16 @@
                 const res = await r.json();
                 if (!res.success) throw new Error(res.error || 'Ошибка сохранения');
 
-                // Если на странице есть список, обновим его
                 if (res.entry && typeof window.addEntryToTop === 'function') window.addEntryToTop(res.entry);
                 if (typeof res.total !== 'undefined' && typeof window.updateTotal === 'function') window.updateTotal(res.total);
-                // закрываем камеру сразу после сохранения
+
+                // убираем использованный пункт из выпадашки
+                if (selectedAliceId && mAliceSelect) {
+                    const opt = mAliceSelect.querySelector('option[value="' + selectedAliceId + '"]');
+                    if (opt) opt.remove();
+                    mAliceSelect.value = '';
+                }
+
                 await closeCameraUI();
                 wasSaved = true;
                 bootstrapModal?.hide();
@@ -468,6 +501,7 @@
             } catch (e) { alert(e.message); }
         };
     }
+
 
     // init
     if (captureBtn) captureBtn.onclick = captureAndRecognize;

@@ -2,8 +2,10 @@
 
 namespace app\controllers;
 
+use app\models\AliceItem;
 use app\models\PriceEntry;
 use app\models\PurchaseSession;
+use app\services\Alice\AliceListService;
 use app\services\Price\PriceEntryService;
 use app\services\Purchase\SessionManager;
 use app\services\Stats\StatsService;
@@ -142,6 +144,22 @@ class SiteController extends Controller
                 ->all();
 
             $total = $this->priceEntryService->getUserTotal($userId, $session->id);
+            $aliceItems = [];
+            $aliceOptions = [];
+
+            if ($session) {
+                $service = new AliceListService();
+                /** @var AliceItem[] $aliceItems */
+                $aliceItems = $service->getActiveList($userId);
+
+                $aliceOptions = array_map(static function (AliceItem $item) {
+                    return [
+                        'id'    => $item->id,
+                        'title' => $item->title,
+                    ];
+                }, $aliceItems);
+            }
+
         }
 
         return $this->render('scan', [
@@ -151,6 +169,8 @@ class SiteController extends Controller
             'total'      => $total,
             'needPrompt' => $needPrompt,
             'limit'      => $limit,
+            'aliceItems' => $aliceItems,
+            'aliceOptions' => $aliceOptions,
         ]);
     }
 

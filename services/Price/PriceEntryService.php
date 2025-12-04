@@ -3,6 +3,7 @@
 namespace app\services\Price;
 
 use app\components\PurchaseSessionService;
+use app\models\AliceItem;
 use app\models\PriceEntry;
 use app\models\PurchaseSession;
 use DomainException;
@@ -88,15 +89,19 @@ class PriceEntryService
 
     public function saveManual(int $userId, PurchaseSession $session, PriceEntry $entry, array $data): array
     {
+        // запоминаем старый alice_item_id (если редактируем существующую запись)
+        $oldAliceId = $entry->alice_item_id;
+
+        // обычная логика сохранения
         $entry->load($data, '');
-        $entry->user_id = $userId;
+        $entry->user_id    = $userId;
         $entry->session_id = $session->id;
-        $entry->store = $session->shop;
-        $entry->category = $session->category ?: null;
+        $entry->store      = $session->shop;
+        $entry->category   = $session->category ?: null;
 
         if ($entry->isNewRecord) {
-            $entry->source = $entry->source ?: 'manual';
-            $entry->qty = $entry->qty ?: 1;
+            $entry->source     = $entry->source ?: 'manual';
+            $entry->qty        = $entry->qty ?: 1;
             $entry->created_at = $entry->created_at ?: time();
         }
 
@@ -108,11 +113,39 @@ class PriceEntryService
         $entry->save(false);
         $this->sessionService->touch($session);
 
+        // ====== синхронизация с AliceItem ======
+
+        // 1) если была старая привязка и она изменилась/обнулилась —
+        //    возможно, надо вернуть старый пункт в "некупленные"
+        if ($oldAliceId && $oldAliceId != $entry->alice_item_id) {
+            $rest = PriceEntry::find()
+                ->where(['alice_item_id' => $oldAliceId, 'user_id' => $userId])
+                ->andWhere(['<>', 'id', $entry->id]) // исключаем текущую запись
+                ->count();
+
+            if ($rest == 0) {
+                AliceItem::updateAll(
+                    ['is_done' => 0, 'updated_at' => time()],
+                    ['id' => $oldAliceId]
+                );
+            }
+        }
+
+        // 2) если у записи сейчас есть alice_item_id — считаем этот пункт купленным
+        if ($entry->alice_item_id) {
+            AliceItem::updateAll(
+                ['is_done' => 1, 'updated_at' => time()],
+                ['id' => $entry->alice_item_id]
+            );
+        }
+
+        // ================================
+
         $total = $this->getUserTotal($userId, $session->id);
 
         return [
-            'entry' => $entry,
-            'sessionTotal' => $total,
+            'entry'         => $entry,
+            'sessionTotal'  => $total,
         ];
     }
 

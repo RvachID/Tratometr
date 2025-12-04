@@ -25,6 +25,8 @@ class AliceItem extends ActiveRecord
             [['user_id', 'title'], 'required'],
             [['user_id', 'is_done', 'created_at', 'updated_at'], 'integer'],
             ['title', 'string', 'max' => 255],
+            [['is_pinned', 'is_archived'], 'boolean'],
+            [['is_pinned', 'is_archived'], 'default', 'value' => 0],
         ];
     }
 }

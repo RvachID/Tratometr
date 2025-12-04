@@ -61,6 +61,7 @@ class PriceController extends Controller
                     'rowTotal' => number_format($m->amount * $m->qty, 2, '.', ''),
                     'source' => (string)$m->source,
                     'note' => (string)$m->note,
+                    'alice_item_id' => (int)$m->alice_item_id,
                 ];
             }, $data['items']),
             'hasMore' => $data['hasMore'],
