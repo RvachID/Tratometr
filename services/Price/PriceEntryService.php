@@ -249,17 +249,37 @@ class PriceEntryService
 
     public function delete(int $userId, int $entryId): float
     {
+        /** @var PriceEntry|null $entry */
         $entry = PriceEntry::findOne([
-            'id' => $entryId,
+            'id'      => $entryId,
             'user_id' => $userId,
         ]);
+
         if (!$entry) {
             throw new DomainException('Запись не найдена');
         }
 
-        $sessionId = $entry->session_id ?: null;
+        $sessionId = $entry->session_id;
+
+        // если запись была привязана к пункту Алисы — вернуть его в активные
+        if ($entry->alice_item_id) {
+            /** @var AliceItem|null $aliceItem */
+            $aliceItem = AliceItem::findOne([
+                'id'      => $entry->alice_item_id,
+                'user_id' => $userId,
+            ]);
+
+            if ($aliceItem) {
+                $aliceItem->is_done    = 0;
+                $aliceItem->updated_at = time();
+                $aliceItem->save(false);
+            }
+        }
+
+        // удаляем сам ценник
         $entry->delete();
 
+        // пересчитываем сумму по сессии
         return $this->getUserTotal($userId, $sessionId);
     }
 
