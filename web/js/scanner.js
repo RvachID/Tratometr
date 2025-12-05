@@ -359,19 +359,6 @@
                                     mAliceSelect.value = '';
                                 }
 
-                                if (mAliceSelect && mNoteEl) {
-                                    mAliceSelect.addEventListener('change', () => {
-                                        const val = mAliceSelect.value;
-                                        if (!val) return;
-
-                                        const text = mAliceSelect.options[mAliceSelect.selectedIndex]?.text || '';
-                                        // Если заметка пустая — подставляем название
-                                        if (!mNoteEl.value.trim() && text) {
-                                            mNoteEl.value = text;
-                                        }
-                                    });
-                                }
-
 
                                 // Явно скрываем и сбрасываем состояние превью в модалке
                                 resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
