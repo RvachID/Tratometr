@@ -51,7 +51,7 @@ class PriceEntryService
         float $qty,
         ?string $note,
         ?string $parsedText,
-        ?int $aliceItemId = null  // <-- новый параметр
+        ?int $aliceItemId = null
     ): array {
         if ($amount <= 0) {
             throw new DomainException('Некорректная сумма');

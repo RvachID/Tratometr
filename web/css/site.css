@@ -296,3 +296,11 @@ footer, footer .container {
     outline: none;
 }
 
+.entry-badge {
+    background: linear-gradient(90deg, #7C4F35, #C19A6B);
+    color: #fff;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.95rem;
+}
