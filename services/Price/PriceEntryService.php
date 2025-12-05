@@ -263,17 +263,16 @@ class PriceEntryService
 
         // если запись была привязана к пункту Алисы — вернуть его в активные
         if ($entry->alice_item_id) {
-            /** @var AliceItem|null $aliceItem */
-            $aliceItem = AliceItem::findOne([
-                'id'      => $entry->alice_item_id,
-                'user_id' => $userId,
-            ]);
-
-            if ($aliceItem) {
-                $aliceItem->is_done    = 0;
-                $aliceItem->updated_at = time();
-                $aliceItem->save(false);
-            }
+            AliceItem::updateAll(
+                [
+                    'is_done'    => 0,
+                    'updated_at' => time(),
+                ],
+                [
+                    'id'      => $entry->alice_item_id,
+                    'user_id' => $userId,
+                ]
+            );
         }
 
         // удаляем сам ценник
