@@ -166,17 +166,28 @@
         const div = document.createElement('div');
         div.className = 'border p-2 mb-2';
 
-        // бейдж, если привязано к пункту списка Алисы
-        let badgeHtml = '';
+        // пробуем достать название товара из ответа бэка или из карты
+        let aliceTitle = null;
+
         if (entry.aliceItemTitle) {
-            const safeTitle = String(entry.aliceItemTitle)
+            aliceTitle = entry.aliceItemTitle;
+        } else if (entry.aliceItemId || entry.alice_item_id) {
+            const id = String(entry.aliceItemId ?? entry.alice_item_id);
+            if (AliceOptionsMap[id]) {
+                aliceTitle = AliceOptionsMap[id];
+            }
+        }
+
+        let badgeHtml = '';
+        if (aliceTitle) {
+            const safeTitle = String(aliceTitle)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
             badgeHtml = `
-        <div class="mb-1">
-            <span class="badge bg-warning text-dark fs-6">
+        <div class="mb-1 small">
+            <span class="badge bg-warning text-dark fw-semibold" style="font-size: 1rem;">
                 ${safeTitle}
             </span>
         </div>`;
@@ -223,7 +234,6 @@
             renderNote(div, noteVal);
         }
     }
-
 
     function updateTotal(total) {
         const wrap = document.getElementById('total-wrap');

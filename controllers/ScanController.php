@@ -112,8 +112,7 @@ class ScanController extends Controller
                     'note'     => (string)$result['entry']->note,
                     'store'    => (string)$result['entry']->store,
                     'category' => $result['entry']->category,
-                    // при желании можно отдать и алису:
-                    // 'aliceItemId' => $result['entry']->alice_item_id,
+                    'aliceItemId' => $result['entry']->alice_item_id,
                 ],
                 'total' => number_format($result['listTotal'], 2, '.', ''),
             ];
