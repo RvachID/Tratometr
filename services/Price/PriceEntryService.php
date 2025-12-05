@@ -50,7 +50,8 @@ class PriceEntryService
         float $amount,
         float $qty,
         ?string $note,
-        ?string $parsedText
+        ?string $parsedText,
+        ?int $aliceItemId = null  // <-- новый параметр
     ): array {
         if ($amount <= 0) {
             throw new DomainException('Некорректная сумма');
@@ -60,21 +61,40 @@ class PriceEntryService
         }
 
         $entry = new PriceEntry();
-        $entry->user_id = $userId;
+        $entry->user_id   = $userId;
         $entry->session_id = $session->id;
-        $entry->amount = round($amount, 2);
-        $entry->qty = round($qty, 3);
-        $entry->store = $session->shop;
-        $entry->category = $session->category ?: null;
-        $entry->note = $note ?: null;
-        $entry->recognized_text = $parsedText ?: null;
+        $entry->amount    = round($amount, 2);
+        $entry->qty       = round($qty, 3);
+        $entry->store     = $session->shop;
+        $entry->category  = $session->category ?: null;
+        $entry->note      = $note ?: null;
+        $entry->recognized_text   = $parsedText ?: null;
         $entry->recognized_amount = $entry->amount;
-        $entry->source = 'price_tag';
+        $entry->source    = 'price_tag';
         $entry->created_at = time();
         $entry->updated_at = time();
 
+        // вот это — ключевая строчка
+        $entry->alice_item_id = $aliceItemId ?: null;
+
         if (!$entry->save(false)) {
             throw new DomainException('Не удалось сохранить запись');
+        }
+
+        // если привязали пункт Алисы — помечаем его купленным
+        if ($entry->alice_item_id) {
+            $aliceItem = AliceItem::findOne([
+                'id'      => $entry->alice_item_id,
+                'user_id' => $userId,
+            ]);
+            if ($aliceItem) {
+                $aliceItem->is_done    = 1;
+                $aliceItem->updated_at = time();
+                $aliceItem->save(false);
+
+                // чтобы relation был сразу доступен без лишнего запроса
+                $entry->populateRelation('aliceItem', $aliceItem);
+            }
         }
 
         $this->sessionService->touch($session);
@@ -82,10 +102,11 @@ class PriceEntryService
         $listTotal = $this->getUserTotal($userId, $session->id);
 
         return [
-            'entry' => $entry,
+            'entry'     => $entry,
             'listTotal' => $listTotal,
         ];
     }
+
 
     public function saveManual(int $userId, PurchaseSession $session, PriceEntry $entry, array $data): array
     {
@@ -276,4 +297,5 @@ class PriceEntryService
     {
         return clone $query;
     }
+
 }

@@ -79,25 +79,41 @@ class ScanController extends Controller
     public function actionStore()
     {
         try {
-            $userId = Yii::$app->user->id;
+            $userId  = Yii::$app->user->id;
             $session = $this->sessionManager->requireActive($userId);
 
             $amount = (float)Yii::$app->request->post('amount');
-            $qty = (float)Yii::$app->request->post('qty', 1);
-            $note = (string)Yii::$app->request->post('note', '');
-            $text = (string)Yii::$app->request->post('parsed_text', '');
+            $qty    = (float)Yii::$app->request->post('qty', 1);
+            $note   = (string)Yii::$app->request->post('note', '');
+            $text   = (string)Yii::$app->request->post('parsed_text', '');
 
-            $result = $this->priceEntryService->createFromScan($userId, $session, $amount, $qty, $note, $text);
+            // вот это добавляем
+            $aliceItemId = (int)Yii::$app->request->post('alice_item_id', 0);
+            if ($aliceItemId <= 0) {
+                $aliceItemId = null;
+            }
+
+            $result = $this->priceEntryService->createFromScan(
+                $userId,
+                $session,
+                $amount,
+                $qty,
+                $note,
+                $text,
+                $aliceItemId // <-- новый аргумент
+            );
 
             return [
                 'success' => true,
                 'entry' => [
-                    'id' => $result['entry']->id,
-                    'amount' => (float)$result['entry']->amount,
-                    'qty' => (float)$result['entry']->qty,
-                    'note' => (string)$result['entry']->note,
-                    'store' => (string)$result['entry']->store,
+                    'id'       => $result['entry']->id,
+                    'amount'   => (float)$result['entry']->amount,
+                    'qty'      => (float)$result['entry']->qty,
+                    'note'     => (string)$result['entry']->note,
+                    'store'    => (string)$result['entry']->store,
                     'category' => $result['entry']->category,
+                    // при желании можно отдать и алису:
+                    // 'aliceItemId' => $result['entry']->alice_item_id,
                 ],
                 'total' => number_format($result['listTotal'], 2, '.', ''),
             ];
