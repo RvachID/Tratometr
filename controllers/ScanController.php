@@ -86,12 +86,7 @@ class ScanController extends Controller
             $qty    = (float)Yii::$app->request->post('qty', 1);
             $note   = (string)Yii::$app->request->post('note', '');
             $text   = (string)Yii::$app->request->post('parsed_text', '');
-
-            // вот это добавляем
-            $aliceItemId = (int)Yii::$app->request->post('alice_item_id', 0);
-            if ($aliceItemId <= 0) {
-                $aliceItemId = null;
-            }
+            $aliceItemId = Yii::$app->request->post('alice_item_id');
 
             $result = $this->priceEntryService->createFromScan(
                 $userId,
@@ -100,29 +95,32 @@ class ScanController extends Controller
                 $qty,
                 $note,
                 $text,
-                $aliceItemId // <-- новый аргумент
+                $aliceItemId ? (int)$aliceItemId : null
             );
+
+            $entry = $result['entry'];
 
             return [
                 'success' => true,
-                'entry' => [
-                    'id'       => $result['entry']->id,
-                    'amount'   => (float)$result['entry']->amount,
-                    'qty'      => (float)$result['entry']->qty,
-                    'note'     => (string)$result['entry']->note,
-                    'store'    => (string)$result['entry']->store,
-                    'category' => $result['entry']->category,
-                    'aliceItemId' => $result['entry']->alice_item_id,
+                'entry'   => [
+                    'id'          => $entry->id,
+                    'amount'      => (float)$entry->amount,
+                    'qty'         => (float)$entry->qty,
+                    'note'        => (string)$entry->note,
+                    'store'       => (string)$entry->store,
+                    'category'    => $entry->category,
+                    'alice_title' => $entry->aliceItem ? $entry->aliceItem->title : null,
                 ],
                 'total' => number_format($result['listTotal'], 2, '.', ''),
             ];
         } catch (DomainException $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         } catch (\Throwable $e) {
-            Yii::error($e->getMessage() . "\n" . $e->getTraceAsString(), __METHOD__);
+            Yii::error($e->getMessage()."\n".$e->getTraceAsString(), __METHOD__);
             return ['success' => false, 'error' => 'Внутренняя ошибка сервиса'];
         }
     }
+
 
     public function actionUpdate($id)
     {

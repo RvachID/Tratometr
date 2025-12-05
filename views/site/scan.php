@@ -201,12 +201,13 @@ $entries = $entries ?? [];
             <?php foreach ($entries as $entry): ?>
                 <div class="border p-2 mb-2">
                     <?php if ($entry->aliceItem): ?>
-                        <div class="mb-1">
-        <span class="badge bg-warning text-dark fs-6">
+                        <div class="mb-2">
+        <span class="badge entry-badge">
             <?= Html::encode($entry->aliceItem->title) ?>
         </span>
                         </div>
                     <?php endif; ?>
+
 
 
                     <form class="entry-form" data-id="<?= $entry->id ?>">

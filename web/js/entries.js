@@ -179,7 +179,7 @@
         const aliceTitle = (entry.alice_title ?? '').trim();
         const noteVal    = (entry.note ?? '').trim();
 
-        // --- шапка карточки, если есть привязка к пункту списка ---
+        // --- верхний бейдж, если есть товар из списка ---
         if (aliceTitle) {
             div.innerHTML = `
             <div class="mb-2">
@@ -192,46 +192,42 @@
 
         // --- основное содержимое карточки ---
         div.insertAdjacentHTML('beforeend', `
-        <form class="entry-form" data-id="${entry.id}">
-          Цена:
-          <input type="number" step="0.01" name="amount"
-                 value="${fmt2(entry.amount)}"
-                 class="form-control text-center mb-1">
+      <form class="entry-form" data-id="${entry.id}">
+        Цена:
+        <input type="number" step="0.01" name="amount"
+               value="${fmt2(entry.amount)}"
+               class="form-control text-center mb-1">
 
-          <input type="hidden" name="category"
-                 value="${entry.category ?? ''}">
+        <input type="hidden" name="category" value="${entry.category ?? ''}">
+        <input type="hidden" name="note" value="${escapeHtml(entry.note ?? '')}">
 
-          <input type="hidden" name="note"
-                 value="${escapeHtml(entry.note ?? '')}">
+        Штук или килограммы:
+        <input type="number" step="0.001" name="qty"
+               value="${entry.qty}"
+               class="form-control mb-1">
+      </form>
 
-          Штук или килограммы:
-          <input type="number" step="0.001" name="qty"
-                 value="${entry.qty}"
-                 class="form-control mb-1">
-        </form>
+      <div class="entry-note-wrap"></div>
 
-        <div class="entry-note-wrap"></div>
-
-        <div class="item-footer d-flex align-items-center justify-content-between mt-2">
-          <div class="small text-muted">
-            Итого по позиции: <strong class="item-subtotal">0.00</strong>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
-            <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
-          </div>
+      <div class="item-footer d-flex align-items-center justify-content-between mt-2">
+        <div class="small text-muted">
+          Итого по позиции: <strong class="item-subtotal">0.00</strong>
         </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
+          <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
+        </div>
+      </div>
     `);
 
         listWrap.prepend(div);
         bindEntryRow(div);
 
-        // --- заметка внизу: только если она отличается от заголовка из списка ---
+        // --- рендерим заметку ТОЛЬКО если она отличается от заголовка ---
         if (typeof renderNote === 'function' && noteVal && noteVal !== aliceTitle) {
             renderNote(div, noteVal);
         }
     }
-
 
     function updateTotal(total) {
         const wrap = document.getElementById('total-wrap');
@@ -288,7 +284,6 @@
             if (limitEl) limitEl.textContent = formatValue(limit);
         }
     }
-
 
     // Инициализация на странице списка
     document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));
