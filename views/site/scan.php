@@ -125,7 +125,7 @@ $entries = $entries ?? [];
                             <div class="mb-2 text-start">
                                 <label class="form-label">Из списка покупок (опц.)</label>
                                 <select id="m-alice-item" class="form-select">
-                                    <option value="">— не привязывать —</option>
+                                    <option value="">выберите...</option>
                                     <?php foreach ($aliceItems as $item): ?>
                                         <option value="<?= (int)$item->id ?>">
                                             <?= \yii\helpers\Html::encode($item->title) ?>
@@ -200,14 +200,14 @@ $entries = $entries ?? [];
         <div class="mt-3 text-start">
             <?php foreach ($entries as $entry): ?>
                 <div class="border p-2 mb-2">
-
                     <?php if ($entry->aliceItem): ?>
-                        <div class="mb-1 small">
-                    <span class="badge bg-light text-dark">
-                        По списку: <?= Html::encode($entry->aliceItem->title) ?>
-                    </span>
+                        <div class="mb-1">
+        <span class="badge bg-warning text-dark fs-6">
+            <?= Html::encode($entry->aliceItem->title) ?>
+        </span>
                         </div>
                     <?php endif; ?>
+
 
                     <form class="entry-form" data-id="<?= $entry->id ?>">
                         Цена:

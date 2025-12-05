@@ -165,19 +165,48 @@
 
         const div = document.createElement('div');
         div.className = 'border p-2 mb-2';
+
+        // бейдж, если привязано к пункту списка Алисы
+        let badgeHtml = '';
+        if (entry.aliceItemTitle) {
+            const safeTitle = String(entry.aliceItemTitle)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            badgeHtml = `
+        <div class="mb-1">
+            <span class="badge bg-warning text-dark fs-6">
+                ${safeTitle}
+            </span>
+        </div>`;
+        }
+
+        const subtotal = fmt2((entry.amount || 0) * (entry.qty || 0));
+
         div.innerHTML = `
+      ${badgeHtml}
       <form class="entry-form" data-id="${entry.id}">
         Цена:
-        <input type="number" step="0.01" name="amount" value="${fmt2(entry.amount)}" class="form-control text-center mb-1">
+        <input type="number" step="0.01" name="amount"
+               value="${fmt2(entry.amount)}"
+               class="form-control text-center mb-1">
+
         <input type="hidden" name="category" value="${entry.category ?? ''}">
-        <input type="hidden" name="note" value="${(entry.note ?? '').replace(/"/g,'&quot;')}">
+        <input type="hidden" name="note"
+               value="${(entry.note ?? '').replace(/"/g,'&quot;')}">
+
         Штуки или килограммы:
-        <input type="number" step="0.001" name="qty" value="${entry.qty}" class="form-control mb-1">
+        <input type="number" step="0.001" name="qty"
+               value="${entry.qty}"
+               class="form-control mb-1">
       </form>
+
       <div class="entry-note-wrap"></div>
+
       <div class="item-footer d-flex align-items-center justify-content-between mt-2">
         <div class="small text-muted">
-          Итого по позиции: <strong class="item-subtotal">0.00</strong>
+          Итого по позиции: <strong class="item-subtotal">${subtotal}</strong>
         </div>
         <div class="d-flex gap-2">
           <button class="btn btn-sm btn-outline-secondary delete-entry" type="button">🗑 Удалить</button>
@@ -185,12 +214,16 @@
         </div>
       </div>
     `;
+
         listWrap.prepend(div);
         bindEntryRow(div);
 
         const noteVal = (entry.note ?? '').trim();
-        if (noteVal) renderNote(div, noteVal);
+        if (noteVal) {
+            renderNote(div, noteVal);
+        }
     }
+
 
     function updateTotal(total) {
         const wrap = document.getElementById('total-wrap');
