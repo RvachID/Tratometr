@@ -307,6 +307,7 @@ class PriceEntryService
     {
         return clone $query;
     }
+
     private function syncAliceItem(int $aliceItemId): void
     {
         $item = AliceItem::findOne($aliceItemId);
@@ -314,18 +315,35 @@ class PriceEntryService
             return;
         }
 
+        // ❗ ЕДИНСТВЕННЫЙ правильный способ получить активную сессию
+        $ps = Yii::$app->ps->active($item->user_id);
+
+        if (!$ps) {
+            // нет активной сессии → ничего не куплено
+            if ((int)$item->is_done !== 0) {
+                $item->is_done = 0;
+                $item->updated_at = time();
+                $item->save(false);
+            }
+            return;
+        }
+
+        // проверяем ТОЛЬКО текущую сессию
         $hasEntries = PriceEntry::find()
             ->where([
+                'user_id'       => $item->user_id,
+                'session_id'    => $ps->id,
                 'alice_item_id' => $aliceItemId,
-                'user_id' => $item->user_id,
             ])
             ->exists();
 
-        $item->is_done = $hasEntries ? 1 : 0;
-        $item->updated_at = time();
-        $item->save(false);
+        $newDone = $hasEntries ? 1 : 0;
+
+        if ((int)$item->is_done !== $newDone) {
+            $item->is_done = $newDone;
+            $item->updated_at = time();
+            $item->save(false);
+        }
     }
-
-
 
 }
