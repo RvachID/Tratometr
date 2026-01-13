@@ -140,7 +140,7 @@
             delBtn.onclick = async () => {
                 if (!confirm('Удалить запись?')) return;
                 try {
-                    const r = await fetch(`index.php?r=scan/delete&id=${id}`, {
+                    const r = await fetch(`index.php?r=price/delete&id=${id}`, {
                         method:'POST', headers:{'X-CSRF-Token':csrf}, credentials:'include'
                     });
                     const ct = r.headers.get('content-type')||'';

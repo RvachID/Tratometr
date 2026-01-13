@@ -147,23 +147,23 @@ class ScanController extends Controller
         }
     }
 
-    public function actionDelete($id)
-    {
-        try {
-            $userId = Yii::$app->user->id;
-            $session = $this->sessionManager->requireActive($userId);
-
-            $total = $this->priceEntryService->deleteFromSession($userId, $session, (int)$id);
-
-            return [
-                'success' => true,
-                'total' => number_format($total, 2, '.', ''),
-            ];
-        } catch (DomainException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        } catch (\Throwable $e) {
-            Yii::error($e->getMessage(), __METHOD__);
-            return ['success' => false, 'error' => 'Внутренняя ошибка сервиса'];
-        }
-    }
+//    public function actionDelete($id)
+//    {
+//        try {
+//            $userId = Yii::$app->user->id;
+//            $session = $this->sessionManager->requireActive($userId);
+//
+//            $total = $this->priceEntryService->deleteFromSession($userId, $session, (int)$id);
+//
+//            return [
+//                'success' => true,
+//                'total' => number_format($total, 2, '.', ''),
+//            ];
+//        } catch (DomainException $e) {
+//            return ['success' => false, 'error' => $e->getMessage()];
+//        } catch (\Throwable $e) {
+//            Yii::error($e->getMessage(), __METHOD__);
+//            return ['success' => false, 'error' => 'Внутренняя ошибка сервиса'];
+//        }
+//    }
 }
