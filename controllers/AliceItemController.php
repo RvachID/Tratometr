@@ -33,7 +33,7 @@ class AliceItemController extends Controller
         try {
             $service->addItem(
                 Yii::$app->user->id,
-                Yii::$app->request->post('title')
+                (string)Yii::$app->request->post('title')
             );
         } catch (\DomainException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
@@ -54,7 +54,7 @@ class AliceItemController extends Controller
             $service->updateItem(
                 Yii::$app->user->id,
                 (int)$id,
-                Yii::$app->request->post('title')
+                (string)Yii::$app->request->post('title')
             );
         } catch (\DomainException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
@@ -76,37 +76,47 @@ class AliceItemController extends Controller
     }
 
     /**
-     * Toggle is_done (AJAX)
+     * Toggle is_done
      * POST /alice-item/toggle-done?id=123
      */
     public function actionToggleDone($id)
     {
-        Yii::$app->response->format = Response::FORMAT_JSON;
-
         $service = new AliceListService();
         $item = $service->toggleDone(Yii::$app->user->id, (int)$id);
 
-        return [
-            'success' => true,
-            'is_done' => (int)$item->is_done,
-        ];
+        // AJAX → JSON
+        if (Yii::$app->request->isAjax) {
+            Yii::$app->response->format = Response::FORMAT_JSON;
+            return [
+                'success' => true,
+                'is_done' => (int)$item->is_done,
+            ];
+        }
+
+        // Обычная форма → назад
+        return $this->redirect(Yii::$app->request->referrer ?: ['index']);
     }
 
     /**
-     * Toggle is_pinned (AJAX)
+     * Toggle is_pinned
      * POST /alice-item/toggle-pinned?id=123
      */
     public function actionTogglePinned($id)
     {
-        Yii::$app->response->format = Response::FORMAT_JSON;
-
         $service = new AliceListService();
         $item = $service->togglePinned(Yii::$app->user->id, (int)$id);
 
-        return [
-            'success'   => true,
-            'is_pinned'=> (int)$item->is_pinned,
-        ];
+        // AJAX → JSON
+        if (Yii::$app->request->isAjax) {
+            Yii::$app->response->format = Response::FORMAT_JSON;
+            return [
+                'success'    => true,
+                'is_pinned'  => (int)$item->is_pinned,
+            ];
+        }
+
+        // Обычная форма → назад
+        return $this->redirect(Yii::$app->request->referrer ?: ['index']);
     }
 
     /**
