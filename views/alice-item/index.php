@@ -43,7 +43,7 @@ $this->title = 'Список покупок';
             <tbody>
 
             <?php foreach ($items as $item): ?>
-                <tr class="<?= $item->is_done ? 'text-muted' : '' ?>">
+                <tr class="<?= $item->is_done ? 'text-muted' : '    ' ?>">
                     <!-- DONE -->
                     <td class="text-center">
                         <?= Html::beginForm(['alice-item/toggle-done', 'id' => $item->id], 'post') ?>
