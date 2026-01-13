@@ -209,19 +209,19 @@ class AliceListService
      */
     public function getForDropdown(int $userId): array
     {
-        return AliceItem::find()
-            ->where(['user_id' => $userId, 'is_archived' => 0])
-            ->andWhere([
-                'or',
-                ['is_done' => 0],
-                ['is_pinned' => 1],
+        $items = AliceItem::find()
+            ->where([
+                'user_id'     => $userId,
+                'is_archived' => 0,
             ])
             ->orderBy([
-                'is_done'   => SORT_ASC,  // сначала не купленные
-                'is_pinned' => SORT_DESC, // закреплённые чуть выше
+                'is_done'   => SORT_ASC,   // сначала не купленные
+                'is_pinned' => SORT_DESC,  // закреплённые выше
                 'title'     => SORT_ASC,
             ])
             ->all();
+
+        return $items;
     }
 
     private function requireOwned(int $userId, int $id): AliceItem

@@ -15,25 +15,50 @@ window.reloadAliceSelect = async function (selectedId = null) {
 
         select.innerHTML = '<option value="">выберите...</option>';
 
+        let hasPinned = false;
+        let hasActive = false;
+        let hasDone   = false;
+
+        const pinnedGroup = document.createElement('optgroup');
+        pinnedGroup.label = '📌 Важное';
+
+        const activeGroup = document.createElement('optgroup');
+        activeGroup.label = '🛒 Остальное';
+
+        const doneGroup = document.createElement('optgroup');
+        doneGroup.label = '✓ Куплено';
+
         for (const item of items) {
             const opt = document.createElement('option');
             opt.value = item.id;
             opt.textContent = item.title;
 
-            if (item.is_done) {
-                opt.disabled = true;
-            }
-
             if (selectedId && String(item.id) === String(selectedId)) {
                 opt.selected = true;
             }
 
-            select.appendChild(opt);
+            if (item.is_done) {
+                opt.disabled = true;
+                doneGroup.appendChild(opt);
+                hasDone = true;
+            } else if (item.is_pinned) {
+                pinnedGroup.appendChild(opt);
+                hasPinned = true;
+            } else {
+                activeGroup.appendChild(opt);
+                hasActive = true;
+            }
         }
+
+        if (hasPinned) select.appendChild(pinnedGroup);
+        if (hasActive) select.appendChild(activeGroup);
+        if (hasDone)   select.appendChild(doneGroup);
+
     } catch (e) {
         console.error('reloadAliceSelect error', e);
     }
 };
+
 
 (function () {
     const getCsrf = () =>
