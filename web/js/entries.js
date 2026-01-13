@@ -1,4 +1,5 @@
 // entries.js
+
 (function () {
     const { getCsrf, debounce, fmt2, renderNote } = window.Utils;
 

@@ -1,4 +1,40 @@
 ﻿// common.js
+// common.js
+
+window.reloadAliceSelect = async function (selectedId = null) {
+    const select = document.getElementById('m-alice-item');
+    if (!select) return;
+
+    try {
+        const r = await fetch('index.php?r=alice-item/list-json', {
+            credentials: 'include'
+        });
+        if (!r.ok) throw new Error('alice list load failed');
+
+        const items = await r.json();
+
+        select.innerHTML = '<option value="">выберите...</option>';
+
+        for (const item of items) {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.title;
+
+            if (item.is_done) {
+                opt.disabled = true;
+            }
+
+            if (selectedId && String(item.id) === String(selectedId)) {
+                opt.selected = true;
+            }
+
+            select.appendChild(opt);
+        }
+    } catch (e) {
+        console.error('reloadAliceSelect error', e);
+    }
+};
+
 (function () {
     const getCsrf = () =>
         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
