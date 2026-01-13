@@ -213,9 +213,9 @@ class AliceListService
             ->where([
                 'user_id'     => $userId,
                 'is_archived' => 0,
+                'is_done'     => 0,
             ])
             ->orderBy([
-                'is_done'   => SORT_ASC,   // сначала не купленные
                 'is_pinned' => SORT_DESC,  // закреплённые выше
                 'title'     => SORT_ASC,
             ])

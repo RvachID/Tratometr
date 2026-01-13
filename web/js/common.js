@@ -25,9 +25,6 @@ window.reloadAliceSelect = async function (selectedId = null) {
         const activeGroup = document.createElement('optgroup');
         activeGroup.label = '🛒 Остальное';
 
-        const doneGroup = document.createElement('optgroup');
-        doneGroup.label = '✓ Куплено';
-
         for (const item of items) {
             const opt = document.createElement('option');
             opt.value = item.id;
