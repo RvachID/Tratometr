@@ -45,6 +45,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         'items' => [
             ['label' => 'История', 'url' => ['/site/history']],
             ['label' => 'Статистика', 'url' => ['/site/stats']],
+            ['label' => 'Список покупок', 'url' => ['/alice-item/index']],
             ['label' => 'О проекте', 'url' => ['/site/about']],
             Yii::$app->user->isGuest
                 ? ['label' => 'Авторизоваться', 'url' => ['/auth/login']]
