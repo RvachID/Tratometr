@@ -146,8 +146,34 @@
                     const ct = r.headers.get('content-type')||'';
                     const res = ct.includes('application/json') ? await r.json() : { success:false };
                     if (res.success) {
-                        container.remove();
-                        if (typeof res.total!=='undefined') updateTotal(res.total);
+                        if (res.success) {
+                            const aliceId = container.dataset.aliceId;
+
+                            if (aliceId && window.AliceOptions && mAliceSelect) {
+                                const exists = mAliceSelect.querySelector(
+                                    `option[value="${aliceId}"]`
+                                );
+
+                                if (!exists) {
+                                    const item = window.AliceOptions.find(
+                                        o => String(o.id) === String(aliceId)
+                                    );
+
+                                    if (item) {
+                                        const opt = document.createElement('option');
+                                        opt.value = item.id;
+                                        opt.textContent = item.title;
+                                        mAliceSelect.appendChild(opt);
+                                    }
+                                }
+                            }
+
+                            container.remove();
+
+                            if (typeof res.total !== 'undefined') {
+                                updateTotal(res.total);
+                            }
+                        }
                     } else {
                         alert(res.error || 'Не удалось удалить');
                     }
