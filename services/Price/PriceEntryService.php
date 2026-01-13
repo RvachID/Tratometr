@@ -307,25 +307,25 @@ class PriceEntryService
     {
         return clone $query;
     }
-
     private function syncAliceItem(int $aliceItemId): void
     {
-        if ($aliceItemId <= 0) {
+        $item = AliceItem::findOne($aliceItemId);
+        if (!$item) {
             return;
         }
 
-        $used = PriceEntry::find()
-            ->where(['alice_item_id' => $aliceItemId])
+        $hasEntries = PriceEntry::find()
+            ->where([
+                'alice_item_id' => $aliceItemId,
+                'user_id' => $item->user_id,
+            ])
             ->exists();
 
-        AliceItem::updateAll(
-            [
-                'is_done' => $used ? 1 : 0,
-                'updated_at' => time(),
-            ],
-            ['id' => $aliceItemId]
-        );
+        $item->is_done = $hasEntries ? 1 : 0;
+        $item->updated_at = time();
+        $item->save(false);
     }
+
 
 
 }
