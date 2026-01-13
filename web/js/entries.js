@@ -149,22 +149,16 @@
                         if (res.success) {
                             const aliceId = container.dataset.aliceId;
 
-                            if (aliceId && window.AliceOptions && mAliceSelect) {
-                                const exists = mAliceSelect.querySelector(
-                                    `option[value="${aliceId}"]`
+                            if (aliceId && window.AliceOptions) {
+                                const exists = window.AliceOptions.find(
+                                    o => String(o.id) === String(aliceId)
                                 );
 
                                 if (!exists) {
-                                    const item = window.AliceOptions.find(
-                                        o => String(o.id) === String(aliceId)
-                                    );
-
-                                    if (item) {
-                                        const opt = document.createElement('option');
-                                        opt.value = item.id;
-                                        opt.textContent = item.title;
-                                        mAliceSelect.appendChild(opt);
-                                    }
+                                    window.AliceOptions.push({
+                                        id: Number(aliceId),
+                                        title: container.querySelector('.item-alice-title')?.textContent || ''
+                                    });
                                 }
                             }
 
@@ -174,6 +168,7 @@
                                 updateTotal(res.total);
                             }
                         }
+
                     } else {
                         alert(res.error || 'Не удалось удалить');
                     }
