@@ -132,12 +132,21 @@ class PriceController extends Controller
         Yii::$app->response->format = Response::FORMAT_JSON;
 
         try {
-            $listTotal = $this->priceEntryService->delete(Yii::$app->user->id, (int)$id);
-        } catch (DomainException $e) {
-            throw new NotFoundHttpException($e->getMessage());
-        }
+            $total = $this->priceEntryService->delete(
+                Yii::$app->user->id,
+                (int)$id
+            );
 
-        return ['listTotal' => number_format($listTotal, 2, '.', '')];
+            return [
+                'success' => true,
+                'total'   => number_format($total, 2, '.', ''),
+            ];
+        } catch (DomainException $e) {
+            return [
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ];
+        }
     }
 
     public function actionGetLast()
