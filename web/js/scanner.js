@@ -102,19 +102,6 @@
     };
     const originalUpdateTotal = typeof window.updateTotal === 'function' ? window.updateTotal : null;
 
-    function rebuildAliceSelect() {
-        if (!mAliceSelect || !window.AliceOptions) return;
-
-        mAliceSelect.innerHTML = '<option value="">— не привязывать —</option>';
-
-        window.AliceOptions.forEach(item => {
-            const opt = document.createElement('option');
-            opt.value = item.id;
-            opt.textContent = item.title;
-            mAliceSelect.appendChild(opt);
-        });
-    }
-
     window.updateTotal = function(total) {
         ensureTotalsMarkup();
         if (originalUpdateTotal) {
@@ -252,7 +239,6 @@
             document.getElementById('m-retake').style.display = 'none';
 
             resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
-            rebuildAliceSelect();
             bootstrapModal?.show();
         };
     }
@@ -377,7 +363,7 @@
                                 // Явно скрываем и сбрасываем состояние превью в модалке
                                 resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
                                 // (кнопка "Показать скан" поднимет mPhotoWrap и возьмёт lastPhotoURL)
-                                rebuildAliceSelect();
+
                                 bootstrapModal?.show();
                                 resolve(true);
                             })
