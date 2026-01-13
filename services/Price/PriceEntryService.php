@@ -52,7 +52,8 @@ class PriceEntryService
         ?string $note,
         ?string $parsedText,
         ?int $aliceItemId = null
-    ): array {
+    ): array
+    {
         if ($amount <= 0) {
             throw new DomainException('Некорректная сумма');
         }
@@ -61,16 +62,16 @@ class PriceEntryService
         }
 
         $entry = new PriceEntry();
-        $entry->user_id   = $userId;
+        $entry->user_id = $userId;
         $entry->session_id = $session->id;
-        $entry->amount    = round($amount, 2);
-        $entry->qty       = round($qty, 3);
-        $entry->store     = $session->shop;
-        $entry->category  = $session->category ?: null;
-        $entry->note      = $note ?: null;
-        $entry->recognized_text   = $parsedText ?: null;
+        $entry->amount = round($amount, 2);
+        $entry->qty = round($qty, 3);
+        $entry->store = $session->shop;
+        $entry->category = $session->category ?: null;
+        $entry->note = $note ?: null;
+        $entry->recognized_text = $parsedText ?: null;
         $entry->recognized_amount = $entry->amount;
-        $entry->source    = 'price_tag';
+        $entry->source = 'price_tag';
         $entry->created_at = time();
         $entry->updated_at = time();
 
@@ -84,11 +85,11 @@ class PriceEntryService
         // если привязали пункт Алисы — помечаем его купленным
         if ($entry->alice_item_id) {
             $aliceItem = AliceItem::findOne([
-                'id'      => $entry->alice_item_id,
+                'id' => $entry->alice_item_id,
                 'user_id' => $userId,
             ]);
             if ($aliceItem) {
-                $aliceItem->is_done    = 1;
+                $aliceItem->is_done = 1;
                 $aliceItem->updated_at = time();
                 $aliceItem->save(false);
 
@@ -102,7 +103,7 @@ class PriceEntryService
         $listTotal = $this->getUserTotal($userId, $session->id);
 
         return [
-            'entry'     => $entry,
+            'entry' => $entry,
             'listTotal' => $listTotal,
         ];
     }
@@ -115,14 +116,14 @@ class PriceEntryService
 
         // обычная логика сохранения
         $entry->load($data, '');
-        $entry->user_id    = $userId;
+        $entry->user_id = $userId;
         $entry->session_id = $session->id;
-        $entry->store      = $session->shop;
-        $entry->category   = $session->category ?: null;
+        $entry->store = $session->shop;
+        $entry->category = $session->category ?: null;
 
         if ($entry->isNewRecord) {
-            $entry->source     = $entry->source ?: 'manual';
-            $entry->qty        = $entry->qty ?: 1;
+            $entry->source = $entry->source ?: 'manual';
+            $entry->qty = $entry->qty ?: 1;
             $entry->created_at = $entry->created_at ?: time();
         }
 
@@ -165,8 +166,8 @@ class PriceEntryService
         $total = $this->getUserTotal($userId, $session->id);
 
         return [
-            'entry'         => $entry,
-            'sessionTotal'  => $total,
+            'entry' => $entry,
+            'sessionTotal' => $total,
         ];
     }
 
@@ -249,9 +250,8 @@ class PriceEntryService
 
     public function delete(int $userId, int $entryId): float
     {
-        /** @var PriceEntry|null $entry */
         $entry = PriceEntry::findOne([
-            'id'      => $entryId,
+            'id' => $entryId,
             'user_id' => $userId,
         ]);
 
@@ -260,27 +260,18 @@ class PriceEntryService
         }
 
         $sessionId = $entry->session_id;
+        $aliceId = (int)$entry->alice_item_id;
 
-        // если запись была привязана к пункту Алисы — вернуть его в активные
-        if ($entry->alice_item_id) {
-            AliceItem::updateAll(
-                [
-                    'is_done'    => 0,
-                    'updated_at' => time(),
-                ],
-                [
-                    'id'      => $entry->alice_item_id,
-                    'user_id' => $userId,
-                ]
-            );
-        }
-
-        // удаляем сам ценник
         $entry->delete();
 
-        // пересчитываем сумму по сессии
+        // 🔥 ВАЖНО: пересчёт состояния пункта списка
+        if ($aliceId > 0) {
+            $this->syncAliceItem($aliceId);
+        }
+
         return $this->getUserTotal($userId, $sessionId);
     }
+
 
     public function getLast(int $userId): ?array
     {
@@ -316,5 +307,25 @@ class PriceEntryService
     {
         return clone $query;
     }
+
+    private function syncAliceItem(int $aliceItemId): void
+    {
+        if ($aliceItemId <= 0) {
+            return;
+        }
+
+        $used = PriceEntry::find()
+            ->where(['alice_item_id' => $aliceItemId])
+            ->exists();
+
+        AliceItem::updateAll(
+            [
+                'is_done' => $used ? 1 : 0,
+                'updated_at' => time(),
+            ],
+            ['id' => $aliceItemId]
+        );
+    }
+
 
 }
