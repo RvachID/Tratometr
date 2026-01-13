@@ -121,25 +121,15 @@ $entries = $entries ?? [];
                             <input type="text" class="form-control" id="m-note">
                         </div>
 
-                        <?php if (!empty($aliceItems)): ?>
-                            <div class="mb-2 text-start">
-                                <label class="form-label">Из списка покупок (опц.)</label>
-                                <select id="m-alice-item" class="form-select">
-                                    <option value="">выберите...</option>
-                                    <?php foreach ($aliceItems as $item): ?>
-                                        <option value="<?= (int)$item->id ?>">
-                                            <?= \yii\helpers\Html::encode($item->title) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small class="text-muted">
-                                    Выбранный пункт пометим как купленный, а запись свяжем с ним.
-                                </small>
-                            </div>
-                        <?php else: ?>
-                            <input type="hidden" id="m-alice-item" value="">
-                        <?php endif; ?>
-
+                        <div class="mb-2 text-start">
+                            <label class="form-label">Из списка покупок (опц.)</label>
+                            <select id="m-alice-item" class="form-select">
+                                <option value="">выберите...</option>
+                            </select>
+                            <small class="text-muted">
+                                Выбранный пункт пометим как купленный, а запись свяжем с ним.
+                            </small>
+                        </div>
 
                         <div class="mb-2" id="m-photo-wrap" style="display:none;">
                             <img id="m-photo" class="img-fluid" alt="Фото скана"/>

@@ -148,22 +148,8 @@
                     if (res.success) {
                         if (res.success) {
                             const aliceId = container.dataset.aliceId;
-
-                            if (aliceId && window.AliceOptions) {
-                                const exists = window.AliceOptions.find(
-                                    o => String(o.id) === String(aliceId)
-                                );
-
-                                if (!exists) {
-                                    window.AliceOptions.push({
-                                        id: Number(aliceId),
-                                        title: container.querySelector('.item-alice-title')?.textContent || ''
-                                    });
-                                }
-                            }
-
                             container.remove();
-
+                            await reloadAliceSelect();
                             if (typeof res.total !== 'undefined') {
                                 updateTotal(res.total);
                             }

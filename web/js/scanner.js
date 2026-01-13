@@ -100,9 +100,44 @@
             if (secondary) secondary.classList.add('d-none');
         }
     };
+
+    async function reloadAliceSelect(selectedId = null) {
+        const select = document.getElementById('m-alice-item');
+        if (!select) return;
+
+        try {
+            const r = await fetch('index.php?r=alice-item/list-json', {
+                credentials: 'include'
+            });
+            if (!r.ok) throw new Error('alice list load failed');
+
+            const items = await r.json();
+
+            select.innerHTML = '<option value="">выберите...</option>';
+
+            for (const item of items) {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.title;
+
+                // если куплен — дизейблим
+                if (item.is_done) {
+                    opt.disabled = true;
+                }
+
+                // восстановить выбор
+                if (selectedId && String(item.id) === String(selectedId)) {
+                    opt.selected = true;
+                }
+
+                select.appendChild(opt);
+            }
+        } catch (e) {
+            console.error('reloadAliceSelect error', e);
+        }
+    }
+
     const originalUpdateTotal = typeof window.updateTotal === 'function' ? window.updateTotal : null;
-
-
     window.updateTotal = function(total) {
         ensureTotalsMarkup();
         if (originalUpdateTotal) {
@@ -535,7 +570,7 @@
         } catch (e) { /* тихо */ }
     }
 
-    document.addEventListener('DOMContentLoaded', checkShopSession);
+    document.addEventListener('DOMContentLoaded', checkShopSession, reloadAliceSelect());
 
     // После закрытия модалки — обновляем заголовок на всякий случай
     shopModalEl?.addEventListener('hidden.bs.modal', () => {
