@@ -224,5 +224,75 @@ class AliceListService
             ->all();
     }
 
+    private function requireOwned(int $userId, int $id): AliceItem
+    {
+        $item = AliceItem::findOne([
+            'id' => $id,
+            'user_id' => $userId,
+        ]);
+
+        if (!$item) {
+            throw new DomainException('Пункт списка не найден');
+        }
+
+        return $item;
+    }
+
+    public function updateItem(int $userId, int $id, string $title): AliceItem
+    {
+        $item = $this->requireOwned($userId, $id);
+
+        $title = trim($title);
+        if ($title === '') {
+            throw new DomainException('Пустое название товара');
+        }
+
+        $item->title = mb_substr($title, 0, 255);
+        $item->updated_at = time();
+
+        if (!$item->save()) {
+            throw new DomainException('Не удалось обновить товар');
+        }
+
+        return $item;
+    }
+    public function deleteItem(int $userId, int $id): void
+    {
+        $item = $this->requireOwned($userId, $id);
+        $item->delete();
+    }
+    public function toggleDone(int $userId, int $id): AliceItem
+    {
+        $item = $this->requireOwned($userId, $id);
+
+        $item->is_done = $item->is_done ? 0 : 1;
+        $item->updated_at = time();
+        $item->save(false);
+
+        return $item;
+    }
+    public function togglePinned(int $userId, int $id): AliceItem
+    {
+        $item = $this->requireOwned($userId, $id);
+
+        $item->is_pinned = $item->is_pinned ? 0 : 1;
+        $item->updated_at = time();
+        $item->save(false);
+
+        return $item;
+    }
+    public function getAll(int $userId): array
+    {
+        return AliceItem::find()
+            ->where(['user_id' => $userId])
+            ->orderBy([
+                'is_archived' => SORT_ASC,
+                'is_done'     => SORT_ASC,
+                'is_pinned'   => SORT_DESC,
+                'created_at'  => SORT_ASC,
+            ])
+            ->all();
+    }
+
 }
 

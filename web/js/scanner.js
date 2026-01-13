@@ -102,6 +102,7 @@
     };
     const originalUpdateTotal = typeof window.updateTotal === 'function' ? window.updateTotal : null;
 
+
     window.updateTotal = function(total) {
         ensureTotalsMarkup();
         if (originalUpdateTotal) {
