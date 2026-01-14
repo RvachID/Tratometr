@@ -399,4 +399,34 @@ footer, footer .container {
     letter-spacing: .04em;
     margin-bottom: 6px;
 }
+.alice-row-mobile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 
+    min-height: 48px;          /* 🔥 ключ */
+    padding: 6px 10px;         /* 🔥 воздух */
+}
+
+.alice-row-mobile .done-toggle {
+    width: 32px;
+    height: 32px;              /* было 28 */
+    border-radius: 8px;        /* мягче */
+    flex-shrink: 0;
+}
+.alice-row-mobile .alice-title-input {
+    font-size: 15px;
+    line-height: 1.4;          /* 🔥 */
+    padding: 6px 4px;
+}
+.alice-row-mobile .pin-toggle,
+.alice-row-mobile .delete-toggle {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+.d-sm-none .card-body {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
