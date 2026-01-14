@@ -479,3 +479,12 @@ footer, footer .container {
 .alice-swipe-wrap.show-right .swipe-bg-right {
     opacity: 1;
 }
+.pin-flash {
+    animation: pinFlash .3s ease;
+}
+
+@keyframes pinFlash {
+    0% { box-shadow: 0 0 0 rgba(0,0,0,0); }
+    50% { box-shadow: 0 0 0 4px rgba(59,130,246,.25); }
+    100% { box-shadow: 0 0 0 rgba(0,0,0,0); }
+}

@@ -146,22 +146,46 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
     card.addEventListener('touchend', async () => {
         dragging = false;
         card.style.transition = 'transform .25s ease';
+
         wrap.classList.remove('show-left', 'show-right');
-        // 👉 PIN / UNPIN
+
+        // 👉 ЗАКРЕПИТЬ / ОТКРЕПИТЬ
         if (currentX > threshold) {
-            await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': csrf },
-                credentials: 'include'
-            });
-            location.reload();
+            try {
+                const r = await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': csrf },
+                    credentials: 'include'
+                });
+
+                if (r.ok) {
+                    // 🔥 обновляем локально
+                    const nowPinned = wrap.dataset.pinned === '1' ? '0' : '1';
+                    wrap.dataset.pinned = nowPinned;
+
+                    // визуальный фидбек
+                    wrap.classList.add('pin-flash');
+                    setTimeout(() => wrap.classList.remove('pin-flash'), 300);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+
+            card.style.transform = 'translateX(0)';
+            currentX = 0;
             return;
         }
 
-        // 👈 DELETE
+        // 👈 УДАЛЕНИЕ
         if (currentX < -threshold) {
             card.style.transform = 'translateX(-100%)';
-            setTimeout(() => wrap.remove(), 200);
+
+            setTimeout(() => {
+                wrap.style.height = wrap.offsetHeight + 'px';
+                wrap.style.transition = 'height .25s ease, margin .25s ease';
+                wrap.style.height = '0';
+                wrap.style.marginBottom = '0';
+            }, 200);
 
             showUndo(async () => {
                 await fetch(`index.php?r=alice-item/delete&id=${id}`, {
@@ -169,32 +193,42 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
                     headers: { 'X-CSRF-Token': csrf },
                     credentials: 'include'
                 });
+            }, () => {
+                // отмена
+                wrap.style.height = '';
+                wrap.style.marginBottom = '';
+                card.style.transform = 'translateX(0)';
             });
+
             return;
         }
 
+        // ❌ если не дотянули
         card.style.transform = 'translateX(0)';
         currentX = 0;
     });
+
 });
 
 /* Undo */
-function showUndo(onConfirm) {
+function showUndo(onConfirm, onUndo) {
     const bar = document.createElement('div');
     bar.className = 'undo-bar';
     bar.innerHTML = `Удалено <button>Отменить</button>`;
     document.body.appendChild(bar);
 
-    const timer = setTimeout(() => {
-        onConfirm();
+    const timer = setTimeout(async () => {
+        await onConfirm();
         bar.remove();
     }, 4000);
 
     bar.querySelector('button').onclick = () => {
         clearTimeout(timer);
-        location.reload();
+        bar.remove();
+        onUndo && onUndo();
     };
 }
+
 
 
 (function () {
