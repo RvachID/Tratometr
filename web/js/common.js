@@ -127,15 +127,26 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
 
     card.addEventListener('touchmove', e => {
         if (!dragging) return;
+
         currentX = e.touches[0].clientX - startX;
         currentX = Math.max(-140, Math.min(140, currentX));
+
         card.style.transform = `translateX(${currentX}px)`;
+
+        // показываем нужную подложку
+        wrap.classList.remove('show-left', 'show-right');
+
+        if (currentX > 20) {
+            wrap.classList.add('show-left');   // 👉 вправо
+        } else if (currentX < -20) {
+            wrap.classList.add('show-right');  // 👈 влево
+        }
     });
 
     card.addEventListener('touchend', async () => {
         dragging = false;
         card.style.transition = 'transform .25s ease';
-
+        wrap.classList.remove('show-left', 'show-right');
         // 👉 PIN / UNPIN
         if (currentX > threshold) {
             await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {

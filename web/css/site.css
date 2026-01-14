@@ -465,3 +465,17 @@ footer, footer .container {
     color: #4ade80;
     font-weight: 600;
 }
+/* по умолчанию подложки скрыты */
+.alice-swipe-wrap .swipe-bg {
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+
+/* показываем нужную */
+.alice-swipe-wrap.show-left .swipe-bg-left {
+    opacity: 1;
+}
+
+.alice-swipe-wrap.show-right .swipe-bg-right {
+    opacity: 1;
+}
