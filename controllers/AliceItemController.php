@@ -50,18 +50,20 @@ class AliceItemController extends Controller
     {
         $service = new AliceListService();
 
-        try {
-            $service->updateItem(
-                Yii::$app->user->id,
-                (int)$id,
-                (string)Yii::$app->request->post('title')
-            );
-        } catch (\DomainException $e) {
-            Yii::$app->session->setFlash('error', $e->getMessage());
+        $service->updateItem(
+            Yii::$app->user->id,
+            (int)$id,
+            (string)Yii::$app->request->post('title')
+        );
+
+        if (Yii::$app->request->isAjax) {
+            Yii::$app->response->statusCode = 204;
+            return;
         }
 
         return $this->redirect(['index']);
     }
+
 
     /**
      * Удаление пункта
