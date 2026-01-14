@@ -23,7 +23,7 @@ $this->title = 'Список покупок';
                 placeholder="Добавить товар…"
                 required
         >
-        <button type="submit" class="btn-outline-secondary">Добавить</button>
+        <button type="submit" class="btn btn-outline-secondary">Добавить</button>
 
         <?= Html::endForm() ?>
     </div>
@@ -50,10 +50,10 @@ $this->title = 'Список покупок';
                         <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
                         <button
                                 type="submit"
-                                class="btn btn-sm <?= $item->is_done ? 'btn-outline-success' : 'btn-outline-secondary' ?>"
+                                class="btn btn-sm done-toggle <?= $item->is_done ? 'btn-outline-success is-done' : 'btn-outline-secondary' ?>"
                                 title="Отметить как купленное / вернуть в список"
                         >
-                            <?= $item->is_done ? '✓' : '' ?>
+                            <span class="check">✓</span>
                         </button>
                         <?= Html::endForm() ?>
                     </td>

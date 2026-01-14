@@ -304,3 +304,23 @@ footer, footer .container {
     padding: 4px 10px;
     font-size: 0.95rem;
 }
+
+/* страница покупок */
+.done-toggle {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.done-toggle .check {
+    font-size: 16px;
+    line-height: 1;
+    visibility: hidden;
+}
+
+.done-toggle.is-done .check {
+    visibility: visible;
+}
