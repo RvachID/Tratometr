@@ -54,6 +54,24 @@ window.reloadAliceSelect = async function (selectedId = null) {
         console.error('reloadAliceSelect error', e);
     }
 };
+document.addEventListener('click', async e => {
+    const btn = e.target.closest('.done-toggle');
+    if (!btn) return;
+
+    const wrap = btn.closest('.alice-swipe-wrap');
+    const id = wrap.dataset.id;
+
+    const r = await fetch(`index.php?r=alice-item/toggle-done&id=${id}`, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': csrf },
+        credentials: 'include'
+    });
+
+    if (r.ok) {
+        btn.classList.toggle('is-done');
+        moveToSection(wrap, 'section-done');
+    }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -126,6 +144,21 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
     });
 
     card.addEventListener('touchmove', e => {
+
+        function moveToSection(wrap, sectionId) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+
+            wrap.style.opacity = '0';
+            wrap.style.transform = 'scale(0.96)';
+
+            setTimeout(() => {
+                section.appendChild(wrap);
+                wrap.style.opacity = '';
+                wrap.style.transform = '';
+            }, 150);
+        }
+
         if (!dragging) return;
 
         currentX = e.touches[0].clientX - startX;
@@ -151,30 +184,28 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
 
         // 👉 ЗАКРЕПИТЬ / ОТКРЕПИТЬ
         if (currentX > threshold) {
-            try {
-                const r = await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': csrf },
-                    credentials: 'include'
-                });
+            const r = await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrf },
+                credentials: 'include'
+            });
 
-                if (r.ok) {
-                    // 🔥 обновляем локально
-                    const nowPinned = wrap.dataset.pinned === '1' ? '0' : '1';
-                    wrap.dataset.pinned = nowPinned;
+            if (r.ok) {
+                const nowPinned = wrap.dataset.pinned === '1' ? '0' : '1';
+                wrap.dataset.pinned = nowPinned;
 
-                    // визуальный фидбек
-                    wrap.classList.add('pin-flash');
-                    setTimeout(() => wrap.classList.remove('pin-flash'), 300);
+                if (nowPinned === '1') {
+                    moveToSection(wrap, 'section-pinned');
+                } else {
+                    moveToSection(wrap, 'section-active');
                 }
-            } catch (e) {
-                console.error(e);
             }
 
             card.style.transform = 'translateX(0)';
             currentX = 0;
             return;
         }
+
 
         // 👈 УДАЛЕНИЕ
         if (currentX < -threshold) {
@@ -209,6 +240,8 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
     });
 
 });
+
+
 
 /* Undo */
 function showUndo(onConfirm, onUndo) {
