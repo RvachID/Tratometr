@@ -28,7 +28,13 @@ $this->title = 'Список покупок';
         <?= Html::endForm() ?>
     </div>
 
-    <!-- ================= ≥ sm: таблица ================= -->
+    <?php
+    $shownPinnedHeader  = false;
+    $shownRegularHeader = false;
+    $shownDoneHeader    = false;
+    ?>
+
+    <!-- ================= ≥ sm: TABLE ================= -->
     <div class="d-none d-sm-block">
         <table class="table table-sm align-middle">
             <thead>
@@ -42,6 +48,20 @@ $this->title = 'Список покупок';
             <tbody>
 
             <?php foreach ($items as $item): ?>
+
+                <?php
+                if (!$shownDoneHeader && $item->is_done) {
+                    echo '<tr><td colspan="4"><div class="list-section-title mt-3">Куплено</div></td></tr>';
+                    $shownDoneHeader = true;
+                } elseif (!$shownPinnedHeader && !$item->is_done && $item->is_pinned) {
+                    echo '<tr><td colspan="4"><div class="list-section-title">Регулярные покупки</div></td></tr>';
+                    $shownPinnedHeader = true;
+                } elseif (!$shownRegularHeader && !$item->is_done && !$item->is_pinned) {
+                    echo '<tr><td colspan="4"><div class="list-section-title">Остальное</div></td></tr>';
+                    $shownRegularHeader = true;
+                }
+                ?>
+
                 <tr class="<?= $item->is_done ? 'text-muted' : '' ?>">
 
                     <!-- DONE -->
@@ -51,14 +71,13 @@ $this->title = 'Список покупок';
                         <button
                                 type="submit"
                                 class="btn btn-sm done-toggle <?= $item->is_done ? 'btn-outline-success is-done' : 'btn-outline-secondary' ?>"
-                                title="Отметить как купленное / вернуть в список"
                         >
                             <span class="check">✓</span>
                         </button>
                         <?= Html::endForm() ?>
                     </td>
 
-                    <!-- TITLE (inline edit) -->
+                    <!-- TITLE -->
                     <td>
                         <input
                                 type="text"
@@ -75,7 +94,6 @@ $this->title = 'Список покупок';
                         <button
                                 type="submit"
                                 class="btn btn-sm <?= $item->is_pinned ? 'btn-outline-warning' : 'btn-outline-secondary' ?>"
-                                title="Закрепить / открепить"
                         >
                             <?= $item->is_pinned ? '📌' : '—' ?>
                         </button>
@@ -95,27 +113,36 @@ $this->title = 'Список покупок';
                     </td>
 
                 </tr>
+
             <?php endforeach; ?>
 
             </tbody>
         </table>
     </div>
 
-    <!-- ================= < sm: карточки ================= -->
+    <!-- ================= < sm: MOBILE ================= -->
     <?php
-    $shownDoneHeader = false;
+    $shownPinnedHeader  = false;
+    $shownRegularHeader = false;
+    $shownDoneHeader    = false;
     ?>
 
     <div class="d-sm-none">
 
-        <?php $shownDoneHeader = false; ?>
-
         <?php foreach ($items as $item): ?>
 
-            <?php if (!$shownDoneHeader && $item->is_done): ?>
-                <div class="list-section-title mt-3">Куплено</div>
-                <?php $shownDoneHeader = true; ?>
-            <?php endif; ?>
+            <?php
+            if (!$shownDoneHeader && $item->is_done) {
+                echo '<div class="list-section-title mt-3">Куплено</div>';
+                $shownDoneHeader = true;
+            } elseif (!$shownPinnedHeader && !$item->is_done && $item->is_pinned) {
+                echo '<div class="list-section-title">Регулярные покупки</div>';
+                $shownPinnedHeader = true;
+            } elseif (!$shownRegularHeader && !$item->is_done && !$item->is_pinned) {
+                echo '<div class="list-section-title">Остальное</div>';
+                $shownRegularHeader = true;
+            }
+            ?>
 
             <div class="card border-0 shadow-sm mb-2 <?= $item->is_done ? 'opacity-75' : '' ?>">
                 <div class="card-body py-2 px-2">
@@ -139,16 +166,12 @@ $this->title = 'Список покупок';
                         <button
                                 class="pin-toggle <?= $item->is_pinned ? 'is-pinned' : '' ?>"
                                 data-id="<?= (int)$item->id ?>"
-                        >
-                            📌
-                        </button>
+                        >📌</button>
 
                         <button
                                 class="delete-toggle"
                                 data-id="<?= (int)$item->id ?>"
-                        >
-                            🗑
-                        </button>
+                        >🗑</button>
 
                     </div>
 
@@ -156,6 +179,7 @@ $this->title = 'Список покупок';
             </div>
 
         <?php endforeach; ?>
+
     </div>
 
 </div>

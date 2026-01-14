@@ -391,3 +391,12 @@ footer, footer .container {
 .done-toggle.is-done .check {
     visibility: visible;
 }
+.list-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 6px;
+}
+
