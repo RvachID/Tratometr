@@ -324,3 +324,68 @@ footer, footer .container {
 .done-toggle.is-done .check {
     visibility: visible;
 }
+/* ===== MOBILE LIST ===== */
+.alice-row-mobile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+/* чекбокс */
+.alice-row-mobile .done-toggle {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid #d39e6a;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    padding: 0;
+}
+
+.alice-row-mobile .done-toggle.is-done {
+    background: #e6f4ea;
+    border-color: #198754;
+    color: #198754;
+}
+
+/* название */
+.alice-row-mobile .alice-title-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 4px 6px;
+    font-size: 14px;
+}
+
+.alice-row-mobile .alice-title-input:focus {
+    outline: none;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+/* иконки справа */
+.alice-row-mobile .pin-toggle,
+.alice-row-mobile .delete-toggle {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #d39e6a;
+    border-radius: 6px;
+    background: transparent;
+    font-size: 15px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.alice-row-mobile .pin-toggle.is-pinned {
+    background: #fff3cd;
+    border-color: #ffc107;
+}

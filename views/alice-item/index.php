@@ -104,51 +104,43 @@ $this->title = 'Список покупок';
     <!-- ================= < sm: карточки ================= -->
     <div class="d-sm-none">
         <?php foreach ($items as $item): ?>
-            <div class="card border-0 shadow-sm mb-2 <?= $item->is_done ? 'text-muted' : '' ?>">
-                <div class="card-body py-2">
+            <div class="alice-row-mobile <?= $item->is_done ? 'opacity-75' : '' ?>">
 
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1 me-2">
-                            <input
-                                    type="text"
-                                    value="<?= Html::encode($item->title) ?>"
-                                    class="form-control form-control-sm alice-title-input"
-                                    data-id="<?= (int)$item->id ?>"
-                            >
-                        </div>
+                <!-- DONE -->
+                <button
+                        class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
+                        title="Куплено"
+                >
+                    ✓
+                </button>
 
-                        <?= Html::beginForm(['alice-item/toggle-done', 'id' => $item->id], 'post') ?>
-                        <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
-                        <button
-                                type="submit"
-                                class="btn btn-sm <?= $item->is_done ? 'btn-outline-success' : 'btn-outline-secondary' ?>"
-                        >
-                            <?= $item->is_done ? '✓' : '' ?>
-                        </button>
-                        <?= Html::endForm() ?>
-                    </div>
+                <!-- TITLE -->
+                <input
+                        type="text"
+                        value="<?= Html::encode($item->title) ?>"
+                        class="alice-title-input"
+                        data-id="<?= (int)$item->id ?>"
+                >
 
-                    <div class="d-flex justify-content-end gap-2 mt-2">
-                        <?= Html::beginForm(['alice-item/toggle-pinned', 'id' => $item->id], 'post') ?>
-                        <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">
-                            <?= $item->is_pinned ? '📌' : 'Закрепить' ?>
-                        </button>
-                        <?= Html::endForm() ?>
+                <!-- PIN -->
+                <button
+                        class="pin-toggle <?= $item->is_pinned ? 'is-pinned' : '' ?>"
+                        title="Закрепить"
+                >
+                    📌
+                </button>
 
-                        <?= Html::beginForm(['alice-item/delete', 'id' => $item->id], 'post', [
-                            'onsubmit' => "return confirm('Удалить пункт?');"
-                        ]) ?>
-                        <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">
-                            Удалить
-                        </button>
-                        <?= Html::endForm() ?>
-                    </div>
+                <!-- DELETE -->
+                <button
+                        class="delete-toggle"
+                        title="Удалить"
+                >
+                    🗑
+                </button>
 
-                </div>
             </div>
         <?php endforeach; ?>
     </div>
+
 
 </div>
