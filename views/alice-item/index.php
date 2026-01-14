@@ -23,7 +23,7 @@ $this->title = 'Список покупок';
                 placeholder="Добавить товар…"
                 required
         >
-        <button type="submit" class="btn btn-primary">Добавить</button>
+        <button type="submit" class="btn-outline-secondary">Добавить</button>
 
         <?= Html::endForm() ?>
     </div>
