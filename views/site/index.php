@@ -84,6 +84,8 @@ $historyUrl = \yii\helpers\Url::to(['site/history']);
 
     <a href="<?= \yii\helpers\Url::to(['site/stats']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">📈 Статистика</a>
 
+    <a href="<?= \yii\helpers\Url::to(['alice-item/index']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">🧾 Список покупок</a>
+
     <div class="mt-2">
         <a href="<?= \yii\helpers\Url::to(['/site/about']) ?>"
            class="btn btn-outline-secondary w-100" aria-label="О проекте">
