@@ -107,66 +107,84 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
-document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
+document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
+    const card = wrap.querySelector('.alice-card');
+    const id = wrap.dataset.id;
+    const isPinned = wrap.dataset.pinned === '1';
 
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-    if (!csrf) return;
+    let startX = 0;
+    let currentX = 0;
+    let dragging = false;
+    const threshold = 90;
 
-    // ===== DONE =====
-    if (btn.classList.contains('done-toggle')) {
-        e.preventDefault();
-        const id = btn.dataset.id;
+    const csrf = document.querySelector('meta[name="csrf-token"]').content;
 
-        const r = await fetch(`index.php?r=alice-item/toggle-done&id=${id}`, {
-            method: 'POST',
-            headers: { 'X-CSRF-Token': csrf },
-            credentials: 'include'
-        });
+    card.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX;
+        dragging = true;
+        card.style.transition = 'none';
+    });
 
-        if (r.ok) {
-            location.reload(); // просто и надёжно
-        }
-        return;
-    }
+    card.addEventListener('touchmove', e => {
+        if (!dragging) return;
+        currentX = e.touches[0].clientX - startX;
+        currentX = Math.max(-140, Math.min(140, currentX));
+        card.style.transform = `translateX(${currentX}px)`;
+    });
 
-    // ===== PIN =====
-    if (btn.classList.contains('pin-toggle')) {
-        e.preventDefault();
-        const id = btn.dataset.id;
+    card.addEventListener('touchend', async () => {
+        dragging = false;
+        card.style.transition = 'transform .25s ease';
 
-        const r = await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {
-            method: 'POST',
-            headers: { 'X-CSRF-Token': csrf },
-            credentials: 'include'
-        });
-
-        if (r.ok) {
+        // 👉 PIN / UNPIN
+        if (currentX > threshold) {
+            await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrf },
+                credentials: 'include'
+            });
             location.reload();
+            return;
         }
-        return;
-    }
 
-    // ===== DELETE =====
-    if (btn.classList.contains('delete-toggle')) {
-        e.preventDefault();
-        if (!confirm('Удалить пункт?')) return;
+        // 👈 DELETE
+        if (currentX < -threshold) {
+            card.style.transform = 'translateX(-100%)';
+            setTimeout(() => wrap.remove(), 200);
 
-        const id = btn.dataset.id;
-
-        const r = await fetch(`index.php?r=alice-item/delete&id=${id}`, {
-            method: 'POST',
-            headers: { 'X-CSRF-Token': csrf },
-            credentials: 'include'
-        });
-
-        if (r.ok) {
-            location.reload();
+            showUndo(async () => {
+                await fetch(`index.php?r=alice-item/delete&id=${id}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': csrf },
+                    credentials: 'include'
+                });
+            });
+            return;
         }
-        return;
-    }
+
+        card.style.transform = 'translateX(0)';
+        currentX = 0;
+    });
 });
+
+/* Undo */
+function showUndo(onConfirm) {
+    const bar = document.createElement('div');
+    bar.className = 'undo-bar';
+    bar.innerHTML = `Удалено <button>Отменить</button>`;
+    document.body.appendChild(bar);
+
+    const timer = setTimeout(() => {
+        onConfirm();
+        bar.remove();
+    }, 4000);
+
+    bar.querySelector('button').onclick = () => {
+        clearTimeout(timer);
+        location.reload();
+    };
+}
+
 
 (function () {
     const getCsrf = () =>

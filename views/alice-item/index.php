@@ -121,49 +121,73 @@ $this->title = 'Список покупок';
     </div>
 
     <!-- ================= < sm: MOBILE ================= -->
-    <div class="d-sm-none alice-mobile-list">
+    <div class="d-sm-none">
 
         <?php
-        $shownPinnedHeader = false;
-        $shownRegularHeader = false;
-        $shownDoneHeader = false;
+        $shownPinned = false;
+        $shownOther = false;
+        $shownDone = false;
         ?>
 
         <?php foreach ($items as $item): ?>
 
-            <?php
-            if (!$shownDoneHeader && $item->is_done) {
-                echo '<div class="list-section-title">Куплено</div>';
-                $shownDoneHeader = true;
-            } elseif (!$shownPinnedHeader && !$item->is_done && $item->is_pinned) {
-                echo '<div class="list-section-title">Регулярные покупки</div>';
-                $shownPinnedHeader = true;
-            } elseif (!$shownRegularHeader && !$item->is_done && !$item->is_pinned) {
-                echo '<div class="list-section-title">Остальное</div>';
-                $shownRegularHeader = true;
-            }
-            ?>
+            <?php if ($item->is_pinned && !$shownPinned): ?>
+                <div class="list-section-title">Регулярные покупки</div>
+                <?php $shownPinned = true; ?>
+            <?php endif; ?>
 
-            <div class="alice-mobile-row <?= $item->is_done ? 'is-done' : '' ?>">
+            <?php if (!$item->is_pinned && !$item->is_done && !$shownOther): ?>
+                <div class="list-section-title">Остальное</div>
+                <?php $shownOther = true; ?>
+            <?php endif; ?>
 
-                <button class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
-                        data-id="<?= (int)$item->id ?>">
-                    <span class="check">✓</span>
-                </button>
+            <?php if ($item->is_done && !$shownDone): ?>
+                <div class="list-section-title">Куплено</div>
+                <?php $shownDone = true; ?>
+            <?php endif; ?>
 
-                <div class="title">
-                    <?= Html::encode($item->title) ?>
+            <div
+                    class="alice-swipe-wrap <?= $item->is_done ? 'opacity-75' : '' ?>"
+                    data-id="<?= (int)$item->id ?>"
+                    data-pinned="<?= (int)$item->is_pinned ?>"
+            >
+
+                <!-- подложки -->
+                <div class="swipe-bg swipe-bg-left">
+                    <?= $item->is_pinned ? '🟢 Открепить' : '📌 Закрепить' ?>
+                </div>
+                <div class="swipe-bg swipe-bg-right">
+                    🗑 Удалить
                 </div>
 
-                <button class="pin-toggle <?= $item->is_pinned ? 'is-pinned' : '' ?>"
-                        data-id="<?= (int)$item->id ?>">📌</button>
+                <!-- карточка -->
+                <div class="alice-card">
+                    <div class="alice-row-mobile">
 
-                <button class="delete-toggle"
-                        data-id="<?= (int)$item->id ?>">🗑</button>
+                        <!-- DONE -->
+                        <button
+                                class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
+                                data-id="<?= (int)$item->id ?>"
+                        >
+                            ✓
+                        </button>
+
+                        <!-- TITLE -->
+                        <input
+                                type="text"
+                                value="<?= Html::encode($item->title) ?>"
+                                class="alice-title-input"
+                                data-id="<?= (int)$item->id ?>"
+                        >
+
+                    </div>
+                </div>
 
             </div>
 
         <?php endforeach; ?>
+
     </div>
+
 
 </div>
