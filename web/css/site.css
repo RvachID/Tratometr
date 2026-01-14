@@ -305,92 +305,6 @@ footer, footer .container {
     font-size: 0.95rem;
 }
 
-/* страница покупок */
-.done-toggle {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-
-/* ===== MOBILE LIST ===== */
-.alice-row-mobile {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06);
-}
-
-/* чекбокс */
-.alice-row-mobile .done-toggle {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    border: 1px solid #d39e6a;
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    padding: 0;
-}
-
-.alice-row-mobile .done-toggle.is-done {
-    background: #e6f4ea;
-    border-color: #198754;
-    color: #198754;
-}
-
-/* название */
-.alice-row-mobile .alice-title-input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    padding: 4px 6px;
-    font-size: 14px;
-}
-
-.alice-row-mobile .alice-title-input:focus {
-    outline: none;
-    background: #f8f9fa;
-    border-radius: 6px;
-}
-
-/* иконки справа */
-.alice-row-mobile .pin-toggle,
-.alice-row-mobile .delete-toggle {
-    width: 28px;
-    height: 28px;
-    border: 1px solid #d39e6a;
-    border-radius: 6px;
-    background: transparent;
-    font-size: 15px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.alice-row-mobile .pin-toggle.is-pinned {
-    background: #fff3cd;
-    border-color: #ffc107;
-}
-
-.done-toggle .check {
-    font-size: 16px;
-    line-height: 1;
-    visibility: hidden;
-}
-
-.done-toggle.is-done .check {
-    visibility: visible;
-}
 .list-section-title {
     font-size: 12px;
     font-weight: 600;
@@ -399,168 +313,20 @@ footer, footer .container {
     letter-spacing: .04em;
     margin-bottom: 6px;
 }
-.alice-row-mobile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
 
-    min-height: 48px;          /* 🔥 ключ */
-    padding: 6px 10px;         /* 🔥 воздух */
-}
+/* =========================================================
+   MOBILE SHOPPING LIST (FINAL, SWIPE VERSION)
+   ========================================================= */
 
-.alice-row-mobile .done-toggle {
-    width: 32px;
-    height: 32px;              /* было 28 */
-    border-radius: 8px;        /* мягче */
-    flex-shrink: 0;
-}
-.alice-row-mobile .alice-title-input {
-    font-size: 15px;
-    line-height: 1.4;          /* 🔥 */
-    padding: 6px 4px;
-}
-.alice-row-mobile .pin-toggle,
-.alice-row-mobile .delete-toggle {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    flex-shrink: 0;
-}
-.d-sm-none .card-body {
-    padding-top: 10px !important;
-    padding-bottom: 10px !important;
-}
-
-/* ===== MOBILE SHOPPING LIST ===== */
-
-.alice-mobile-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.alice-mobile-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-
-    padding: 12px 14px;
-    min-height: 56px;
-
-    background: #fff;
-    border-radius: 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06);
-}
-
-/* DONE */
-.alice-mobile-row .done-toggle {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: 2px solid #c49a6c;
-    background: transparent;
-    flex-shrink: 0;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.done-toggle .check {
-    visibility: hidden;
-    font-size: 16px;
-}
-
-.done-toggle.is-done {
-    background: #e6f4ea;
-    border-color: #198754;
-    color: #198754;
-}
-
-.done-toggle.is-done .check {
-    visibility: visible;
-}
-
-/* TITLE */
-.alice-mobile-row .title {
-    flex: 1;
-    font-size: 16px;
-    line-height: 1.3;
-    font-weight: 500;
-    word-break: break-word;
-}
-
-/* ACTIONS */
-.alice-mobile-row .pin-toggle,
-.alice-mobile-row .delete-toggle {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: 1px solid #c49a6c;
-    background: transparent;
-    flex-shrink: 0;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.alice-mobile-row .pin-toggle.is-pinned {
-    background: #fff3cd;
-    border-color: #ffc107;
-}
-
-/* DONE ROW */
-.alice-mobile-row.is-done {
-    opacity: .6;
-}
+/* --- wrapper --- */
 .alice-swipe-wrap {
     position: relative;
     overflow: hidden;
     border-radius: 14px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
-.alice-card {
-    background: #fff;
-    transition: transform .25s ease;
-    box-shadow: 0 2px 6px rgba(0,0,0,.08);
-    border-radius: 14px;
-}
-
-.alice-row-mobile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px;
-    min-height: 52px;
-}
-
-/* галочка */
-.done-toggle {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: 1px solid #c4a27a;
-    background: #fff;
-    font-weight: 700;
-}
-
-.done-toggle.is-done {
-    background: #e6f6ec;
-    border-color: #4caf50;
-}
-
-/* input */
-.alice-title-input {
-    border: none;
-    outline: none;
-    font-size: 15px;
-    flex: 1;
-    background: transparent;
-}
-
-/* подложки */
+/* --- swipe backgrounds --- */
 .swipe-bg {
     position: absolute;
     inset: 0;
@@ -570,33 +336,127 @@ footer, footer .container {
     font-weight: 600;
     color: #fff;
     z-index: 0;
+    pointer-events: none;
 }
 
 .swipe-bg-left {
     justify-content: flex-start;
-    background: #3b82f6;
+    background: #3b82f6; /* закрепить */
 }
 
 .alice-swipe-wrap[data-pinned="1"] .swipe-bg-left {
-    background: #22c55e;
+    background: #22c55e; /* открепить */
 }
 
 .swipe-bg-right {
     justify-content: flex-end;
-    background: #ef4444;
+    background: #ef4444; /* удалить */
 }
+
+/* --- card --- */
+.alice-card {
+    position: relative;
+    z-index: 1;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    transition: transform .25s ease;
+}
+
+/* --- row --- */
+.alice-row-mobile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 14px 14px;
+    min-height: 56px;
+}
+
+/* --- done toggle --- */
+.alice-row-mobile .done-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+
+    border: 2px solid #c49a6c;
+    background: #fff;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.alice-row-mobile .done-toggle .check {
+    visibility: hidden;
+    font-size: 16px;
+}
+
+.alice-row-mobile .done-toggle.is-done {
+    background: #e6f6ec;
+    border-color: #4caf50;
+    color: #4caf50;
+}
+
+.alice-row-mobile .done-toggle.is-done .check {
+    visibility: visible;
+}
+
+/* --- title input --- */
+.alice-row-mobile .alice-title-input {
+    flex: 1;
+    border: none;
+    outline: none;
+
+    background: transparent;
+    font-size: 16px;
+    line-height: 1.3;
+    padding: 0;
+
+    color: #212529;
+}
+
+.alice-row-mobile .alice-title-input:focus {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 2px 4px;
+}
+
+/* --- done items --- */
+.alice-swipe-wrap.opacity-75 {
+    opacity: .65;
+}
+
+/* --- section titles --- */
+.list-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin: 14px 0 6px;
+}
+
+/* --- undo bar --- */
 .undo-bar {
     position: fixed;
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
+    z-index: 999;
+
     background: #333;
     color: #fff;
-    padding: 10px 14px;
+
+    padding: 12px 16px;
     border-radius: 12px;
+
     display: flex;
-    gap: 10px;
-    z-index: 999;
+    gap: 12px;
+    align-items: center;
 }
 
 .undo-bar button {
@@ -605,4 +465,3 @@ footer, footer .container {
     color: #4ade80;
     font-weight: 600;
 }
-
