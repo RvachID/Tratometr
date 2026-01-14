@@ -121,19 +121,19 @@ $this->title = 'Список покупок';
     </div>
 
     <!-- ================= < sm: MOBILE ================= -->
-    <?php
-    $shownPinnedHeader  = false;
-    $shownRegularHeader = false;
-    $shownDoneHeader    = false;
-    ?>
+    <div class="d-sm-none alice-mobile-list">
 
-    <div class="d-sm-none">
+        <?php
+        $shownPinnedHeader = false;
+        $shownRegularHeader = false;
+        $shownDoneHeader = false;
+        ?>
 
         <?php foreach ($items as $item): ?>
 
             <?php
             if (!$shownDoneHeader && $item->is_done) {
-                echo '<div class="list-section-title mt-3">Куплено</div>';
+                echo '<div class="list-section-title">Куплено</div>';
                 $shownDoneHeader = true;
             } elseif (!$shownPinnedHeader && !$item->is_done && $item->is_pinned) {
                 echo '<div class="list-section-title">Регулярные покупки</div>';
@@ -144,42 +144,26 @@ $this->title = 'Список покупок';
             }
             ?>
 
-            <div class="card border-0 shadow-sm mb-2 <?= $item->is_done ? 'opacity-75' : '' ?>">
-                <div class="card-body py-2 px-2">
+            <div class="alice-mobile-row <?= $item->is_done ? 'is-done' : '' ?>">
 
-                    <div class="alice-row-mobile">
+                <button class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
+                        data-id="<?= (int)$item->id ?>">
+                    <span class="check">✓</span>
+                </button>
 
-                        <button
-                                class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
-                                data-id="<?= (int)$item->id ?>"
-                        >
-                            <span class="check">✓</span>
-                        </button>
-
-                        <input
-                                type="text"
-                                value="<?= Html::encode($item->title) ?>"
-                                class="alice-title-input"
-                                data-id="<?= (int)$item->id ?>"
-                        >
-
-                        <button
-                                class="pin-toggle <?= $item->is_pinned ? 'is-pinned' : '' ?>"
-                                data-id="<?= (int)$item->id ?>"
-                        >📌</button>
-
-                        <button
-                                class="delete-toggle"
-                                data-id="<?= (int)$item->id ?>"
-                        >🗑</button>
-
-                    </div>
-
+                <div class="title">
+                    <?= Html::encode($item->title) ?>
                 </div>
+
+                <button class="pin-toggle <?= $item->is_pinned ? 'is-pinned' : '' ?>"
+                        data-id="<?= (int)$item->id ?>">📌</button>
+
+                <button class="delete-toggle"
+                        data-id="<?= (int)$item->id ?>">🗑</button>
+
             </div>
 
         <?php endforeach; ?>
-
     </div>
 
 </div>

@@ -430,3 +430,88 @@ footer, footer .container {
     padding-top: 10px !important;
     padding-bottom: 10px !important;
 }
+
+/* ===== MOBILE SHOPPING LIST ===== */
+
+.alice-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.alice-mobile-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 12px 14px;
+    min-height: 56px;
+
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+
+/* DONE */
+.alice-mobile-row .done-toggle {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 2px solid #c49a6c;
+    background: transparent;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.done-toggle .check {
+    visibility: hidden;
+    font-size: 16px;
+}
+
+.done-toggle.is-done {
+    background: #e6f4ea;
+    border-color: #198754;
+    color: #198754;
+}
+
+.done-toggle.is-done .check {
+    visibility: visible;
+}
+
+/* TITLE */
+.alice-mobile-row .title {
+    flex: 1;
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 500;
+    word-break: break-word;
+}
+
+/* ACTIONS */
+.alice-mobile-row .pin-toggle,
+.alice-mobile-row .delete-toggle {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid #c49a6c;
+    background: transparent;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.alice-mobile-row .pin-toggle.is-pinned {
+    background: #fff3cd;
+    border-color: #ffc107;
+}
+
+/* DONE ROW */
+.alice-mobile-row.is-done {
+    opacity: .6;
+}
+
