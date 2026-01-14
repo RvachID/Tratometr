@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fd = new FormData();
                 fd.append('title', newValue);
 
-                const r = await fetch(`index.php?r=alice-item/update&id=${id}`, {
+                const r = await fetch(`/index.php?r=alice-item/update&id=${id}`, {
                     method: 'POST',
                     headers: {
                         'X-CSRF-Token': csrf
