@@ -315,15 +315,7 @@ footer, footer .container {
     justify-content: center;
 }
 
-.done-toggle .check {
-    font-size: 16px;
-    line-height: 1;
-    visibility: hidden;
-}
 
-.done-toggle.is-done .check {
-    visibility: visible;
-}
 /* ===== MOBILE LIST ===== */
 .alice-row-mobile {
     display: flex;
@@ -388,4 +380,14 @@ footer, footer .container {
 .alice-row-mobile .pin-toggle.is-pinned {
     background: #fff3cd;
     border-color: #ffc107;
+}
+
+.done-toggle .check {
+    font-size: 16px;
+    line-height: 1;
+    visibility: hidden;
+}
+
+.done-toggle.is-done .check {
+    visibility: visible;
 }

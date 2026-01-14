@@ -102,45 +102,60 @@ $this->title = 'Список покупок';
     </div>
 
     <!-- ================= < sm: карточки ================= -->
+    <?php
+    $shownDoneHeader = false;
+    ?>
+
     <div class="d-sm-none">
+
+        <?php $shownDoneHeader = false; ?>
+
         <?php foreach ($items as $item): ?>
-            <div class="alice-row-mobile <?= $item->is_done ? 'opacity-75' : '' ?>">
 
-                <!-- DONE -->
-                <button
-                        class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
-                        title="Куплено"
-                >
-                    ✓
-                </button>
+            <?php if (!$shownDoneHeader && $item->is_done): ?>
+                <div class="list-section-title mt-3">Куплено</div>
+                <?php $shownDoneHeader = true; ?>
+            <?php endif; ?>
 
-                <!-- TITLE -->
-                <input
-                        type="text"
-                        value="<?= Html::encode($item->title) ?>"
-                        class="alice-title-input"
-                        data-id="<?= (int)$item->id ?>"
-                >
+            <div class="card border-0 shadow-sm mb-2 <?= $item->is_done ? 'opacity-75' : '' ?>">
+                <div class="card-body py-2 px-2">
 
-                <!-- PIN -->
-                <button
-                        class="pin-toggle <?= $item->is_pinned ? 'is-pinned' : '' ?>"
-                        title="Закрепить"
-                >
-                    📌
-                </button>
+                    <div class="alice-row-mobile">
 
-                <!-- DELETE -->
-                <button
-                        class="delete-toggle"
-                        title="Удалить"
-                >
-                    🗑
-                </button>
+                        <button
+                                class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
+                                data-id="<?= (int)$item->id ?>"
+                        >
+                            <span class="check">✓</span>
+                        </button>
 
+                        <input
+                                type="text"
+                                value="<?= Html::encode($item->title) ?>"
+                                class="alice-title-input"
+                                data-id="<?= (int)$item->id ?>"
+                        >
+
+                        <button
+                                class="pin-toggle <?= $item->is_pinned ? 'is-pinned' : '' ?>"
+                                data-id="<?= (int)$item->id ?>"
+                        >
+                            📌
+                        </button>
+
+                        <button
+                                class="delete-toggle"
+                                data-id="<?= (int)$item->id ?>"
+                        >
+                            🗑
+                        </button>
+
+                    </div>
+
+                </div>
             </div>
+
         <?php endforeach; ?>
     </div>
-
 
 </div>
