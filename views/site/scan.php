@@ -233,24 +233,6 @@ $entries = $entries ?? [];
     </div>
 
 <?php
-// Подключения js постранично
 
-$this->registerJs(
-    'window.AliceOptions = ' . json_encode($aliceOptions ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . ';',
-    \yii\web\View::POS_HEAD
-);
-
-$this->registerJsFile('@web/js/common.js', [
-    'depends' => [\yii\bootstrap5\BootstrapPluginAsset::class], // <= важно
-    'position' => \yii\web\View::POS_END
-]);
-$this->registerJsFile('@web/js/entries.js', [
-    'depends' => [\yii\bootstrap5\BootstrapPluginAsset::class],
-    'position' => \yii\web\View::POS_END
-]);
-$this->registerJsFile('@web/js/scanner.js', [
-    'depends' => [\yii\bootstrap5\BootstrapPluginAsset::class],
-    'position' => \yii\web\View::POS_END
-]);
 
 
