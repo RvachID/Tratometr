@@ -56,6 +56,67 @@ window.reloadAliceSelect = async function (selectedId = null) {
     }
 };
 
+document.addEventListener('DOMContentLoaded', () => {
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+
+    document.querySelectorAll('.alice-title-input').forEach(input => {
+
+        let originalValue = input.value;
+
+        // запоминаем исходное значение при фокусе
+        input.addEventListener('focus', () => {
+            originalValue = input.value;
+        });
+
+        input.addEventListener('blur', async () => {
+            const newValue = input.value.trim();
+            const id = input.dataset.id;
+
+            if (!id) return;
+
+            // если ничего не изменилось — не дергаем сервер
+            if (newValue === originalValue) {
+                return;
+            }
+
+            // пустое название запрещаем
+            if (newValue === '') {
+                input.value = originalValue;
+                return;
+            }
+
+            try {
+                const fd = new FormData();
+                fd.append('title', newValue);
+
+                const r = await fetch(`index.php?r=alice-item/update&id=${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': csrf
+                    },
+                    body: fd,
+                    credentials: 'include'
+                });
+
+                if (!r.ok) {
+                    throw new Error('HTTP ' + r.status);
+                }
+
+                // сервер ничего не возвращает — и не надо
+                originalValue = newValue;
+
+            } catch (e) {
+                console.error('save title error', e);
+                // откат
+                input.value = originalValue;
+                alert('Не удалось сохранить название');
+            }
+        });
+    });
+
+});
+
 
 (function () {
     const getCsrf = () =>
