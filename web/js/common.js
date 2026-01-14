@@ -107,6 +107,66 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (!csrf) return;
+
+    // ===== DONE =====
+    if (btn.classList.contains('done-toggle')) {
+        e.preventDefault();
+        const id = btn.dataset.id;
+
+        const r = await fetch(`index.php?r=alice-item/toggle-done&id=${id}`, {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrf },
+            credentials: 'include'
+        });
+
+        if (r.ok) {
+            location.reload(); // просто и надёжно
+        }
+        return;
+    }
+
+    // ===== PIN =====
+    if (btn.classList.contains('pin-toggle')) {
+        e.preventDefault();
+        const id = btn.dataset.id;
+
+        const r = await fetch(`index.php?r=alice-item/toggle-pinned&id=${id}`, {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrf },
+            credentials: 'include'
+        });
+
+        if (r.ok) {
+            location.reload();
+        }
+        return;
+    }
+
+    // ===== DELETE =====
+    if (btn.classList.contains('delete-toggle')) {
+        e.preventDefault();
+        if (!confirm('Удалить пункт?')) return;
+
+        const id = btn.dataset.id;
+
+        const r = await fetch(`index.php?r=alice-item/delete&id=${id}`, {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrf },
+            credentials: 'include'
+        });
+
+        if (r.ok) {
+            location.reload();
+        }
+        return;
+    }
+});
 
 (function () {
     const getCsrf = () =>
