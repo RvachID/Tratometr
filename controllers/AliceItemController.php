@@ -50,17 +50,36 @@ class AliceItemController extends Controller
     {
         $service = new AliceListService();
 
-        $service->updateItem(
-            Yii::$app->user->id,
-            (int)$id,
-            (string)Yii::$app->request->post('title')
-        );
+        try {
+            $service->updateItem(
+                Yii::$app->user->id,
+                (int)$id,
+                (string)Yii::$app->request->post('title')
+            );
+        } catch (\DomainException $e) {
 
+            // ===== AJAX: вернуть ошибку без редиректа =====
+            if (Yii::$app->request->isAjax) {
+                Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+                Yii::$app->response->statusCode = 400;
+                return [
+                    'success' => false,
+                    'error'   => $e->getMessage(),
+                ];
+            }
+
+            // ===== Обычная форма =====
+            Yii::$app->session->setFlash('error', $e->getMessage());
+            return $this->redirect(['index']);
+        }
+
+        // ===== AJAX: тихий успех =====
         if (Yii::$app->request->isAjax) {
-            Yii::$app->response->statusCode = 204;
+            Yii::$app->response->statusCode = 204; // No Content
             return;
         }
 
+        // ===== Обычная форма =====
         return $this->redirect(['index']);
     }
 
