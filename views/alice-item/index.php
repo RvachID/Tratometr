@@ -1,6 +1,5 @@
 <?php
 /** @var yii\web\View $this */
-
 /** @var app\models\AliceItem[] $items */
 
 use yii\helpers\Html;
@@ -44,38 +43,40 @@ $this->title = 'Список покупок';
 
             <?php foreach ($items as $item): ?>
                 <tr class="<?= $item->is_done ? 'text-muted' : '' ?>">
+
                     <!-- DONE -->
                     <td class="text-center">
                         <?= Html::beginForm(['alice-item/toggle-done', 'id' => $item->id], 'post') ?>
                         <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
-                        <button type="submit"
+                        <button
+                                type="submit"
                                 class="btn btn-sm <?= $item->is_done ? 'btn-outline-success' : 'btn-outline-secondary' ?>"
-                                title="Отметить как купленное / вернуть в список">
+                                title="Отметить как купленное / вернуть в список"
+                        >
                             <?= $item->is_done ? '✓' : '' ?>
                         </button>
                         <?= Html::endForm() ?>
                     </td>
 
-                    <!-- TITLE -->
+                    <!-- TITLE (inline edit) -->
                     <td>
-                        <?= Html::beginForm(['alice-item/update', 'id' => $item->id], 'post') ?>
-                        <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
                         <input
                                 type="text"
-                                name="title"
                                 value="<?= Html::encode($item->title) ?>"
-                                class="form-control form-control-sm"
+                                class="form-control form-control-sm alice-title-input"
+                                data-id="<?= (int)$item->id ?>"
                         >
-                        <?= Html::endForm() ?>
                     </td>
 
                     <!-- PIN -->
                     <td class="text-center">
                         <?= Html::beginForm(['alice-item/toggle-pinned', 'id' => $item->id], 'post') ?>
                         <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
-                        <button type="submit"
+                        <button
+                                type="submit"
                                 class="btn btn-sm <?= $item->is_pinned ? 'btn-outline-warning' : 'btn-outline-secondary' ?>"
-                                title="Закрепить / открепить">
+                                title="Закрепить / открепить"
+                        >
                             <?= $item->is_pinned ? '📌' : '—' ?>
                         </button>
                         <?= Html::endForm() ?>
@@ -92,6 +93,7 @@ $this->title = 'Список покупок';
                         </button>
                         <?= Html::endForm() ?>
                     </td>
+
                 </tr>
             <?php endforeach; ?>
 
@@ -107,21 +109,20 @@ $this->title = 'Список покупок';
 
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="flex-grow-1 me-2">
-                            <?= Html::beginForm(['alice-item/update', 'id' => $item->id], 'post') ?>
-                            <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
                             <input
                                     type="text"
-                                    name="title"
                                     value="<?= Html::encode($item->title) ?>"
-                                    class="form-control form-control-sm"
+                                    class="form-control form-control-sm alice-title-input"
+                                    data-id="<?= (int)$item->id ?>"
                             >
-                            <?= Html::endForm() ?>
                         </div>
 
                         <?= Html::beginForm(['alice-item/toggle-done', 'id' => $item->id], 'post') ?>
                         <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
-                        <button type="submit"
-                                class="btn btn-sm <?= $item->is_done ? 'btn-outline-success' : 'btn-outline-secondary' ?>">
+                        <button
+                                type="submit"
+                                class="btn btn-sm <?= $item->is_done ? 'btn-outline-success' : 'btn-outline-secondary' ?>"
+                        >
                             <?= $item->is_done ? '✓' : '' ?>
                         </button>
                         <?= Html::endForm() ?>

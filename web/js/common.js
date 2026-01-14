@@ -63,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let originalValue = input.value;
 
-        // запоминаем исходное значение при фокусе
         input.addEventListener('focus', () => {
             originalValue = input.value;
         });
@@ -73,13 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = input.dataset.id;
 
             if (!id) return;
+            if (newValue === originalValue) return;
 
-            // если ничего не изменилось — не дергаем сервер
-            if (newValue === originalValue) {
-                return;
-            }
-
-            // пустое название запрещаем
             if (newValue === '') {
                 input.value = originalValue;
                 return;
@@ -102,20 +96,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error('HTTP ' + r.status);
                 }
 
-                // сервер ничего не возвращает — и не надо
                 originalValue = newValue;
 
             } catch (e) {
-                console.error('save title error', e);
-                // откат
+                console.error('inline save failed', e);
                 input.value = originalValue;
                 alert('Не удалось сохранить название');
             }
         });
     });
-
 });
-
 
 (function () {
     const getCsrf = () =>
