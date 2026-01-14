@@ -1,6 +1,7 @@
 <?php
 
 use yii\helpers\Html;
+
 /** @var \app\models\AliceItem[] $aliceItems */
 /** @var array $aliceOptions */
 
@@ -151,9 +152,9 @@ $entries = $entries ?? [];
         </div>
 
         <?php
-        $sum   = (float)($total ?? 0.0);
-        $lim   = $limit !== null ? (float)$limit : null;
-        $rest  = $lim !== null ? ($lim - $sum) : null;
+        $sum = (float)($total ?? 0.0);
+        $lim = $limit !== null ? (float)$limit : null;
+        $rest = $lim !== null ? ($lim - $sum) : null;
         $isOver = $lim !== null && $rest < 0;
 
         $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
@@ -165,7 +166,8 @@ $entries = $entries ?? [];
             <?php if ($lim === null): ?>
                 <!-- режим без лимита -->
                 <div class="total-total">
-                    <span class="me-1"><strong id="scan-total-label"><?= $totalLabel ?? 'Общая сумма:' ?></strong></span>
+                    <span class="me-1"><strong
+                                id="scan-total-label"><?= $totalLabel ?? 'Общая сумма:' ?></strong></span>
                     <strong id="scan-total" class=""><?= $fmt($sum) ?></strong>
                 </div>
             <?php else: ?>
@@ -197,7 +199,6 @@ $entries = $entries ?? [];
         </span>
                         </div>
                     <?php endif; ?>
-
 
 
                     <form class="entry-form" data-id="<?= $entry->id ?>">

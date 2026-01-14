@@ -1,12 +1,11 @@
 <?php
+
 namespace app\components;
 
 use app\models\PurchaseSession;
-use app\models\PriceEntry;
 use Yii;
 use yii\base\Component;
 use yii\db\Expression;
-use yii\db\Transaction;
 
 class PurchaseSessionService extends Component
 {
@@ -108,16 +107,16 @@ class PurchaseSessionService extends Component
         $now = time();
 
         $ps = new PurchaseSession();
-        $ps->user_id      = $userId;
-        $ps->shop         = $shop;
-        $ps->category     = $category ?: null;
-        $ps->status       = PurchaseSession::STATUS_ACTIVE;
-        $ps->started_at   = $now;
-        $ps->updated_at   = $now;
+        $ps->user_id = $userId;
+        $ps->shop = $shop;
+        $ps->category = $category ?: null;
+        $ps->status = PurchaseSession::STATUS_ACTIVE;
+        $ps->started_at = $now;
+        $ps->updated_at = $now;
         $ps->limit_amount = ($limitRub !== null) ? (int)round($limitRub * 100) : null; // копейки
         $ps->total_amount = 0;
-        $ps->limit_left   = $ps->limit_amount === null ? null : $ps->limit_amount;
-        $ps->closed_at    = null;
+        $ps->limit_left = $ps->limit_amount === null ? null : $ps->limit_amount;
+        $ps->closed_at = null;
 
         if (!$ps->save(false)) {
             throw new \RuntimeException('Не удалось начать сессию');
@@ -166,10 +165,10 @@ class PurchaseSessionService extends Component
             // Прямое обновление кэш-колонок
             $db->createCommand()->update('{{%purchase_session}}', [
                 'total_amount' => $sumCents,
-                'limit_left'   => $limitLeft,
-                'status'       => PurchaseSession::STATUS_CLOSED,
-                'closed_at'    => $ps->closed_at ?: time(),
-                'updated_at'   => time(),
+                'limit_left' => $limitLeft,
+                'status' => PurchaseSession::STATUS_CLOSED,
+                'closed_at' => $ps->closed_at ?: time(),
+                'updated_at' => time(),
             ], ['id' => (int)$ps->id])->execute();
 
             $tx->commit();

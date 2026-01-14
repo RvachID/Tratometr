@@ -331,8 +331,8 @@ class PriceEntryService
         // проверяем ТОЛЬКО текущую сессию
         $hasEntries = PriceEntry::find()
             ->where([
-                'user_id'       => $item->user_id,
-                'session_id'    => $ps->id,
+                'user_id' => $item->user_id,
+                'session_id' => $ps->id,
                 'alice_item_id' => $aliceItemId,
             ])
             ->exists();

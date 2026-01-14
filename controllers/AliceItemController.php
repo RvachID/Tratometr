@@ -2,10 +2,10 @@
 
 namespace app\controllers;
 
+use app\services\Alice\AliceListService;
 use Yii;
 use yii\web\Controller;
 use yii\web\Response;
-use app\services\Alice\AliceListService;
 
 class AliceItemController extends Controller
 {
@@ -110,8 +110,8 @@ class AliceItemController extends Controller
         if (Yii::$app->request->isAjax) {
             Yii::$app->response->format = Response::FORMAT_JSON;
             return [
-                'success'    => true,
-                'is_pinned'  => (int)$item->is_pinned,
+                'success' => true,
+                'is_pinned' => (int)$item->is_pinned,
             ];
         }
 
@@ -131,9 +131,9 @@ class AliceItemController extends Controller
         $items = $service->getForDropdown(Yii::$app->user->id);
 
         return array_map(static fn($i) => [
-            'id'        => $i->id,
-            'title'     => $i->title,
-            'is_done'   => (int)$i->is_done,
+            'id' => $i->id,
+            'title' => $i->title,
+            'is_done' => (int)$i->is_done,
             'is_pinned' => (int)$i->is_pinned,
         ], $items);
     }

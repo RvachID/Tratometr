@@ -1,5 +1,4 @@
 ﻿// common.js
-// common.js
 
 window.reloadAliceSelect = async function (selectedId = null) {
     const select = document.getElementById('m-alice-item');
@@ -17,7 +16,7 @@ window.reloadAliceSelect = async function (selectedId = null) {
 
         let hasPinned = false;
         let hasActive = false;
-        let hasDone   = false;
+        let hasDone = false;
 
         const pinnedGroup = document.createElement('optgroup');
         pinnedGroup.label = '📌 Важное';
@@ -49,7 +48,7 @@ window.reloadAliceSelect = async function (selectedId = null) {
 
         if (hasPinned) select.appendChild(pinnedGroup);
         if (hasActive) select.appendChild(activeGroup);
-        if (hasDone)   select.appendChild(doneGroup);
+        if (hasDone) select.appendChild(doneGroup);
 
     } catch (e) {
         console.error('reloadAliceSelect error', e);
@@ -124,7 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const debounce = (fn, ms) => {
         let t;
-        return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+        return (...a) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...a), ms);
+        };
     };
 
     const fmt2 = (x) => Number(x || 0).toFixed(2);
@@ -147,7 +149,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         slot.innerHTML = '';
-        if (!note) { slot.style.display = 'none'; return; }
+        if (!note) {
+            slot.style.display = 'none';
+            return;
+        }
         slot.style.display = '';
 
         const TEXT = document.createElement('div');
@@ -191,22 +196,22 @@ document.addEventListener('DOMContentLoaded', () => {
         slot.appendChild(TOGGLE);
     }
 
-    window.Utils = { getCsrf, debounce, fmt2, resetPhotoPreview, renderNote };
+    window.Utils = {getCsrf, debounce, fmt2, resetPhotoPreview, renderNote};
 
-    (function(){
-        function fmt(v){
+    (function () {
+        function fmt(v) {
             try {
-                return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2})
+                return new Intl.NumberFormat('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})
                     .format(Number(v));
-            } catch(e){
+            } catch (e) {
                 return (Number(v).toFixed(2));
             }
         }
 
 
-        function parseNum(s){
+        function parseNum(s) {
             if (!s) return NaN;
-            s = (''+s)
+            s = ('' + s)
                 .replace(/\u00A0/g, ' ')   // NBSP -> space
                 .replace(/\s+/g, '')
                 .replace(',', '.');
@@ -214,10 +219,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
 
-        function calcSum(){
+        function calcSum() {
             var forms = document.querySelectorAll('.entry-form');
             var sum = 0;
-            forms.forEach(function(f){
+            forms.forEach(function (f) {
                 var a = parseNum(f.querySelector('input[name="amount"]')?.value || '0');
                 var q = parseNum(f.querySelector('input[name="qty"]')?.value || '1');
                 if (isNaN(a)) a = 0;
@@ -228,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
 
-                function updateTotals(){
+        function updateTotals() {
             var wrap = document.getElementById('total-wrap');
             if (!wrap) return;
 
@@ -237,10 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.updateTotal(sum);
             }
         }
-window.updateTotals = updateTotals;
+
+        window.updateTotals = updateTotals;
 
 
-        var handler = function(e){
+        var handler = function (e) {
             var t = e.target;
             if (!t) return;
             var name = t.name || '';
@@ -251,7 +257,7 @@ window.updateTotals = updateTotals;
         document.addEventListener('keyup', handler, true);   // РЅР° РІСЃСЏРєРёР№
 
 
-        document.addEventListener('click', function(e){
+        document.addEventListener('click', function (e) {
             var t = e.target;
             if (!t) return;
             if (t.closest('.save-entry') || t.closest('.delete-entry') || t.closest('#m-save')) {

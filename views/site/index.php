@@ -9,8 +9,6 @@ use yii\helpers\Url;
 
 $this->title = 'Тратометр';
 $fmt = Yii::$app->formatter;
-$historyUrl = \yii\helpers\Url::to(['site/history']);
-
 ?>
 <div class="quote container mt-3 text-center">
     <?php if (!empty($quote)): ?>
@@ -79,12 +77,14 @@ $historyUrl = \yii\helpers\Url::to(['site/history']);
         </div>
     <?php endif; ?>
     <div class="mt-3">
-    <a href="<?= $historyUrl ?>" class="btn btn-outline-secondary w-100">📝 История</a>
+        <a href="<?= \yii\helpers\Url::to(['site/history']) ?>" class="btn btn-outline-secondary w-100">📝 История</a>
     </div>
 
-    <a href="<?= \yii\helpers\Url::to(['site/stats']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">📈 Статистика</a>
+    <a href="<?= \yii\helpers\Url::to(['site/stats']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">📈
+        Статистика</a>
 
-    <a href="<?= \yii\helpers\Url::to(['alice-item/index']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">🧾 Список покупок</a>
+    <a href="<?= \yii\helpers\Url::to(['alice-item/index']) ?>" class="btn btn-outline-secondary w-100 w-100 mt-2">🧾
+        Список покупок</a>
 
     <div class="mt-2">
         <a href="<?= \yii\helpers\Url::to(['/site/about']) ?>"

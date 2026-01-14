@@ -178,17 +178,20 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         });
     })();
 
-    (function(){
+    (function () {
         try {
             var tz = Intl.DateTimeFormat().resolvedOptions().timeZone; // напр. "Europe/Belgrade"
             if (!tz) return;
 
             // НЕ кодируем! '/' в cookie допустим, поэтому храним как есть
-            var has = document.cookie.split('; ').some(function(c){ return c.indexOf('tz=') === 0; });
+            var has = document.cookie.split('; ').some(function (c) {
+                return c.indexOf('tz=') === 0;
+            });
             if (!has) {
-                document.cookie = 'tz=' + tz + ';path=/;max-age=' + (60*60*24*365) + ';SameSite=Lax';
+                document.cookie = 'tz=' + tz + ';path=/;max-age=' + (60 * 60 * 24 * 365) + ';SameSite=Lax';
             }
-        } catch(e){}
+        } catch (e) {
+        }
     })();
 
 

@@ -1,9 +1,9 @@
 <?php
 /** @var yii\web\View $this */
+
 /** @var app\models\AliceItem[] $items */
 
 use yii\helpers\Html;
-use yii\helpers\Url;
 
 $this->title = 'Список покупок';
 ?>
