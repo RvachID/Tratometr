@@ -121,26 +121,28 @@ $entries = $entries ?? [];
                             <label class="form-label">Заметка или название товара (опц.)</label>
                             <input type="text" class="form-control" id="m-note">
                         </div>
-
                         <div class="mb-2 text-start">
                             <label class="form-label">Из списка покупок (опц.)</label>
 
-                            <select id="m-alice-item" class="form-select">
-                                <option value="">выберите...</option>
-                            </select>
+                            <div class="d-flex align-items-center gap-2">
+                                <select id="m-alice-item" class="form-select">
+                                    <option value="">выберите...</option>
+                                </select>
 
-                            <div class="d-flex justify-content-between align-items-center mt-1">
-                                <small class="text-muted">
-                                    Выбранный пункт пометим как купленный
-                                </small>
-
-                                <small class="text-muted d-flex align-items-center gap-1">
-                                    <span>Долгий тап</span>
-                                    <span title="Редактировать список покупок">✏️</span>
-                                </small>
+                                <a
+                                        href="index.php?r=alice-item/index"
+                                        class="btn btn-outline-secondary"
+                                        title="Редактировать список покупок"
+                                        aria-label="Редактировать список покупок"
+                                >
+                                    ⚙️
+                                </a>
                             </div>
-                        </div>
 
+                            <small class="text-muted">
+                                Выбранный пункт пометим как купленный
+                            </small>
+                        </div>
 
                         <div class="mb-2" id="m-photo-wrap" style="display:none;">
                             <img id="m-photo" class="img-fluid" alt="Фото скана"/>
