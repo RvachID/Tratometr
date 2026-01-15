@@ -59,10 +59,10 @@ window.reloadAliceSelect = async function (selectedId = null) {
         select.innerHTML = '<option value="">выберите...</option>';
 
         const pinnedGroup = document.createElement('optgroup');
-        pinnedGroup.label = '📌 Важное';
+        pinnedGroup.label = 'Регулярные покупки';
 
         const activeGroup = document.createElement('optgroup');
-        activeGroup.label = '🛒 Остальное';
+        activeGroup.label = 'Остальное';
 
         let hasPinned = false;
         let hasActive = false;
