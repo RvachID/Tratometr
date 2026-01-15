@@ -41,10 +41,42 @@ $this->title = 'Список покупок';
             </tr>
             </thead>
             <tbody>
+            <?php
+            $shownPinned = false;
+            $shownOther  = false;
+            $shownDone   = false;
+            ?>
 
             <?php foreach ($items as $item): ?>
-                <tr class="<?= $item->is_done ? 'text-muted' : '' ?>">
 
+                <?php if ($item->is_pinned && !$shownPinned): ?>
+                    <tr class="table-light">
+                        <td colspan="4" class="fw-semibold text-muted small">
+                            Регулярные покупки
+                        </td>
+                    </tr>
+                    <?php $shownPinned = true; ?>
+                <?php endif; ?>
+
+                <?php if (!$item->is_pinned && !$item->is_done && !$shownOther): ?>
+                    <tr class="table-light">
+                        <td colspan="4" class="fw-semibold text-muted small">
+                            Остальное
+                        </td>
+                    </tr>
+                    <?php $shownOther = true; ?>
+                <?php endif; ?>
+
+                <?php if ($item->is_done && !$shownDone): ?>
+                    <tr class="table-light">
+                        <td colspan="4" class="fw-semibold text-muted small">
+                            Архив
+                        </td>
+                    </tr>
+                    <?php $shownDone = true; ?>
+                <?php endif; ?>
+
+                <tr class="<?= $item->is_done ? 'text-muted' : '' ?>">
                     <!-- DONE -->
                     <td class="text-center">
                         <?= Html::beginForm(['alice-item/toggle-done', 'id' => $item->id], 'post') ?>
@@ -92,11 +124,11 @@ $this->title = 'Список покупок';
                         </button>
                         <?= Html::endForm() ?>
                     </td>
-
                 </tr>
-            <?php endforeach; ?>
 
+            <?php endforeach; ?>
             </tbody>
+
         </table>
     </div>
 
