@@ -65,7 +65,7 @@ $this->title = 'Список покупок';
                         <button
                                 class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
                                 data-id="<?= (int)$item->id ?>"
-                        >✓</button>
+                        ><span class="check">✓</span></button>
 
                         <input
                                 type="text"
