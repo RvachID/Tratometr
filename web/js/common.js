@@ -204,12 +204,27 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
 
         card.style.transform = `translateX(${currentX}px)`;
 
+        // сброс классов
         wrap.classList.remove('show-left', 'show-right');
 
+        const bgLeft  = wrap.querySelector('.swipe-bg-left');
+        const bgRight = wrap.querySelector('.swipe-bg-right');
+
+        // 👉 свайп вправо — закрепить / открепить
         if (currentX > 20) {
             wrap.classList.add('show-left');
-        } else if (currentX < -20) {
+
+            if (wrap.dataset.pinned === '1') {
+                bgLeft.textContent = 'Открепить';
+            } else {
+                bgLeft.textContent = 'Закрепить';
+            }
+        }
+
+        // 👈 свайп влево — удалить
+        else if (currentX < -20) {
             wrap.classList.add('show-right');
+            bgRight.textContent = 'Удалить';
         }
     });
 

@@ -57,7 +57,7 @@ $this->title = 'Список покупок';
             >
 
                 <div class="swipe-bg swipe-bg-left"></div>
-                <div class="swipe-bg swipe-bg-right">🗑 Удалить</div>
+                <div class="swipe-bg swipe-bg-right"></div>
 
                 <div class="alice-card">
                     <div class="alice-row-mobile">
