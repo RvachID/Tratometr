@@ -525,3 +525,37 @@ footer, footer .container {
 .done-toggle.is-done .check {
     display: inline !important;
 }
+/* ===== DESKTOP DONE TOGGLE (TABLE) ===== */
+.table .done-toggle {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 8px;
+    line-height: 1;
+}
+
+.table .done-toggle .check {
+    font-size: 16px;
+}
+/* ===== DESKTOP DONE TOGGLE (TABLE) ===== */
+.table .done-toggle {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 8px;
+    line-height: 1;
+}
+
+.table .done-toggle .check {
+    font-size: 16px;
+}

@@ -83,9 +83,9 @@ $this->title = 'Список покупок';
                         <?= Html::hiddenInput(Yii::$app->request->csrfParam, Yii::$app->request->csrfToken) ?>
                         <button
                                 type="submit"
-                                class="btn btn-sm done-toggle <?= $item->is_done ? 'is-done btn-outline-success' : 'btn-outline-secondary' ?>"
+                                class="btn done-toggle <?= $item->is_done ? 'is-done btn-outline-success' : 'btn-outline-secondary' ?>"
                         >
-                            <span class="check">✓</span>
+                        <span class="check">✓</span>
                         </button>
                         <?= Html::endForm() ?>
                     </td>
