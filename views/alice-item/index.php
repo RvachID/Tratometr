@@ -30,56 +30,43 @@ $this->title = 'Список покупок';
 
     <div class="d-sm-none">
 
-        <?php
-        $shownPinned = false;
-        $shownOther = false;
-        $shownDone = false;
-        ?>
+        <div id="section-pinned">
+            <div class="list-section-title">Регулярные покупки</div>
+        </div>
+
+        <div id="section-active">
+            <div class="list-section-title">Остальное</div>
+        </div>
+
+        <div id="section-done">
+            <div class="list-section-title">Куплено</div>
+        </div>
 
         <?php foreach ($items as $item): ?>
-
-            <?php if ($item->is_pinned && !$shownPinned): ?>
-                <div class="list-section-title">Регулярные покупки</div>
-                <?php $shownPinned = true; ?>
-            <?php endif; ?>
-
-            <?php if (!$item->is_pinned && !$item->is_done && !$shownOther): ?>
-                <div class="list-section-title">Остальное</div>
-                <?php $shownOther = true; ?>
-            <?php endif; ?>
-
-            <?php if ($item->is_done && !$shownDone): ?>
-                <div class="list-section-title">Куплено</div>
-                <?php $shownDone = true; ?>
-            <?php endif; ?>
+            <?php
+            $sectionId = $item->is_done
+                ? 'section-done'
+                : ($item->is_pinned ? 'section-pinned' : 'section-active');
+            ?>
 
             <div
                     class="alice-swipe-wrap <?= $item->is_done ? 'opacity-75' : '' ?>"
                     data-id="<?= (int)$item->id ?>"
                     data-pinned="<?= (int)$item->is_pinned ?>"
+                    data-section="<?= $sectionId ?>"
             >
 
-                <!-- подложки -->
-                <div class="swipe-bg swipe-bg-left">
-                    <?= $item->is_pinned ? '🟢 Открепить' : '📌 Закрепить' ?>
-                </div>
-                <div class="swipe-bg swipe-bg-right">
-                    🗑 Удалить
-                </div>
+                <div class="swipe-bg swipe-bg-left"></div>
+                <div class="swipe-bg swipe-bg-right">🗑 Удалить</div>
 
-                <!-- карточка -->
                 <div class="alice-card">
                     <div class="alice-row-mobile">
 
-                        <!-- DONE -->
                         <button
                                 class="done-toggle <?= $item->is_done ? 'is-done' : '' ?>"
                                 data-id="<?= (int)$item->id ?>"
-                        >
-                            ✓
-                        </button>
+                        >✓</button>
 
-                        <!-- TITLE -->
                         <input
                                 type="text"
                                 value="<?= Html::encode($item->title) ?>"
@@ -89,12 +76,14 @@ $this->title = 'Список покупок';
 
                     </div>
                 </div>
-
             </div>
 
+            <script>
+                document.getElementById('<?= $sectionId ?>')
+                    .appendChild(document.currentScript.previousElementSibling);
+            </script>
         <?php endforeach; ?>
 
     </div>
-
 
 </div>
