@@ -121,28 +121,30 @@ $entries = $entries ?? [];
                             <label class="form-label">Заметка или название товара (опц.)</label>
                             <input type="text" class="form-control" id="m-note">
                         </div>
+
                         <div class="mb-2 text-start">
                             <label class="form-label">Из списка покупок (опц.)</label>
 
-                            <div class="d-flex align-items-center gap-2">
-                                <select id="m-alice-item" class="form-select">
-                                    <option value="">выберите...</option>
-                                </select>
-
+                            <div class="alice-select-wrap">
                                 <a
                                         href="index.php?r=alice-item/index"
-                                        class="btn btn-outline-secondary"
+                                        class="alice-select-gear"
                                         title="Редактировать список покупок"
                                         aria-label="Редактировать список покупок"
                                 >
                                     ⚙️
                                 </a>
+
+                                <select id="m-alice-item" class="form-select alice-select">
+                                    <option value="">выберите...</option>
+                                </select>
                             </div>
 
                             <small class="text-muted">
                                 Выбранный пункт пометим как купленный
                             </small>
                         </div>
+
 
                         <div class="mb-2" id="m-photo-wrap" style="display:none;">
                             <img id="m-photo" class="img-fluid" alt="Фото скана"/>
