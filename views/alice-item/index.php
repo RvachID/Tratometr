@@ -32,14 +32,6 @@ $this->title = 'Список покупок';
     <div class="d-none d-sm-block">
 
         <table class="table table-sm align-middle">
-            <thead>
-            <tr>
-                <th style="width:40px;"></th>
-                <th>Название</th>
-                <th style="width:60px;" class="text-center">📌</th>
-                <th style="width:100px;" class="text-end">Удалить</th>
-            </tr>
-            </thead>
             <tbody>
             <?php
             $shownPinned = false;
