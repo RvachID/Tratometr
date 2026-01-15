@@ -517,3 +517,11 @@ footer, footer .container {
 .alice-select-gear:hover {
     color: #212529;
 }
+/* === DONE CHECK FIX (GLOBAL) === */
+.done-toggle .check {
+    display: none !important;
+}
+
+.done-toggle.is-done .check {
+    display: inline !important;
+}
