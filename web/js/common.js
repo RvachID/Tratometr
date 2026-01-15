@@ -294,6 +294,30 @@ document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
 });
 
 (function () {
+    const el = document.getElementById('m-alice-item');
+    if (!el) return;
+
+    let pressTimer = null;
+    const LONG_PRESS_MS = 600;
+
+    el.addEventListener('touchstart', () => {
+        pressTimer = setTimeout(() => {
+            window.location.href = 'index.php?r=alice-item/index';
+        }, LONG_PRESS_MS);
+    });
+
+    el.addEventListener('touchend', () => {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+    });
+
+    el.addEventListener('touchmove', () => {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+    });
+})();
+
+(function () {
     const getCsrf = () =>
         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 

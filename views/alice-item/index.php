@@ -1,5 +1,6 @@
 <?php
 /** @var yii\web\View $this */
+
 /** @var app\models\AliceItem[] $items */
 
 use yii\helpers\Html;
@@ -39,7 +40,7 @@ $this->title = 'Список покупок';
         </div>
 
         <div id="section-done">
-            <div class="list-section-title">Куплено</div>
+            <div class="list-section-title">Архив</div>
         </div>
 
         <?php foreach ($items as $item): ?>

@@ -124,13 +124,23 @@ $entries = $entries ?? [];
 
                         <div class="mb-2 text-start">
                             <label class="form-label">Из списка покупок (опц.)</label>
+
                             <select id="m-alice-item" class="form-select">
                                 <option value="">выберите...</option>
                             </select>
-                            <small class="text-muted">
-                                Выбранный пункт пометим как купленный, а запись свяжем с ним.
-                            </small>
+
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <small class="text-muted">
+                                    Выбранный пункт пометим как купленный
+                                </small>
+
+                                <small class="text-muted d-flex align-items-center gap-1">
+                                    <span>Долгий тап</span>
+                                    <span title="Редактировать список покупок">✏️</span>
+                                </small>
+                            </div>
                         </div>
+
 
                         <div class="mb-2" id="m-photo-wrap" style="display:none;">
                             <img id="m-photo" class="img-fluid" alt="Фото скана"/>
