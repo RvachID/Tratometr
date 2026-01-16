@@ -27,7 +27,12 @@ class AliceListService
             return $reply;
         }
 
-        // 2. Добавление товаров
+        // 2. Показать список
+        if ($reply = $this->tryShowList($userId, $cmd)) {
+            return $reply;
+        }
+
+        // 3. Добавление товаров
         $added = $this->addFromCommand($userId, $cmd);
         if (!empty($added)) {
             $titles = array_map(fn($i) => $i->title, $added);
@@ -315,4 +320,38 @@ class AliceListService
         }
         return $item;
     }
+
+    private function tryShowList(int $userId, string $cmd): ?string
+    {
+        // варианты: "что в списке", "покажи список", "что купить", "список покупок"
+        if (!preg_match(
+                '~\b(что|покаж(и|и)|какой|какие)\b.*\b(список|покупки|купить)\b~u',
+                $cmd
+            ) && !preg_match(
+                '~^список(\s+покупок)?$~u',
+                $cmd
+            )) {
+            return null;
+        }
+
+        $items = $this->getActiveList($userId);
+
+        if (empty($items)) {
+            return 'Список покупок пуст.';
+        }
+
+        $titles = array_map(fn($i) => $i->title, $items);
+
+        // Алисе лучше говорить не больше 7–8 пунктов
+        $short = array_slice($titles, 0, 7);
+        $text  = implode(', ', $short);
+
+        if (count($titles) > count($short)) {
+            $rest = count($titles) - count($short);
+            $text .= " и ещё {$rest}";
+        }
+
+        return 'В списке: ' . $text . '.';
+    }
+
 }
