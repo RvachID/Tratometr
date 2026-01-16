@@ -33,7 +33,16 @@
             return;
         }
 
-        const data = await r.json();
+        const text = await r.text();
+
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error('Reset returned non-JSON:', text);
+            return;
+        }
+
         if (!data.success) return;
 
         /* ================= DESKTOP ================= */
