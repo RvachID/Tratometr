@@ -4,6 +4,7 @@ namespace app\controllers;
 
 use app\services\Alice\AliceListService;
 use Yii;
+use yii\filters\AccessControl;
 use yii\filters\VerbFilter;
 use yii\web\Controller;
 use yii\web\Response;
@@ -14,7 +15,8 @@ class AliceItemController extends Controller
     {
         return [
             'access' => [
-                'class' => \yii\filters\AccessControl::class,
+                'class' => AccessControl::class,
+                'only' => ['reset-done'],
                 'rules' => [
                     [
                         'allow' => true,
@@ -23,15 +25,23 @@ class AliceItemController extends Controller
                     ],
                 ],
             ],
+            'verbs' => [
+                'class' => VerbFilter::class,
+                'actions' => [
+                    'reset-done' => ['POST'],
+                ],
+            ],
         ];
     }
     public function beforeAction($action)
     {
         if ($action->id === 'reset-done') {
             $this->layout = false;
+            Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
         }
         return parent::beforeAction($action);
     }
+
 
     public $enableCsrfValidation = true;
 
