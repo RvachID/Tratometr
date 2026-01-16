@@ -201,13 +201,17 @@ class AliceListService
         return $items;
     }
 
-    public static function resetDoneItems(): int
+    public static function resetPinnedDoneItems(): int
     {
         return AliceItem::updateAll(
             ['is_done' => 0],
-            ['is_done' => 1]
+            [
+                'is_done' => 1,
+                'is_pinned' => 1,
+            ]
         );
     }
+
     /**
      * Список для выпадающего списка на странице скана.
      * Логика:

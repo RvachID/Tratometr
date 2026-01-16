@@ -30,15 +30,14 @@ $this->title = 'Список покупок';
 
     <!-- ================= DESKTOP (≥ sm) ================= -->
     <div class="d-none d-sm-block">
-        <div class="mb-2 d-flex justify-content-end">
-            <button
-                    type="button"
-                    class="btn btn-sm btn-outline-danger"
-                    id="reset-done-items"
-            >
-                Обнулить купленные
-            </button>
-        </div>
+        <button
+                type="button"
+                class="btn btn-outline-secondary btn-sm"
+                id="reset-done-items"
+        >
+            Обнулить расходники
+        </button>
+
 
         <table class="table table-sm align-middle">
             <tbody>
@@ -138,11 +137,12 @@ $this->title = 'Список покупок';
         <div class="mb-2 px-2">
             <button
                     type="button"
-                    class="btn btn-outline-danger w-100"
+                    class="btn btn-outline-secondary w-100"
                     id="reset-done-items-mobile"
             >
-                Обнулить купленные
+                Обнулить расходники
             </button>
+
         </div>
 
         <div id="section-pinned">

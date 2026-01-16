@@ -23,15 +23,16 @@ class AliceItemController extends Controller
         ];
     }
 
-    public function actionResetDone(): Response
+    public function actionResetDone()
     {
-        $count = AliceListService::resetDoneItems();
+        $count = AliceListService::resetPinnedDoneItems();
 
         return $this->asJson([
             'success' => true,
             'reset_count' => $count,
         ]);
     }
+
 
     /**
      * CRUD-страница списка покупок
