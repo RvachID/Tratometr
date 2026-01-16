@@ -4,11 +4,35 @@ namespace app\controllers;
 
 use app\services\Alice\AliceListService;
 use Yii;
+use yii\filters\VerbFilter;
 use yii\web\Controller;
 use yii\web\Response;
 
 class AliceItemController extends Controller
 {
+
+    public function behaviors()
+    {
+        return [
+            'verbs' => [
+                'class' => VerbFilter::class,
+                'actions' => [
+                    'reset-done' => ['POST'],
+                ],
+            ],
+        ];
+    }
+
+    public function actionResetDone(): Response
+    {
+        $count = AliceListService::resetDoneItems();
+
+        return $this->asJson([
+            'success' => true,
+            'reset_count' => $count,
+        ]);
+    }
+
     /**
      * CRUD-страница списка покупок
      * GET /alice-item

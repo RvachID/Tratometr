@@ -30,6 +30,15 @@ $this->title = 'Список покупок';
 
     <!-- ================= DESKTOP (≥ sm) ================= -->
     <div class="d-none d-sm-block">
+        <div class="mb-2 d-flex justify-content-end">
+            <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    id="reset-done-items"
+            >
+                Обнулить купленные
+            </button>
+        </div>
 
         <table class="table table-sm align-middle">
             <tbody>
@@ -126,6 +135,15 @@ $this->title = 'Список покупок';
 
     <!-- ================= MOBILE (< sm) ================= -->
     <div class="d-sm-none">
+        <div class="mb-2 px-2">
+            <button
+                    type="button"
+                    class="btn btn-outline-danger w-100"
+                    id="reset-done-items-mobile"
+            >
+                Обнулить купленные
+            </button>
+        </div>
 
         <div id="section-pinned">
             <div class="list-section-title">Регулярные покупки</div>

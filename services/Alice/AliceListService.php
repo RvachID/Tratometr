@@ -201,6 +201,13 @@ class AliceListService
         return $items;
     }
 
+    public static function resetDoneItems(): int
+    {
+        return AliceItem::updateAll(
+            ['is_done' => 0],
+            ['is_done' => 1]
+        );
+    }
     /**
      * Список для выпадающего списка на странице скана.
      * Логика:

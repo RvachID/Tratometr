@@ -1,5 +1,69 @@
 ﻿// common.js
 
+    (function () {
+
+    const resetButtons = [
+    document.getElementById('reset-done-items'),
+    document.getElementById('reset-done-items-mobile')
+    ].filter(Boolean);
+
+    if (!resetButtons.length) {
+    return;
+}
+
+    const resetDoneItems = () => {
+    if (!confirm('Отметить все купленные товары как не купленные?')) {
+    return;
+}
+
+    fetch('/alice/reset-done', {
+    method: 'POST',
+    headers: {
+    'X-Requested-With': 'XMLHttpRequest'
+}
+})
+    .then(r => r.json())
+    .then(data => {
+    if (!data.success) {
+    return;
+}
+
+    // DESKTOP
+    document.querySelectorAll('tr.text-muted').forEach(tr => {
+    tr.classList.remove('text-muted');
+
+    const btn = tr.querySelector('.done-toggle');
+    if (btn) {
+    btn.classList.remove('is-done', 'btn-outline-success');
+    btn.classList.add('btn-outline-secondary');
+}
+});
+
+    // MOBILE
+    document.querySelectorAll('.alice-swipe-wrap.opacity-75').forEach(card => {
+    card.classList.remove('opacity-75');
+
+    const doneBtn = card.querySelector('.done-toggle');
+    if (doneBtn) {
+    doneBtn.classList.remove('is-done');
+}
+
+    // переносим карточку в "Остальное"
+    const activeSection = document.getElementById('section-active');
+    if (activeSection) {
+    activeSection.appendChild(card);
+}
+});
+});
+};
+
+    resetButtons.forEach(btn => {
+    btn.addEventListener('click', resetDoneItems);
+});
+
+})();
+
+
 const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 
 /**
