@@ -19,7 +19,7 @@
 
         const body = csrfParam + '=' + encodeURIComponent(csrfToken);
 
-        const r = await fetch('/alice-item/reset-done', {
+        const r = await fetch('index.php?r=alice-item/reset-done,', {
             method: 'POST',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
