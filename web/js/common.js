@@ -115,16 +115,27 @@
         const activeSection = document.getElementById('section-active');
         const doneSection   = document.getElementById('section-done');
 
-        document.querySelectorAll('.alice-swipe-wrap[data-pinned="1"]').forEach(wrap => {
-            if (!wrap.classList.contains('opacity-75')) return;
+        /* ================= MOBILE ================= */
 
-            // это был закреплённый и купленный → сбрасываем
+        document.querySelectorAll(
+            '.alice-swipe-wrap.opacity-75[data-pinned="1"]'
+        ).forEach(wrap => {
+
+            // 1. визуально больше не архив
             wrap.classList.remove('opacity-75');
 
+            // 2. кнопка done
             const btn = wrap.querySelector('.done-toggle');
             if (btn) btn.classList.remove('is-done');
 
-            moveToSection(wrap, 'section-pinned');
+            // 3. ОБНОВЛЯЕМ ИСТОЧНИК ИСТИНЫ
+            wrap.dataset.section = 'section-pinned';
+
+            // 4. физически перемещаем
+            const target = document.getElementById('section-pinned');
+            if (target) {
+                target.appendChild(wrap);
+            }
         });
 
         // остальные элементы оставляем как есть
