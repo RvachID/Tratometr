@@ -13,7 +13,9 @@
     const csrfParam = document.querySelector('meta[name="csrf-param"]')?.content;
 
     const resetPinnedDone = async () => {
-        if (!confirm('Обнулить расходники (закреплённые покупки)?')) return;
+        if (!confirm('Обнулить расходники (закреплённые покупки)?')) {
+            return;
+        }
 
         const body = csrfParam + '=' + encodeURIComponent(csrfToken);
 
@@ -32,116 +34,91 @@
             return;
         }
 
+        const text = await r.text();
         let data;
+
         try {
-            data = JSON.parse(await r.text());
+            data = JSON.parse(text);
         } catch (e) {
-            console.error('reset returned non-json');
+            console.error('Reset returned non-JSON:', text);
             return;
         }
 
         if (!data.success) return;
 
-        /* ================= DESKTOP ================= */
+        // MOBILE — перезагрузка (стабильно)
+        if (window.matchMedia('(max-width: 575.98px)').matches) {
+            location.reload();
+            return;
+        }
+
+        /* =========================================================
+           DESKTOP (TABLE)
+           ========================================================= */
 
         const tbody = document.querySelector('.d-none.d-sm-block tbody');
         if (tbody) {
             const rows = Array.from(tbody.querySelectorAll('tr'));
 
-            const pinned = [];
-            const other  = [];
-            const done   = [];
+            const pinnedActive = [];
+            const otherActive  = [];
+            const done         = [];
 
             rows.forEach(tr => {
                 const doneBtn = tr.querySelector('.done-toggle');
                 const pinBtn  = tr.querySelector('.btn-outline-warning');
 
-                if (!doneBtn) return; // заголовки
+                // строки-заголовки секций пропускаем
+                if (!doneBtn) return;
 
                 const isDone   = doneBtn.classList.contains('is-done');
                 const isPinned = !!pinBtn;
 
                 if (isDone && isPinned) {
+                    // ЭТО И ЕСТЬ РАСХОДНИК → СБРАСЫВАЕМ
                     doneBtn.classList.remove('is-done', 'btn-outline-success');
                     doneBtn.classList.add('btn-outline-secondary');
                     tr.classList.remove('text-muted');
-                    pinned.push(tr);
+
+                    pinnedActive.push(tr);
                 } else if (!isDone && isPinned) {
-                    pinned.push(tr);
+                    pinnedActive.push(tr);
                 } else if (!isDone) {
-                    other.push(tr);
+                    otherActive.push(tr);
                 } else {
                     done.push(tr);
                 }
             });
 
+            // полностью пересобираем tbody
             tbody.innerHTML = '';
 
-            const addSection = (title, list) => {
-                if (!list.length) return;
-                const h = document.createElement('tr');
-                h.className = 'table-light';
-                h.innerHTML = `<td colspan="4" class="fw-semibold text-muted small">${title}</td>`;
-                tbody.appendChild(h);
-                list.forEach(tr => tbody.appendChild(tr));
+            const addSection = (title, rows) => {
+                if (!rows.length) return;
+
+                const header = document.createElement('tr');
+                header.className = 'table-light';
+                header.innerHTML = `
+                    <td colspan="4" class="fw-semibold text-muted small">
+                        ${title}
+                    </td>
+                `;
+                tbody.appendChild(header);
+
+                rows.forEach(tr => tbody.appendChild(tr));
             };
 
-            addSection('Регулярные покупки', pinned);
-            addSection('Остальное', other);
+            addSection('Регулярные покупки', pinnedActive);
+            addSection('Остальное', otherActive);
             addSection('Архив', done);
         }
 
-        /* ================= MOBILE (ПОЛНАЯ ПЕРЕСБОРКА) ================= */
 
-        const secPinned = document.getElementById('section-pinned');
-        const secActive = document.getElementById('section-active');
-        const secDone   = document.getElementById('section-done');
-
-        if (secPinned && secActive && secDone) {
-
-            // сохраняем заголовки
-            const pinnedTitle = secPinned.querySelector('.list-section-title');
-            const activeTitle = secActive.querySelector('.list-section-title');
-            const doneTitle   = secDone.querySelector('.list-section-title');
-
-            secPinned.innerHTML = '';
-            secActive.innerHTML = '';
-            secDone.innerHTML   = '';
-
-            if (pinnedTitle) secPinned.appendChild(pinnedTitle);
-            if (activeTitle) secActive.appendChild(activeTitle);
-            if (doneTitle)   secDone.appendChild(doneTitle);
-
-            document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
-                const isPinned = wrap.dataset.pinned === '1';
-                const isDone   = wrap.classList.contains('opacity-75');
-
-                // СБРАСЫВАЕМ расходники
-                if (isPinned && isDone) {
-                    wrap.classList.remove('opacity-75');
-                    wrap.querySelector('.done-toggle')?.classList.remove('is-done');
-                }
-
-                if (wrap.classList.contains('opacity-75')) {
-                    secDone.appendChild(wrap);
-                    wrap.dataset.section = 'section-done';
-                } else if (isPinned) {
-                    secPinned.appendChild(wrap);
-                    wrap.dataset.section = 'section-pinned';
-                } else {
-                    secActive.appendChild(wrap);
-                    wrap.dataset.section = 'section-active';
-                }
-            });
-        }
-
-        window.reloadAliceSelect?.();
     };
 
     buttons.forEach(btn => btn.addEventListener('click', resetPinnedDone));
 
 })();
-
 
 
 const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
