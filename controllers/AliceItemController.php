@@ -14,17 +14,6 @@ class AliceItemController extends Controller
     public function behaviors()
     {
         return [
-            'access' => [
-                'class' => AccessControl::class,
-                'only' => ['reset-done'],
-                'rules' => [
-                    [
-                        'allow' => true,
-                        'actions' => ['reset-done'],
-                        'roles' => ['@'],
-                    ],
-                ],
-            ],
             'verbs' => [
                 'class' => VerbFilter::class,
                 'actions' => [
@@ -33,6 +22,7 @@ class AliceItemController extends Controller
             ],
         ];
     }
+
     public function beforeAction($action)
     {
         if ($action->id === 'reset-done') {
@@ -42,14 +32,8 @@ class AliceItemController extends Controller
         return parent::beforeAction($action);
     }
 
-
-    public $enableCsrfValidation = true;
-
     public function actionResetDone()
     {
-        Yii::$app->response->format = Response::FORMAT_JSON;
-        Yii::$app->response->headers->set('Content-Type', 'application/json');
-
         $count = AliceListService::resetPinnedDoneItems();
 
         return [

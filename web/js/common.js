@@ -25,7 +25,8 @@
                 'X-Requested-With': 'XMLHttpRequest',
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body
+            body,
+            credentials: 'same-origin'
         });
 
         if (!r.ok) {
