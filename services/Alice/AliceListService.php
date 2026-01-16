@@ -90,68 +90,20 @@ class AliceListService
      */
     public function addFromCommand(int $userId, string $command): array
     {
-        if (!preg_match('~^добав(ь|ить)\b(.*)$~u', $command, $m)) {
-            return [];
-        }
-
-        $tail = trim($m[2]);
-        if ($tail === '') {
-            return [];
-        }
-
-        // спец-режимы
-        $separateMode = false;
-
-        if (preg_match('~по\s+отдельности~u', $tail)) {
-            $separateMode = true;
-            $tail = preg_replace('~по\s+отдельности~u', ' ', $tail);
-        }
-        if (preg_match('~по\s+пунктам~u', $tail)) {
-            $separateMode = true;
-            $tail = preg_replace('~по\s+пунктам~u', ' ', $tail);
-        }
-
-        $tail = preg_replace('~\bв\s+список\b~u', ' ', $tail);
-        $tail = trim(preg_replace('~\s+~u', ' ', $tail));
-
-        if ($tail === '') {
+        $items = $this->extractItemsFromAddCommand($command);
+        if (empty($items)) {
             return [];
         }
 
         $added = [];
 
-        // режим "по отдельности"
-        if ($separateMode) {
-            $words = preg_split('~\s+~u', $tail);
-            $stopWords = ['и', 'в', 'во', 'на', 'к', 'по', 'с', 'со', 'список'];
-
-            foreach ($words as $w) {
-                $w = trim($w, " \t\n\r\0\x0B.,;");
-                if ($w === '') continue;
-
-                if (in_array(mb_strtolower($w, 'UTF-8'), $stopWords, true)) {
-                    continue;
-                }
-
-                $added[] = $this->addItem($userId, $w);
-            }
-
-            return $added;
+        foreach ($items as $title) {
+            $added[] = $this->addItem($userId, $title);
         }
 
-        // обычный режим: "молоко и яйца"
-        if (preg_match('~\s+и\s+~u', $tail)) {
-            foreach (preg_split('~\s+и\s+~u', $tail) as $part) {
-                $title = trim($part, " \t\n\r\0\x0B.,;");
-                if ($title !== '') {
-                    $added[] = $this->addItem($userId, $title);
-                }
-            }
-            return $added;
-        }
-
-        return [$this->addItem($userId, $tail)];
+        return $added;
     }
+
 
     /**
      * Активный список (не купленные).
@@ -357,5 +309,49 @@ class AliceListService
         return 'В списке: ' . $text . '.';
     }
 
+    private function extractItemsFromAddCommand(string $command): array
+    {
+        $cmd = mb_strtolower($command, 'UTF-8');
+
+        // 1. убираем "добавь / добавить"
+        $cmd = preg_replace('~^добав(ь|ить)\b~u', '', $cmd);
+
+        // 2. убираем "в список"
+        $cmd = preg_replace('~\bв\s+список\b~u', '', $cmd);
+
+        // 3. нормализуем разделители → |
+        $separators = [
+            ' и ещё ',
+            ' и еще ',
+            ' ещё ',
+            ' еще ',
+            ' и плюсом ',
+            ' и плюс ',
+            ' плюсом ',
+            ' плюс ',
+            ' и ',
+        ];
+
+        foreach ($separators as $sep) {
+            $cmd = str_replace($sep, '|', $cmd);
+        }
+
+        // 4. чистим мусор
+        $cmd = trim($cmd, " \t\n\r\0\x0B.,!?|");
+        if ($cmd === '') {
+            return [];
+        }
+
+        // 5. режем на товары
+        $parts = array_map(
+            fn($p) => trim($p, " \t\n\r\0\x0B.,!?"),
+            explode('|', $cmd)
+        );
+
+        // 6. убираем пустые и дубли
+        $parts = array_values(array_unique(array_filter($parts)));
+
+        return $parts;
+    }
 
 }
