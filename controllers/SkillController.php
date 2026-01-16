@@ -35,7 +35,7 @@ final class SkillController extends Controller
         $service = new AliceListService();
         $userId = self::WEB_USER_ID;
 
-        $text = 'Навык подключён. Скажи: «добавь молоко».';
+        $text = 'Навык подключён. Скажи: "добавь молоко" или "добавь хлеб", чтобы добавить продукт в список.';
 
         try {
             if ($command !== '') {
