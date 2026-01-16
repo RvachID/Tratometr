@@ -7,6 +7,45 @@ use DomainException;
 
 class AliceListService
 {
+    /* =========================================================
+       PUBLIC API (используется контроллерами)
+       ========================================================= */
+
+    /**
+     * Главная точка входа для навыка Алисы.
+     * Возвращает текст ответа или null, если команда не распознана.
+     */
+    public function handleCommand(int $userId, string $command): ?string
+    {
+        $cmd = $this->normalizeCommand($command);
+        if ($cmd === '') {
+            return null;
+        }
+
+        // 1. Очистка списка
+        if ($reply = $this->tryClearList($userId, $cmd)) {
+            return $reply;
+        }
+
+        // 2. Добавление товаров
+        $added = $this->addFromCommand($userId, $cmd);
+        if (!empty($added)) {
+            $titles = array_map(fn($i) => $i->title, $added);
+            $count  = count($this->getActiveList($userId));
+
+            if ($count === 1 && count($titles) === 1) {
+                return 'Добавила в список: ' . $titles[0] . '. В списке одна позиция.';
+            }
+
+            return 'Добавила в список: ' . implode(', ', $titles) . ". Сейчас в списке {$count} позиций.";
+        }
+
+        return null;
+    }
+
+    /**
+     * Добавить один товар (используется и Алиской, и web-интерфейсом).
+     */
     public function addItem(int $userId, string $title): AliceItem
     {
         $title = trim($title);
@@ -14,20 +53,18 @@ class AliceListService
             throw new DomainException('Пустое название товара');
         }
 
-        // --- проверка на дубликаты в активном списке ---
+        // Проверка на дубликат в активном списке
         $existing = AliceItem::find()
             ->where([
                 'user_id' => $userId,
                 'is_done' => 0,
-                'title' => $title,   // с учётом коллации БД обычно и так case-insensitive
+                'title'   => $title,
             ])
             ->one();
 
         if ($existing !== null) {
-            // уже есть в активном списке – ничего не добавляем
             return $existing;
         }
-        // -----------------------------------------------
 
         $item = new AliceItem();
         $item->user_id = $userId;
@@ -45,13 +82,9 @@ class AliceListService
 
     /**
      * Добавить несколько позиций из голосовой команды Алисы.
-     * Например: "добавь хлеб, яйца, муку и красный перец".
-     *
-     * @return AliceItem[]
      */
     public function addFromCommand(int $userId, string $command): array
     {
-        // Забираем хвост после "добавь/добавить"
         if (!preg_match('~^добав(ь|ить)\b(.*)$~u', $command, $m)) {
             return [];
         }
@@ -61,7 +94,7 @@ class AliceListService
             return [];
         }
 
-        // --- Определяем спец-режим: "по отдельности"/"по пунктам" ---
+        // спец-режимы
         $separateMode = false;
 
         if (preg_match('~по\s+отдельности~u', $tail)) {
@@ -73,7 +106,6 @@ class AliceListService
             $tail = preg_replace('~по\s+пунктам~u', ' ', $tail);
         }
 
-        // Убираем "в список" где бы ни встретилось
         $tail = preg_replace('~\bв\s+список\b~u', ' ', $tail);
         $tail = trim(preg_replace('~\s+~u', ' ', $tail));
 
@@ -83,20 +115,16 @@ class AliceListService
 
         $added = [];
 
-        // ===== РЕЖИМ "ПО ОТДЕЛЬНОСТИ / ПО ПУНКТАМ" =====
+        // режим "по отдельности"
         if ($separateMode) {
-            // Каждое слово (кроме стоп-слов) — отдельная позиция
             $words = preg_split('~\s+~u', $tail);
             $stopWords = ['и', 'в', 'во', 'на', 'к', 'по', 'с', 'со', 'список'];
 
             foreach ($words as $w) {
                 $w = trim($w, " \t\n\r\0\x0B.,;");
-                if ($w === '') {
-                    continue;
-                }
+                if ($w === '') continue;
 
-                $lw = mb_strtolower($w, 'UTF-8');
-                if (in_array($lw, $stopWords, true)) {
+                if (in_array(mb_strtolower($w, 'UTF-8'), $stopWords, true)) {
                     continue;
                 }
 
@@ -106,22 +134,17 @@ class AliceListService
             return $added;
         }
 
-        // ===== ОБЫЧНЫЙ РЕЖИМ "ДОБАВЬ МОЛОКО И ЯЙЦА" =====
-
-        // "молоко и яйца и краску" → делим по "и"
+        // обычный режим: "молоко и яйца"
         if (preg_match('~\s+и\s+~u', $tail)) {
-            $parts = preg_split('~\s+и\s+~u', $tail);
-            foreach ($parts as $part) {
+            foreach (preg_split('~\s+и\s+~u', $tail) as $part) {
                 $title = trim($part, " \t\n\r\0\x0B.,;");
-                if ($title === '') {
-                    continue;
+                if ($title !== '') {
+                    $added[] = $this->addItem($userId, $title);
                 }
-                $added[] = $this->addItem($userId, $title);
             }
             return $added;
         }
 
-        // Без "и" — считаем всё хвостом одного товара
         return [$this->addItem($userId, $tail)];
     }
 
@@ -137,7 +160,7 @@ class AliceListService
     }
 
     /**
-     * Отметить все как купленные (для команды «очисти список»).
+     * Отметить все как купленные (кроме закреплённых).
      */
     public function completeAll(int $userId): int
     {
@@ -147,105 +170,38 @@ class AliceListService
                 'user_id'    => $userId,
                 'is_done'    => 0,
                 'is_archived'=> 0,
-                'is_pinned'  => 0, // закреплённых не трогаем
+                'is_pinned'  => 0,
             ]
         );
     }
 
-
     /**
-     * Разобрать текст команды на отдельные пункты списка.
+     * Используется кнопкой "Обнулить расходники".
      */
-    private function extractItemsFromCommand(string $command): array
-    {
-        $cmd = mb_strtolower(trim($command));
-
-        // срезаем "добавь", "добавить", "добавь в список/покупки"
-        $cmd = preg_replace('~^(добав(ь|ить)( в (список|покупки))?\s+)~u', '', $cmd);
-        $cmd = trim($cmd);
-
-        if ($cmd === '') {
-            return [];
-        }
-
-        // режем по запятым / ;  — основной разделитель
-        $parts = preg_split('~[,;]+~u', $cmd);
-
-        $items = [];
-        foreach ($parts as $part) {
-            $part = trim($part);
-            if ($part === '') {
-                continue;
-            }
-
-            // если запятых несколько, внутри куска можно ещё порезать по " и "
-            if (preg_match('~\sи\s~u', $part) && count($parts) > 1) {
-                $subParts = preg_split('~\sи\s~u', $part);
-                foreach ($subParts as $sub) {
-                    $sub = trim($sub, " \t\n\r\0\x0B,.!?");
-                    if ($sub !== '') {
-                        $items[] = $sub;
-                    }
-                }
-            } else {
-                $part = trim($part, " \t\n\r\0\x0B,.!?");
-                if ($part !== '') {
-                    $items[] = $part;
-                }
-            }
-        }
-
-        // убираем дубли
-        $items = array_values(array_unique($items));
-
-        return $items;
-    }
-
     public static function resetPinnedDoneItems(): int
     {
-        $count = AliceItem::updateAll(
+        return AliceItem::updateAll(
             ['is_done' => 0],
             ['is_done' => 1, 'is_pinned' => 1]
         );
-
-        return $count;
     }
 
     /**
-     * Список для выпадающего списка на странице скана.
-     * Логика:
-     *  - не архивные
-     *  - либо ещё не куплены, либо закреплённые
+     * Для dropdown на экране сканирования.
      */
     public function getForDropdown(int $userId): array
     {
-        $items = AliceItem::find()
+        return AliceItem::find()
             ->where([
                 'user_id'     => $userId,
                 'is_archived' => 0,
                 'is_done'     => 0,
             ])
             ->orderBy([
-                'is_pinned' => SORT_DESC,  // закреплённые выше
+                'is_pinned' => SORT_DESC,
                 'title'     => SORT_ASC,
             ])
             ->all();
-
-        return $items;
-    }
-
-    private function requireOwned(int $userId, int $id): AliceItem
-    {
-        $item = AliceItem::findOne([
-            'id' => $id,
-            'user_id' => $userId,
-        ]);
-
-        if (!$item) {
-            throw new DomainException('Пункт списка не найден');
-        }
-
-        return $item;
     }
 
     public function updateItem(int $userId, int $id, string $title): AliceItem
@@ -266,31 +222,30 @@ class AliceListService
 
         return $item;
     }
+
     public function deleteItem(int $userId, int $id): void
     {
-        $item = $this->requireOwned($userId, $id);
-        $item->delete();
+        $this->requireOwned($userId, $id)->delete();
     }
+
     public function toggleDone(int $userId, int $id): AliceItem
     {
         $item = $this->requireOwned($userId, $id);
-
         $item->is_done = $item->is_done ? 0 : 1;
         $item->updated_at = time();
         $item->save(false);
-
         return $item;
     }
+
     public function togglePinned(int $userId, int $id): AliceItem
     {
         $item = $this->requireOwned($userId, $id);
-
         $item->is_pinned = $item->is_pinned ? 0 : 1;
         $item->updated_at = time();
         $item->save(false);
-
         return $item;
     }
+
     public function getAll(int $userId): array
     {
         return AliceItem::find()
@@ -304,5 +259,60 @@ class AliceListService
             ->all();
     }
 
-}
+    /* =========================================================
+       INTERNAL HELPERS (Алиса)
+       ========================================================= */
 
+    private function normalizeCommand(string $command): string
+    {
+        $cmd = mb_strtolower($command, 'utf-8');
+
+        $cmd = preg_replace(
+            '~\b(алиса|яндекс|слушай|пожалуйста|плиз|ok|ок)\b~u',
+            '',
+            $cmd
+        );
+
+        $cmd = trim($cmd, " \t\n\r\0\x0B.!?,");
+        return preg_replace('~\s+~u', ' ', $cmd);
+    }
+
+    private function tryClearList(int $userId, string $cmd): ?string
+    {
+        $pattern = '~\b(
+            очист(и|ить|ка|и всё)? |
+            удал(и|ить|яй)? |
+            сброс(ь|ить)? |
+            убер(и|ать)? |
+            отметь.*куплен |
+            всё\s+куплен
+        )\b
+        .*\b(
+            список |
+            всё |
+            все |
+            покупки
+        )\b~ux';
+
+        if (!preg_match($pattern, $cmd)) {
+            return null;
+        }
+
+        $affected = $this->completeAll($userId);
+
+        if ($affected === 0) {
+            return 'В списке уже нет активных покупок.';
+        }
+
+        return "Отметила как купленные {$affected} позиций. Список очищен.";
+    }
+
+    private function requireOwned(int $userId, int $id): AliceItem
+    {
+        $item = AliceItem::findOne(['id' => $id, 'user_id' => $userId]);
+        if (!$item) {
+            throw new DomainException('Пункт списка не найден');
+        }
+        return $item;
+    }
+}
