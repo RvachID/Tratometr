@@ -149,9 +149,12 @@ function showUndo(onConfirm, onUndo) {
     bar.innerHTML = `Удалено <button>Отменить</button>`;
     document.body.appendChild(bar);
 
-    const timer = setTimeout(async () => {
-        await onConfirm();
-        bar.remove();
+    const timer = setTimeout(() => {
+        Promise.resolve(onConfirm())
+            .catch(err => console.error('undo confirm error', err))
+            .finally(() => {
+                bar.remove();
+            });
     }, 4000);
 
     bar.querySelector('button').onclick = () => {
