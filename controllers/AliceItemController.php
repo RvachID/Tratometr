@@ -10,17 +10,27 @@ use yii\web\Response;
 
 class AliceItemController extends Controller
 {
-
     public function behaviors()
     {
         return [
-            'verbs' => [
-                'class' => VerbFilter::class,
-                'actions' => [
-                    'reset-done' => ['POST'],
+            'access' => [
+                'class' => \yii\filters\AccessControl::class,
+                'rules' => [
+                    [
+                        'allow' => true,
+                        'actions' => ['reset-done'],
+                        'roles' => ['@'],
+                    ],
                 ],
             ],
         ];
+    }
+    public function beforeAction($action)
+    {
+        if ($action->id === 'reset-done') {
+            $this->layout = false;
+        }
+        return parent::beforeAction($action);
     }
 
     public $enableCsrfValidation = true;
