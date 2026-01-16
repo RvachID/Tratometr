@@ -23,9 +23,12 @@ class AliceItemController extends Controller
         ];
     }
 
+    public $enableCsrfValidation = true;
+
     public function actionResetDone()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
+        Yii::$app->response->headers->set('Content-Type', 'application/json');
 
         $count = AliceListService::resetPinnedDoneItems();
 
