@@ -27,21 +27,44 @@ final class SkillController extends Controller
         $session = $data['session'] ?? [];
         $request = $data['request'] ?? [];
 
-        $command = (string)($request['command'] ?? '');
+        $command = trim((string)($request['command'] ?? ''));
         $userId  = self::WEB_USER_ID;
 
         $service = new AliceListService();
 
-        // дефолтный текст
-        $text = 'Навык подключён. Скажи: "добавь молоко" или "добавь хлеб", чтобы добавить продукт в список.';
+        $text = null;
 
         try {
+            // ===== ОСНОВНАЯ ЛОГИКА =====
             if ($command !== '') {
                 $reply = $service->handleCommand($userId, $command);
                 if (is_string($reply) && $reply !== '') {
                     $text = $reply;
                 }
             }
+
+            // ===== КОНТЕКСТНЫЕ ДЕФОЛТЫ =====
+            if ($text === null) {
+
+                $isNewSession = ($session['new'] ?? false) === true;
+                $activeCount = count($service->getActiveList($userId));
+
+                if ($isNewSession) {
+                    // первый запуск навыка
+                    $text = 'Я помогу вести список покупок. '
+                        . 'Скажи: "добавь молоко", "что в списке" или "очисти список".';
+
+                } elseif ($activeCount === 0) {
+                    // навык активен, но список пуст
+                    $text = 'Список покупок сейчас пуст. '
+                        . 'Скажи, что добавить. Например: "добавь хлеб и молоко".';
+
+                } else {
+                    // навык активен, список уже есть
+                    $text = 'Могу добавить товары, показать список или отметить всё как купленное.';
+                }
+            }
+
         } catch (\Throwable $e) {
             Yii::error('Alice error: ' . $e->getMessage(), __METHOD__);
             $text = 'Произошла внутренняя ошибка навыка, попробуй ещё раз позже.';
@@ -57,6 +80,7 @@ final class SkillController extends Controller
             ],
         ]);
     }
+
 
     // ===== helpers =====
 

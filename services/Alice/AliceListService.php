@@ -323,14 +323,17 @@ class AliceListService
 
     private function tryShowList(int $userId, string $cmd): ?string
     {
-        // варианты: "что в списке", "покажи список", "что купить", "список покупок"
-        if (!preg_match(
-                '~\b(что|покаж(и|и)|какой|какие)\b.*\b(список|покупки|купить)\b~u',
+        // "что в списке", "покажи список", "что купить", "список покупок"
+        if (
+            !preg_match(
+                '~\b(что|покаж(и|и)|какой|какие)\b.*\b(списк\w*|покупк\w*|купить)\b~u',
                 $cmd
-            ) && !preg_match(
-                '~^список(\s+покупок)?$~u',
+            )
+            && !preg_match(
+                '~^списк\w*(\s+покупк\w*)?$~u',
                 $cmd
-            )) {
+            )
+        ) {
             return null;
         }
 
@@ -342,7 +345,7 @@ class AliceListService
 
         $titles = array_map(fn($i) => $i->title, $items);
 
-        // Алисе лучше говорить не больше 7–8 пунктов
+        // Алисе комфортно слушать до ~7 пунктов
         $short = array_slice($titles, 0, 7);
         $text  = implode(', ', $short);
 
@@ -353,5 +356,6 @@ class AliceListService
 
         return 'В списке: ' . $text . '.';
     }
+
 
 }
