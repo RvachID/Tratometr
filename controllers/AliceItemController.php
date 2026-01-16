@@ -25,12 +25,14 @@ class AliceItemController extends Controller
 
     public function actionResetDone()
     {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
         $count = AliceListService::resetPinnedDoneItems();
 
-        return $this->asJson([
+        return [
             'success' => true,
             'reset_count' => $count,
-        ]);
+        ];
     }
 
 

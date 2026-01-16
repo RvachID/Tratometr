@@ -203,13 +203,12 @@ class AliceListService
 
     public static function resetPinnedDoneItems(): int
     {
-        return AliceItem::updateAll(
+        $count = AliceItem::updateAll(
             ['is_done' => 0],
-            [
-                'is_done' => 1,
-                'is_pinned' => 1,
-            ]
+            ['is_done' => 1, 'is_pinned' => 1]
         );
+
+        return $count;
     }
 
     /**
