@@ -33,7 +33,7 @@ final class SkillController extends Controller
         $service = new AliceListService();
 
         // дефолтный текст
-        $text = 'Я могу вести список покупок. Скажи: "добавь молоко" или "очисти список".';
+        $text = 'Навык подключён. Скажи: "добавь молоко" или "добавь хлеб", чтобы добавить продукт в список.';
 
         try {
             if ($command !== '') {
