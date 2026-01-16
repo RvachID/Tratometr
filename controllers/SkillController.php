@@ -85,7 +85,7 @@ final class SkillController extends Controller
         if (preg_match('~(что в списке|что купить|список покупок|список)$~u', $command)) {
             $list = $service->getActiveList($userId);
             if (!$list) {
-                return 'Список покупок пуст. Скажи: добавь молоко.';
+                return 'Список покупок пуст. Скажи: "добавь молоко" или "добавь хлеб", чтобы добавить продукт в список.';
             }
 
             $names = array_map(fn($i) => $i->title, $list);
@@ -105,7 +105,7 @@ final class SkillController extends Controller
         }
 
         // дефолт
-        return 'Я могу вести список покупок. Скажи: «добавь молоко» или «что в списке».';
+        return 'Я могу вести список покупок. Скажи: "добавь молоко" или "добавь хлеб", чтобы добавить продукт в список или спроси "что в списке"';
     }
 
 
