@@ -9,8 +9,8 @@
 
     if (!buttons.length) return;
 
-    const csrfToken  = document.querySelector('meta[name="csrf-token"]')?.content;
-    const csrfParam  = document.querySelector('meta[name="csrf-param"]')?.content;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const csrfParam = document.querySelector('meta[name="csrf-param"]')?.content;
 
     const resetPinnedDone = async () => {
         if (!confirm('Обнулить расходники (закреплённые покупки)?')) {
@@ -35,8 +35,8 @@
         }
 
         const text = await r.text();
-
         let data;
+
         try {
             data = JSON.parse(text);
         } catch (e) {
@@ -46,37 +46,96 @@
 
         if (!data.success) return;
 
-        /* ================= DESKTOP ================= */
-        document.querySelectorAll('tr').forEach(tr => {
-            const doneBtn = tr.querySelector('.done-toggle.is-done');
-            const pinBtn  = tr.querySelector('.btn-outline-warning'); // 📌
+        /* =========================================================
+           DESKTOP (TABLE)
+           ========================================================= */
 
-            if (!doneBtn || !pinBtn) return;
+        const tbody = document.querySelector('.d-none.d-sm-block tbody');
+        if (tbody) {
+            const rows = Array.from(tbody.querySelectorAll('tr'));
 
-            tr.classList.remove('text-muted');
-            doneBtn.classList.remove('is-done', 'btn-outline-success');
-            doneBtn.classList.add('btn-outline-secondary');
-        });
+            const pinnedActive = [];
+            const otherActive  = [];
+            const done         = [];
 
-        /* ================= MOBILE ================= */
-        document.querySelectorAll(
-            '.alice-swipe-wrap.opacity-75[data-pinned="1"]'
-        ).forEach(wrap => {
+            rows.forEach(tr => {
+                const doneBtn = tr.querySelector('.done-toggle');
+                const pinBtn  = tr.querySelector('.btn-outline-warning');
 
+                // строки-заголовки секций пропускаем
+                if (!doneBtn) return;
+
+                const isDone   = doneBtn.classList.contains('is-done');
+                const isPinned = !!pinBtn;
+
+                if (isDone && isPinned) {
+                    // ЭТО И ЕСТЬ РАСХОДНИК → СБРАСЫВАЕМ
+                    doneBtn.classList.remove('is-done', 'btn-outline-success');
+                    doneBtn.classList.add('btn-outline-secondary');
+                    tr.classList.remove('text-muted');
+
+                    pinnedActive.push(tr);
+                } else if (!isDone && isPinned) {
+                    pinnedActive.push(tr);
+                } else if (!isDone) {
+                    otherActive.push(tr);
+                } else {
+                    done.push(tr);
+                }
+            });
+
+            // полностью пересобираем tbody
+            tbody.innerHTML = '';
+
+            const addSection = (title, rows) => {
+                if (!rows.length) return;
+
+                const header = document.createElement('tr');
+                header.className = 'table-light';
+                header.innerHTML = `
+                    <td colspan="4" class="fw-semibold text-muted small">
+                        ${title}
+                    </td>
+                `;
+                tbody.appendChild(header);
+
+                rows.forEach(tr => tbody.appendChild(tr));
+            };
+
+            addSection('Регулярные покупки', pinnedActive);
+            addSection('Остальное', otherActive);
+            addSection('Архив', done);
+        }
+
+        /* =========================================================
+           MOBILE
+           ========================================================= */
+
+        const pinnedSection = document.getElementById('section-pinned');
+        const activeSection = document.getElementById('section-active');
+        const doneSection   = document.getElementById('section-done');
+
+        document.querySelectorAll('.alice-swipe-wrap[data-pinned="1"]').forEach(wrap => {
+            if (!wrap.classList.contains('opacity-75')) return;
+
+            // это был закреплённый и купленный → сбрасываем
             wrap.classList.remove('opacity-75');
 
             const btn = wrap.querySelector('.done-toggle');
             if (btn) btn.classList.remove('is-done');
 
-            moveToSection(wrap, 'section-active');
+            moveToSection(wrap, 'section-pinned');
         });
+
+        // остальные элементы оставляем как есть
 
         window.reloadAliceSelect?.();
     };
 
-    buttons.forEach(b => b.addEventListener('click', resetPinnedDone));
+    buttons.forEach(btn => btn.addEventListener('click', resetPinnedDone));
 
 })();
+
 
 const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 
