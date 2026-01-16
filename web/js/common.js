@@ -13,9 +13,7 @@
     const csrfParam = document.querySelector('meta[name="csrf-param"]')?.content;
 
     const resetPinnedDone = async () => {
-        if (!confirm('Обнулить расходники (закреплённые покупки)?')) {
-            return;
-        }
+        if (!confirm('Обнулить расходники (закреплённые покупки)?')) return;
 
         const body = csrfParam + '=' + encodeURIComponent(csrfToken);
 
@@ -34,111 +32,108 @@
             return;
         }
 
-        const text = await r.text();
         let data;
-
         try {
-            data = JSON.parse(text);
+            data = JSON.parse(await r.text());
         } catch (e) {
-            console.error('Reset returned non-JSON:', text);
+            console.error('reset returned non-json');
             return;
         }
 
         if (!data.success) return;
 
-        /* =========================================================
-           DESKTOP (TABLE)
-           ========================================================= */
+        /* ================= DESKTOP ================= */
 
         const tbody = document.querySelector('.d-none.d-sm-block tbody');
         if (tbody) {
             const rows = Array.from(tbody.querySelectorAll('tr'));
 
-            const pinnedActive = [];
-            const otherActive  = [];
-            const done         = [];
+            const pinned = [];
+            const other  = [];
+            const done   = [];
 
             rows.forEach(tr => {
                 const doneBtn = tr.querySelector('.done-toggle');
                 const pinBtn  = tr.querySelector('.btn-outline-warning');
 
-                // строки-заголовки секций пропускаем
-                if (!doneBtn) return;
+                if (!doneBtn) return; // заголовки
 
                 const isDone   = doneBtn.classList.contains('is-done');
                 const isPinned = !!pinBtn;
 
                 if (isDone && isPinned) {
-                    // ЭТО И ЕСТЬ РАСХОДНИК → СБРАСЫВАЕМ
                     doneBtn.classList.remove('is-done', 'btn-outline-success');
                     doneBtn.classList.add('btn-outline-secondary');
                     tr.classList.remove('text-muted');
-
-                    pinnedActive.push(tr);
+                    pinned.push(tr);
                 } else if (!isDone && isPinned) {
-                    pinnedActive.push(tr);
+                    pinned.push(tr);
                 } else if (!isDone) {
-                    otherActive.push(tr);
+                    other.push(tr);
                 } else {
                     done.push(tr);
                 }
             });
 
-            // полностью пересобираем tbody
             tbody.innerHTML = '';
 
-            const addSection = (title, rows) => {
-                if (!rows.length) return;
-
-                const header = document.createElement('tr');
-                header.className = 'table-light';
-                header.innerHTML = `
-                    <td colspan="4" class="fw-semibold text-muted small">
-                        ${title}
-                    </td>
-                `;
-                tbody.appendChild(header);
-
-                rows.forEach(tr => tbody.appendChild(tr));
+            const addSection = (title, list) => {
+                if (!list.length) return;
+                const h = document.createElement('tr');
+                h.className = 'table-light';
+                h.innerHTML = `<td colspan="4" class="fw-semibold text-muted small">${title}</td>`;
+                tbody.appendChild(h);
+                list.forEach(tr => tbody.appendChild(tr));
             };
 
-            addSection('Регулярные покупки', pinnedActive);
-            addSection('Остальное', otherActive);
+            addSection('Регулярные покупки', pinned);
+            addSection('Остальное', other);
             addSection('Архив', done);
         }
 
-        /* =========================================================
-           MOBILE
-           ========================================================= */
+        /* ================= MOBILE (ПОЛНАЯ ПЕРЕСБОРКА) ================= */
 
-        const pinnedSection = document.getElementById('section-pinned');
-        const activeSection = document.getElementById('section-active');
-        const doneSection   = document.getElementById('section-done');
+        const secPinned = document.getElementById('section-pinned');
+        const secActive = document.getElementById('section-active');
+        const secDone   = document.getElementById('section-done');
 
-        /* ================= MOBILE ================= */
+        if (secPinned && secActive && secDone) {
 
-        document.querySelectorAll(
-            '.alice-swipe-wrap.opacity-75[data-pinned="1"]'
-        ).forEach(wrap => {
+            // сохраняем заголовки
+            const pinnedTitle = secPinned.querySelector('.list-section-title');
+            const activeTitle = secActive.querySelector('.list-section-title');
+            const doneTitle   = secDone.querySelector('.list-section-title');
 
-            // 1. визуально больше не архив
-            wrap.classList.remove('opacity-75');
+            secPinned.innerHTML = '';
+            secActive.innerHTML = '';
+            secDone.innerHTML   = '';
 
-            // 2. кнопка done
-            const btn = wrap.querySelector('.done-toggle');
-            if (btn) btn.classList.remove('is-done');
+            if (pinnedTitle) secPinned.appendChild(pinnedTitle);
+            if (activeTitle) secActive.appendChild(activeTitle);
+            if (doneTitle)   secDone.appendChild(doneTitle);
 
-            // 3. ОБНОВЛЯЕМ ИСТОЧНИК ИСТИНЫ
-            wrap.dataset.section = 'section-pinned';
+            document.querySelectorAll('.alice-swipe-wrap').forEach(wrap => {
+                const isPinned = wrap.dataset.pinned === '1';
+                const isDone   = wrap.classList.contains('opacity-75');
 
-            // 4. физически перемещаем
-            const target = document.getElementById('section-pinned');
-            if (target) {
-                target.appendChild(wrap);
-            }
-        });
+                // СБРАСЫВАЕМ расходники
+                if (isPinned && isDone) {
+                    wrap.classList.remove('opacity-75');
+                    wrap.querySelector('.done-toggle')?.classList.remove('is-done');
+                }
 
-        // остальные элементы оставляем как есть
+                if (wrap.classList.contains('opacity-75')) {
+                    secDone.appendChild(wrap);
+                    wrap.dataset.section = 'section-done';
+                } else if (isPinned) {
+                    secPinned.appendChild(wrap);
+                    wrap.dataset.section = 'section-pinned';
+                } else {
+                    secActive.appendChild(wrap);
+                    wrap.dataset.section = 'section-active';
+                }
+            });
+        }
 
         window.reloadAliceSelect?.();
     };
@@ -146,6 +141,7 @@
     buttons.forEach(btn => btn.addEventListener('click', resetPinnedDone));
 
 })();
+
 
 
 const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
