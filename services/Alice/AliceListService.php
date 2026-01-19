@@ -312,14 +312,36 @@ class AliceListService
     private function extractItemsFromAddCommand(string $command): array
     {
         $cmd = mb_strtolower($command, 'UTF-8');
+        $cmd = trim($cmd);
 
-        // 1. убираем "добавь / добавить"
-        $cmd = preg_replace('~^добав(ь|ить)\b~u', '', $cmd);
+        // === 1. Убираем стартовые служебные фразы ===
+        $serviceStarts = [
+            'добавь в список покупок',
+            'добавить в список покупок',
+            'добавь в список',
+            'добавить в список',
+            'добавь',
+            'добавить',
+        ];
 
-        // 2. убираем "в список"
-        $cmd = preg_replace('~\bв\s+список\b~u', '', $cmd);
+        foreach ($serviceStarts as $start) {
+            if (mb_strpos($cmd, $start) === 0) {
+                $cmd = trim(mb_substr($cmd, mb_strlen($start)));
+                break;
+            }
+        }
 
-        // 3. нормализуем разделители → |
+        // === 2. Убираем хвостовые служебные фразы ===
+        $serviceTails = [
+            'в список покупок',
+            'в список',
+        ];
+
+        foreach ($serviceTails as $tail) {
+            $cmd = preg_replace('~\b' . preg_quote($tail, '~') . '\b~u', '', $cmd);
+        }
+
+        // === 3. Нормализуем разделители товаров ===
         $separators = [
             ' и ещё ',
             ' и еще ',
@@ -330,26 +352,30 @@ class AliceListService
             ' плюсом ',
             ' плюс ',
             ' и ',
+            ',',
+            ';',
         ];
 
         foreach ($separators as $sep) {
             $cmd = str_replace($sep, '|', $cmd);
         }
 
-        // 4. чистим мусор
-        $cmd = trim($cmd, " \t\n\r\0\x0B.,!?|");
+        // === 4. Финальная чистка ===
+        $cmd = trim($cmd, " \t\n\r\0\x0B.|!?");
+
         if ($cmd === '') {
             return [];
         }
 
-        // 5. режем на товары
+        // === 5. Разбиваем на товары ===
         $parts = array_map(
-            fn($p) => trim($p, " \t\n\r\0\x0B.,!?"),
+            fn($p) => trim($p, " \t\n\r\0\x0B.!?"),
             explode('|', $cmd)
         );
 
-        // 6. убираем пустые и дубли
-        $parts = array_values(array_unique(array_filter($parts)));
+        // === 6. Убираем пустые и дубли ===
+        $parts = array_filter($parts, fn($p) => $p !== '');
+        $parts = array_values(array_unique($parts));
 
         return $parts;
     }
