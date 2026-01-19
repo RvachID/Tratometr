@@ -322,6 +322,8 @@ class AliceListService
             'добавить в список',
             'добавь',
             'добавить',
+            'добавь добавь',
+            'добавить добавить',
         ];
 
         foreach ($serviceStarts as $start) {
