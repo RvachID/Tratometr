@@ -267,17 +267,6 @@
 
     // Скан + OCR (скрытое превью по умолчанию, видим то, что отправили)
     async function captureAndRecognize() {
-        const canvas = canvasOverride ?? document.createElement('canvas');
-
-        if (!canvasOverride) {
-            // старый код: берём кадр из video
-            const scale = Math.min(1, MAX_W / video.videoWidth);
-            canvas.width  = video.videoWidth * scale;
-            canvas.height = video.videoHeight * scale;
-
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        }
         if (scanBusy) return;
         scanBusy = true;
         if (captureBtn) captureBtn.disabled = true;
@@ -502,9 +491,7 @@
 
 
     // init
-// ❌ кнопка "Сканировать" больше не используется как триггер
-// if (captureBtn) captureBtn.onclick = captureAndRecognize;
-
+    if (captureBtn) captureBtn.onclick = captureAndRecognize;
 
     // --- checkShopSession: тянем лимит, обновляем data-атрибуты и подпись тотала
     async function checkShopSession() {
@@ -616,110 +603,4 @@
         if (startBtn) startBtn.textContent = '📷 Открыть камеру';
         manualBtn?.classList.remove('d-none');
     }
-
-    /* =========================================================
-      UX: TAP / LONG PRESS → ZOOM → RELEASE = CROP + SCAN
-      (использует существующий captureAndRecognize)
-      ========================================================= */
-
-    (function attachVideoTouchUX() {
-        if (!video) return;
-
-        let pressTimer = null;
-        let longPressActive = false;
-        let pressPoint = null;
-
-        const LONG_PRESS_MS = 300;
-        const ZOOM_SCALE = 1.8;
-        const CROP_SIZE = 320; // px, квадрат для OCR
-
-        video.addEventListener('pointerdown', (e) => {
-            if (scanBusy) return;
-
-            const rect = video.getBoundingClientRect();
-            pressPoint = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            };
-
-            longPressActive = false;
-
-            pressTimer = setTimeout(() => {
-                longPressActive = true;
-
-                // визуальный зум
-                video.style.transformOrigin = `${pressPoint.x}px ${pressPoint.y}px`;
-                video.style.transform = `scale(${ZOOM_SCALE})`;
-            }, LONG_PRESS_MS);
-        });
-
-        video.addEventListener('pointerup', () => {
-            clearTimeout(pressTimer);
-            video.style.transform = '';
-
-            // ===== RELEASE AFTER LONG PRESS → CROP + OCR =====
-            if (longPressActive && pressPoint) {
-                longPressActive = false;
-
-                const canvas = cropFromVideo(pressPoint.x, pressPoint.y);
-                pressPoint = null;
-
-                if (canvas) {
-                    // 🔥 ВАЖНО: используем ТВОЮ captureAndRecognize
-                    captureAndRecognize(canvas);
-                }
-                return;
-            }
-
-            // ===== SIMPLE TAP → OLD FLOW =====
-            captureAndRecognize();
-            pressPoint = null;
-        });
-
-        video.addEventListener('pointercancel', reset);
-        video.addEventListener('pointerleave', reset);
-
-        function reset() {
-            clearTimeout(pressTimer);
-            longPressActive = false;
-            pressPoint = null;
-            video.style.transform = '';
-        }
-
-        /* =====================================================
-           CROP ИЗ VIDEO → CANVAS
-           ===================================================== */
-
-        function cropFromVideo(px, py) {
-            if (!video.videoWidth || !video.videoHeight) return null;
-
-            const scaleX = video.videoWidth / video.clientWidth;
-            const scaleY = video.videoHeight / video.clientHeight;
-
-            const cx = px * scaleX;
-            const cy = py * scaleY;
-
-            const half = CROP_SIZE / 2;
-
-            const sx = Math.max(0, Math.round(cx - half));
-            const sy = Math.max(0, Math.round(cy - half));
-            const sw = Math.min(video.videoWidth  - sx, CROP_SIZE);
-            const sh = Math.min(video.videoHeight - sy, CROP_SIZE);
-
-            if (sw <= 0 || sh <= 0) return null;
-
-            const canvas = document.createElement('canvas');
-            canvas.width = sw;
-            canvas.height = sh;
-
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(
-                video,
-                sx, sy, sw, sh,
-                0, 0, sw, sh
-            );
-
-            return canvas;
-        }
-    })();
 })();
