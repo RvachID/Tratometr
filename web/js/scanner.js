@@ -607,53 +607,160 @@
     }
 
     /* =========================================================
-   NEW UX: TAP / LONG PRESS НА ВИДЕО
-   ========================================================= */
+    UX: TAP / LONG PRESS → ZOOM → RELEASE = CROP + SCAN
+    ========================================================= */
 
-    if (video) {
+    (function attachVideoTouchUX() {
+        if (!video) return;
+
         let pressTimer = null;
-        let longPress = false;
+        let longPressActive = false;
+        let pressPoint = null;
 
         const LONG_PRESS_MS = 300;
         const ZOOM_SCALE = 1.8;
+        const CROP_SIZE = 320; // px, квадрат для OCR
 
         video.addEventListener('pointerdown', (e) => {
             if (scanBusy) return;
 
-            pressTimer = setTimeout(() => {
-                longPress = true;
+            const rect = video.getBoundingClientRect();
+            pressPoint = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
 
-                // визуальный зум под пальцем
-                video.style.transformOrigin = `${e.offsetX}px ${e.offsetY}px`;
+            pressTimer = setTimeout(() => {
+                longPressActive = true;
+
+                // визуальный зум
+                video.style.transformOrigin = `${pressPoint.x}px ${pressPoint.y}px`;
                 video.style.transform = `scale(${ZOOM_SCALE})`;
             }, LONG_PRESS_MS);
         });
 
         video.addEventListener('pointerup', () => {
             clearTimeout(pressTimer);
+            video.style.transform = '';
 
-            // если был long-press — это был зум, НЕ сканируем
-            if (longPress) {
-                longPress = false;
-                video.style.transform = '';
+            // ===== RELEASE AFTER LONG PRESS → CROP SCAN =====
+            if (longPressActive && pressPoint) {
+                longPressActive = false;
+                captureAndRecognizeCropped(pressPoint.x, pressPoint.y);
+                pressPoint = null;
                 return;
             }
 
-            // обычный tap → запускаем существующий скан
+            // ===== SIMPLE TAP =====
             captureAndRecognize();
+            pressPoint = null;
         });
 
-        video.addEventListener('pointerleave', () => {
-            clearTimeout(pressTimer);
-            longPress = false;
-            video.style.transform = '';
-        });
+        video.addEventListener('pointercancel', reset);
+        video.addEventListener('pointerleave', reset);
 
-        video.addEventListener('pointercancel', () => {
+        function reset() {
             clearTimeout(pressTimer);
-            longPress = false;
+            longPressActive = false;
+            pressPoint = null;
             video.style.transform = '';
-        });
-    }
+        }
+
+        /* =====================================================
+           CROP + OCR (использует ТВОЮ существующую OCR-логику)
+           ===================================================== */
+
+        function captureAndRecognizeCropped(px, py) {
+            if (scanBusy || !video.videoWidth || !video.videoHeight) return;
+            scanBusy = true;
+
+            const canvas = document.createElement('canvas');
+
+            const scaleX = video.videoWidth / video.clientWidth;
+            const scaleY = video.videoHeight / video.clientHeight;
+
+            const cx = px * scaleX;
+            const cy = py * scaleY;
+
+            const half = CROP_SIZE / 2;
+
+            const sx = Math.max(0, cx - half);
+            const sy = Math.max(0, cy - half);
+            const sw = Math.min(video.videoWidth - sx, CROP_SIZE);
+            const sh = Math.min(video.videoHeight - sy, CROP_SIZE);
+
+            canvas.width = sw;
+            canvas.height = sh;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(
+                video,
+                sx, sy, sw, sh,
+                0, 0, sw, sh
+            );
+
+            // ⬇️ отправляем crop в ту же OCR-логику
+            sendCanvasToOCR(canvas);
+        }
+
+        /* =====================================================
+           ОБЩАЯ ТОЧКА ВХОДА В OCR
+           ===================================================== */
+
+        function sendCanvasToOCR(canvas) {
+            canvas.toBlob(blob => {
+                if (!blob) {
+                    scanBusy = false;
+                    return;
+                }
+
+                // подменяем lastPhotoURL → будет именно cropped
+                if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
+                lastPhotoURL = URL.createObjectURL(blob);
+
+                const formData = new FormData();
+                formData.append('image', blob, 'scan.jpg');
+
+                const csrf = getCsrf();
+                if (!csrf) {
+                    scanBusy = false;
+                    alert('CSRF не найден');
+                    return;
+                }
+
+                // дальше используем ТВОЙ существующий OCR endpoint
+                fetch('/index.php?r=scan/recognize', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': csrf },
+                    body: formData,
+                    credentials: 'include'
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (!res.success) {
+                            alert(res.error || 'OCR не распознал цену');
+                            scanBusy = false;
+                            return;
+                        }
+
+                        // успех — заполняем модалку
+                        mAmountEl.value = fmt2(res.recognized_amount);
+                        mQtyEl.value = 1;
+                        mNoteEl.value = '';
+                        lastParsedText = res.parsed_text || '';
+
+                        resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
+                        bootstrapModal?.show();
+                    })
+                    .catch(err => {
+                        alert(err.message || 'Ошибка OCR');
+                    })
+                    .finally(() => {
+                        scanBusy = false;
+                    });
+            }, 'image/jpeg', 0.9);
+        }
+    })();
+
 
 })();
