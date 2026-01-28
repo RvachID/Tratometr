@@ -267,6 +267,17 @@
 
     // Скан + OCR (скрытое превью по умолчанию, видим то, что отправили)
     async function captureAndRecognize() {
+        const canvas = canvasOverride ?? document.createElement('canvas');
+
+        if (!canvasOverride) {
+            // старый код: берём кадр из video
+            const scale = Math.min(1, MAX_W / video.videoWidth);
+            canvas.width  = video.videoWidth * scale;
+            canvas.height = video.videoHeight * scale;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
         if (scanBusy) return;
         scanBusy = true;
         if (captureBtn) captureBtn.disabled = true;
@@ -607,8 +618,9 @@
     }
 
     /* =========================================================
-    UX: TAP / LONG PRESS → ZOOM → RELEASE = CROP + SCAN
-    ========================================================= */
+      UX: TAP / LONG PRESS → ZOOM → RELEASE = CROP + SCAN
+      (использует существующий captureAndRecognize)
+      ========================================================= */
 
     (function attachVideoTouchUX() {
         if (!video) return;
@@ -630,6 +642,8 @@
                 y: e.clientY - rect.top
             };
 
+            longPressActive = false;
+
             pressTimer = setTimeout(() => {
                 longPressActive = true;
 
@@ -643,15 +657,21 @@
             clearTimeout(pressTimer);
             video.style.transform = '';
 
-            // ===== RELEASE AFTER LONG PRESS → CROP SCAN =====
+            // ===== RELEASE AFTER LONG PRESS → CROP + OCR =====
             if (longPressActive && pressPoint) {
                 longPressActive = false;
-                captureAndRecognizeCropped(pressPoint.x, pressPoint.y);
+
+                const canvas = cropFromVideo(pressPoint.x, pressPoint.y);
                 pressPoint = null;
+
+                if (canvas) {
+                    // 🔥 ВАЖНО: используем ТВОЮ captureAndRecognize
+                    captureAndRecognize(canvas);
+                }
                 return;
             }
 
-            // ===== SIMPLE TAP =====
+            // ===== SIMPLE TAP → OLD FLOW =====
             captureAndRecognize();
             pressPoint = null;
         });
@@ -667,14 +687,11 @@
         }
 
         /* =====================================================
-           CROP + OCR (использует ТВОЮ существующую OCR-логику)
+           CROP ИЗ VIDEO → CANVAS
            ===================================================== */
 
-        function captureAndRecognizeCropped(px, py) {
-            if (scanBusy || !video.videoWidth || !video.videoHeight) return;
-            scanBusy = true;
-
-            const canvas = document.createElement('canvas');
+        function cropFromVideo(px, py) {
+            if (!video.videoWidth || !video.videoHeight) return null;
 
             const scaleX = video.videoWidth / video.clientWidth;
             const scaleY = video.videoHeight / video.clientHeight;
@@ -684,11 +701,14 @@
 
             const half = CROP_SIZE / 2;
 
-            const sx = Math.max(0, cx - half);
-            const sy = Math.max(0, cy - half);
-            const sw = Math.min(video.videoWidth - sx, CROP_SIZE);
+            const sx = Math.max(0, Math.round(cx - half));
+            const sy = Math.max(0, Math.round(cy - half));
+            const sw = Math.min(video.videoWidth  - sx, CROP_SIZE);
             const sh = Math.min(video.videoHeight - sy, CROP_SIZE);
 
+            if (sw <= 0 || sh <= 0) return null;
+
+            const canvas = document.createElement('canvas');
             canvas.width = sw;
             canvas.height = sh;
 
@@ -699,68 +719,7 @@
                 0, 0, sw, sh
             );
 
-            // ⬇️ отправляем crop в ту же OCR-логику
-            sendCanvasToOCR(canvas);
-        }
-
-        /* =====================================================
-           ОБЩАЯ ТОЧКА ВХОДА В OCR
-           ===================================================== */
-
-        function sendCanvasToOCR(canvas) {
-            canvas.toBlob(blob => {
-                if (!blob) {
-                    scanBusy = false;
-                    return;
-                }
-
-                // подменяем lastPhotoURL → будет именно cropped
-                if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
-                lastPhotoURL = URL.createObjectURL(blob);
-
-                const formData = new FormData();
-                formData.append('image', blob, 'scan.jpg');
-
-                const csrf = getCsrf();
-                if (!csrf) {
-                    scanBusy = false;
-                    alert('CSRF не найден');
-                    return;
-                }
-
-                // дальше используем ТВОЙ существующий OCR endpoint
-                fetch('/index.php?r=scan/recognize', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': csrf },
-                    body: formData,
-                    credentials: 'include'
-                })
-                    .then(r => r.json())
-                    .then(res => {
-                        if (!res.success) {
-                            alert(res.error || 'OCR не распознал цену');
-                            scanBusy = false;
-                            return;
-                        }
-
-                        // успех — заполняем модалку
-                        mAmountEl.value = fmt2(res.recognized_amount);
-                        mQtyEl.value = 1;
-                        mNoteEl.value = '';
-                        lastParsedText = res.parsed_text || '';
-
-                        resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
-                        bootstrapModal?.show();
-                    })
-                    .catch(err => {
-                        alert(err.message || 'Ошибка OCR');
-                    })
-                    .finally(() => {
-                        scanBusy = false;
-                    });
-            }, 'image/jpeg', 0.9);
+            return canvas;
         }
     })();
-
-
 })();
