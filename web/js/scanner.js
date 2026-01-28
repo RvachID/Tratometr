@@ -491,7 +491,9 @@
 
 
     // init
-    if (captureBtn) captureBtn.onclick = captureAndRecognize;
+// ❌ кнопка "Сканировать" больше не используется как триггер
+// if (captureBtn) captureBtn.onclick = captureAndRecognize;
+
 
     // --- checkShopSession: тянем лимит, обновляем data-атрибуты и подпись тотала
     async function checkShopSession() {
@@ -603,4 +605,55 @@
         if (startBtn) startBtn.textContent = '📷 Открыть камеру';
         manualBtn?.classList.remove('d-none');
     }
+
+    /* =========================================================
+   NEW UX: TAP / LONG PRESS НА ВИДЕО
+   ========================================================= */
+
+    if (video) {
+        let pressTimer = null;
+        let longPress = false;
+
+        const LONG_PRESS_MS = 300;
+        const ZOOM_SCALE = 1.8;
+
+        video.addEventListener('pointerdown', (e) => {
+            if (scanBusy) return;
+
+            pressTimer = setTimeout(() => {
+                longPress = true;
+
+                // визуальный зум под пальцем
+                video.style.transformOrigin = `${e.offsetX}px ${e.offsetY}px`;
+                video.style.transform = `scale(${ZOOM_SCALE})`;
+            }, LONG_PRESS_MS);
+        });
+
+        video.addEventListener('pointerup', () => {
+            clearTimeout(pressTimer);
+
+            // если был long-press — это был зум, НЕ сканируем
+            if (longPress) {
+                longPress = false;
+                video.style.transform = '';
+                return;
+            }
+
+            // обычный tap → запускаем существующий скан
+            captureAndRecognize();
+        });
+
+        video.addEventListener('pointerleave', () => {
+            clearTimeout(pressTimer);
+            longPress = false;
+            video.style.transform = '';
+        });
+
+        video.addEventListener('pointercancel', () => {
+            clearTimeout(pressTimer);
+            longPress = false;
+            video.style.transform = '';
+        });
+    }
+
 })();

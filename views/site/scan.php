@@ -17,42 +17,54 @@ $entries = $entries ?? [];
          data-category="<?= Html::encode($category) ?>"
          data-need-prompt="<?= !empty($needPrompt) ? '1' : '0' ?>">
 
-        <div class="container mt-3 text-center">
-            <h6 id="scan-title" class="mb-2">Тратометр</h6>
+        <h6 id="scan-title" class="mb-2">Тратометр</h6>
 
-            <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
-                <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Открыть камеру</button>
-                <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
-            </div>
-
-            <div id="camera-wrapper" class="text-center" style="display:none;">
-                <video id="camera" autoplay playsinline class="d-block mx-auto"
-                       style="width:100%; max-width:400px;"></video>
-
-                <button id="capture" class="btn btn-outline-secondary d-block mx-auto mt-2" type="button">
-                    <span class="spinner d-none spinner-border spinner-border-sm me-1"></span>
-                    <span class="btn-text">📸 Сканировать</span>
-                </button>
-
-                <button id="ocr-cancel-btn" class="btn btn-outline-secondary d-none mt-2" type="button">✖ Отмена
-                </button>
-            </div>
+        <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
+            <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Открыть камеру</button>
+            <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
         </div>
 
-        <!-- Модалка выбора магазина/категории -->
-        <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
-             data-bs-keyboard="false">
+        <!-- ===== КАМЕРА ===== -->
+        <div id="camera-wrapper" class="text-center" style="display:none;">
+            <video
+                    id="camera"
+                    autoplay
+                    playsinline
+                    class="d-block mx-auto"
+                    style="width:100%; max-width:400px; touch-action: manipulation;"
+            ></video>
+
+            <!-- ИНСТРУКЦИЯ -->
+            <div class="text-muted small mt-2">
+                • Нажмите на изображение — сделать снимок<br>
+                • Зажмите — приблизить<br>
+                • Нажмите на цену — распознать именно её
+            </div>
+
+            <button id="ocr-cancel-btn"
+                    class="btn btn-outline-secondary d-none mt-2"
+                    type="button">
+                ✖ Отмена
+            </button>
+        </div>
+
+        <!-- ===== МОДАЛКА НАЧАЛА ПОКУПОК ===== -->
+        <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true"
+             data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog">
                 <div class="modal-content">
+
                     <div class="modal-header">
                         <h5 class="modal-title">Начать покупки</h5>
                     </div>
+
                     <div class="modal-body">
                         <div class="mb-2">
                             <label class="form-label">Магазин</label>
-                            <input type="text" class="form-control" id="shop-store" placeholder="Пятёрочка / Lidl / ..."
-                                   required>
+                            <input type="text" class="form-control" id="shop-store"
+                                   placeholder="Пятёрочка / Lidl / …" required>
                         </div>
+
                         <div class="mb-2">
                             <label class="form-label">Категория</label>
                             <select class="form-select" id="shop-category">
@@ -71,32 +83,39 @@ $entries = $entries ?? [];
                         </div>
 
                         <div class="mb-2">
-                            <label for="shop-limit" class="form-label">Лимит (опц.)</label>
-                            <input id="shop-limit" type="number" step="0.01" inputmode="decimal" class="form-control"
+                            <label class="form-label">Лимит (опц.)</label>
+                            <input id="shop-limit" type="number" step="0.01"
+                                   inputmode="decimal" class="form-control"
                                    placeholder="например, 5000.00">
                         </div>
-                        <small class="text-muted">При указании лимита предупредим о его превышении.</small>
+
+                        <small class="text-muted">
+                            При указании лимита предупредим о его превышении.
+                        </small>
                     </div>
+
                     <div class="modal-footer">
                         <button class="btn btn-outline-secondary" id="shop-begin">Начать</button>
                     </div>
+
                 </div>
             </div>
         </div>
 
-        <!-- Модалка предпросмотра -->
+        <!-- ===== МОДАЛКА ПРЕДПРОСМОТРА ===== -->
         <div class="modal fade" id="scanModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">
+
                     <div class="modal-header">
                         <h5 class="modal-title">Предпросмотр</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Закрыть"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
+
                     <div class="modal-body">
 
                         <div class="mb-3 text-center">
-                            <label for="m-amount" class="form-label mb-1">Цена</label>
+                            <label class="form-label mb-1">Цена</label>
                             <input id="m-amount"
                                    type="text"
                                    class="form-control form-control-lg amount-input text-center"
@@ -105,20 +124,22 @@ $entries = $entries ?? [];
                                    placeholder="0.00"
                                    value="0.00">
                         </div>
+
                         <div class="mb-2 text-start">
                             <label class="form-label">Количество</label>
                             <div class="input-group">
-                                <button class="btn btn-outline-secondary" type="button" id="m-qty-minus">–</button>
-                                <input type="number" step="0.001" class="form-control text-center" id="m-qty"
-                                       value="1">
-                                <button class="btn btn-outline-secondary" type="button" id="m-qty-plus">+</button>
+                                <button class="btn btn-outline-secondary" id="m-qty-minus">–</button>
+                                <input type="number" step="0.001"
+                                       class="form-control text-center" id="m-qty" value="1">
+                                <button class="btn btn-outline-secondary" id="m-qty-plus">+</button>
                             </div>
-                            <small class="text-muted">Штуки добавляем через +/-; килограммы (дробные) можно вводить
-                                вручную.</small>
+                            <small class="text-muted">
+                                Штуки через +/-; килограммы можно вводить вручную
+                            </small>
                         </div>
 
                         <div class="mb-2 text-start">
-                            <label class="form-label">Заметка или название товара (опц.)</label>
+                            <label class="form-label">Заметка или товар (опц.)</label>
                             <input type="text" class="form-control" id="m-note">
                         </div>
 
@@ -126,44 +147,40 @@ $entries = $entries ?? [];
                             <label class="form-label">Из списка покупок (опц.)</label>
 
                             <div class="alice-select-wrap">
-                                <a
-                                        href="index.php?r=alice-item/index"
-                                        class="alice-select-gear"
-                                        title="Редактировать список покупок"
-                                        aria-label="Редактировать список покупок"
-                                >
+                                <a href="index.php?r=alice-item/index"
+                                   class="alice-select-gear"
+                                   title="Редактировать список">
                                     ⚙️
                                 </a>
 
                                 <select id="m-alice-item" class="form-select alice-select">
-                                    <option value="">выберите...</option>
+                                    <option value="">выберите…</option>
                                 </select>
                             </div>
 
                             <small class="text-muted">
-                                Выбранный пункт пометим как купленный
+                                Выбранный пункт будет помечен как купленный
                             </small>
                         </div>
 
-
                         <div class="mb-2" id="m-photo-wrap" style="display:none;">
-                            <img id="m-photo" class="img-fluid" alt="Фото скана"/>
+                            <img id="m-photo" class="img-fluid" alt="Фото скана">
                         </div>
 
                     </div>
-                    <div class="modal-footer d-flex justify-content-between flex-wrap gap-2">
+
+                    <div class="modal-footer d-flex justify-content-between gap-2">
+                        <button class="btn btn-outline-secondary" id="m-show-photo"></button>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-secondary" id="m-show-photo" type="button"></button>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-outline-secondary" id="m-retake" type="button">Переснять</button>
-                            <button class="btn btn-outline-secondary" id="m-save" type="button">Сохранить</button>
+                            <button class="btn btn-outline-secondary" id="m-retake">Переснять</button>
+                            <button class="btn btn-outline-secondary" id="m-save">Сохранить</button>
                         </div>
                     </div>
 
                 </div>
             </div>
         </div>
+
 
         <?php
         $sum = (float)($total ?? 0.0);
