@@ -560,8 +560,16 @@ footer, footer .container {
     font-size: 16px;
 }
 
-#camera.zooming {
-    transform: scale(2);
-    transition: transform 0.08s linear;
-    touch-action: none;
+#camera-wrapper {
+    position: relative;
 }
+
+#zoom-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: none;
+    background-repeat: no-repeat;
+    background-size: 200%;
+}
+

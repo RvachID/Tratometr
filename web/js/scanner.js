@@ -2,14 +2,6 @@
 (function () {
     const { getCsrf, fmt2, resetPhotoPreview } = window.Utils;
 
-    let zoomActive = false;
-    let zoomPoint = null;
-    let zoomTimer = null;
-
-    const ZOOM_FACTOR = 2;
-    const ZOOM_HOLD_MS = 250;
-
-
     // ===== DOM =====
     const startBtn   = document.getElementById('start-scan');
     const wrap       = document.getElementById('camera-wrapper');
@@ -261,6 +253,15 @@
     async function getStream(c) { return await navigator.mediaDevices.getUserMedia(c); }
 
 
+    let zoomActive = false;
+    let zoomPoint = null;
+    let zoomTimer = null;
+
+    const ZOOM_FACTOR = 2;
+    const ZOOM_HOLD_MS = 300;
+
+    const overlay = document.getElementById('zoom-overlay');
+
     if (video) {
         video.addEventListener('pointerdown', (e) => {
             if (scanBusy) return;
@@ -273,8 +274,14 @@
                 zoomActive = true;
                 zoomPoint = { x, y };
 
-                video.classList.add('zooming');
-                video.style.transformOrigin = `${x}px ${y}px`;
+                overlay.style.display = 'block';
+                overlay.style.backgroundImage = `url(${getVideoFrameURL()})`;
+
+                const bx = (x / rect.width) * 100;
+                const by = (y / rect.height) * 100;
+
+                overlay.style.backgroundPosition = `${bx}% ${by}%`;
+                overlay.style.backgroundSize = `${ZOOM_FACTOR * 100}%`;
             }, ZOOM_HOLD_MS);
         });
 
@@ -286,30 +293,28 @@
             const y = e.clientY - rect.top;
 
             zoomPoint = { x, y };
-            video.style.transformOrigin = `${x}px ${y}px`;
+
+            const bx = (x / rect.width) * 100;
+            const by = (y / rect.height) * 100;
+
+            overlay.style.backgroundPosition = `${bx}% ${by}%`;
         });
 
         const endPointer = async () => {
             clearTimeout(zoomTimer);
 
-            // 🔴 ВАЖНО: если зум НЕ был активирован — ничего не делаем
-            if (!zoomActive) {
-                zoomActive = false;
-                return;
-            }
+            if (!zoomActive) return;
 
-            // ✔️ зум был → значит запускаем скан ПОСЛЕ отпускания
             zoomActive = false;
-            video.classList.remove('zooming');
-            video.style.transformOrigin = '';
+            overlay.style.display = 'none';
 
+            // ⬅️ СКАН СТРОГО ПОСЛЕ ОТПУСКАНИЯ
             await captureAndRecognize(true);
         };
 
         video.addEventListener('pointerup', endPointer);
         video.addEventListener('pointercancel', endPointer);
     }
-
 
     async function initCamera() {
         await stopStream();

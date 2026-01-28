@@ -25,11 +25,21 @@ $entries = $entries ?? [];
                 <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
             </div>
 
-            <div id="camera-wrapper" class="text-center" style="display:none;">
-                <video id="camera" autoplay playsinline class="d-block mx-auto"
-                       style="width:100%; max-width:400px;"></video>
+            <div id="camera-wrapper"
+                 class="text-center position-relative"
+                 style="display:none; max-width:400px; margin:0 auto;">
 
-                <button id="capture" class="btn btn-outline-secondary d-block mx-auto mt-2" type="button">
+                <video id="camera"
+                       autoplay
+                       playsinline
+                       class="d-block w-100">
+                </video>
+
+                <!-- ZOOM OVERLAY -->
+                <div id="zoom-overlay"></div>
+            </div>
+
+            <button id="capture" class="btn btn-outline-secondary d-block mx-auto mt-2" type="button">
                     <span class="spinner d-none spinner-border spinner-border-sm me-1"></span>
                     <span class="btn-text">📸 Сканировать</span>
                 </button>
