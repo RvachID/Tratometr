@@ -5,8 +5,9 @@
     let zoomActive = false;
     let zoomPoint = null;
     let zoomTimer = null;
+
     const ZOOM_FACTOR = 2;
-    const ZOOM_HOLD_MS = 250; // порог "долгого тапа"
+    const ZOOM_HOLD_MS = 250;
 
 
     // ===== DOM =====
@@ -258,6 +259,8 @@
         }
     }
     async function getStream(c) { return await navigator.mediaDevices.getUserMedia(c); }
+
+
     if (video) {
         video.addEventListener('pointerdown', (e) => {
             if (scanBusy) return;
@@ -289,8 +292,13 @@
         const endPointer = async () => {
             clearTimeout(zoomTimer);
 
-            if (!zoomActive) return;
+            // 🔴 ВАЖНО: если зум НЕ был активирован — ничего не делаем
+            if (!zoomActive) {
+                zoomActive = false;
+                return;
+            }
 
+            // ✔️ зум был → значит запускаем скан ПОСЛЕ отпускания
             zoomActive = false;
             video.classList.remove('zooming');
             video.style.transformOrigin = '';
@@ -301,6 +309,7 @@
         video.addEventListener('pointerup', endPointer);
         video.addEventListener('pointercancel', endPointer);
     }
+
 
     async function initCamera() {
         await stopStream();
