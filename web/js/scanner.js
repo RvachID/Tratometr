@@ -271,17 +271,19 @@
             const y = e.clientY - rect.top;
 
             zoomTimer = setTimeout(() => {
+                const frame = getVideoFrameDataURL();
+                if (!frame) return;
+
                 zoomActive = true;
                 zoomPoint = { x, y };
 
                 overlay.style.display = 'block';
-                overlay.style.backgroundImage = `url(${getVideoFrameURL()})`;
+                overlay.style.backgroundImage = `url(${frame})`;
+                overlay.style.backgroundSize = `${ZOOM_FACTOR * 100}%`;
 
                 const bx = (x / rect.width) * 100;
                 const by = (y / rect.height) * 100;
-
                 overlay.style.backgroundPosition = `${bx}% ${by}%`;
-                overlay.style.backgroundSize = `${ZOOM_FACTOR * 100}%`;
             }, ZOOM_HOLD_MS);
         });
 
@@ -296,7 +298,6 @@
 
             const bx = (x / rect.width) * 100;
             const by = (y / rect.height) * 100;
-
             overlay.style.backgroundPosition = `${bx}% ${by}%`;
         });
 
@@ -308,12 +309,26 @@
             zoomActive = false;
             overlay.style.display = 'none';
 
-            // ⬅️ СКАН СТРОГО ПОСЛЕ ОТПУСКАНИЯ
+            // 🔥 Скан СТРОГО после отпускания
             await captureAndRecognize(true);
         };
 
         video.addEventListener('pointerup', endPointer);
         video.addEventListener('pointercancel', endPointer);
+    }
+
+
+    function getVideoFrameDataURL() {
+        if (!video.videoWidth || !video.videoHeight) return null;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+
+        return canvas.toDataURL('image/jpeg', 0.9);
     }
 
     async function initCamera() {
