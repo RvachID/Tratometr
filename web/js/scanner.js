@@ -2,6 +2,13 @@
 (function () {
     const { getCsrf, fmt2, resetPhotoPreview } = window.Utils;
 
+    let zoomActive = false;
+    let zoomPoint = null;
+    let zoomTimer = null;
+    const ZOOM_FACTOR = 2;
+    const ZOOM_HOLD_MS = 250; // порог "долгого тапа"
+
+
     // ===== DOM =====
     const startBtn   = document.getElementById('start-scan');
     const wrap       = document.getElementById('camera-wrapper');
@@ -251,46 +258,132 @@
         }
     }
     async function getStream(c) { return await navigator.mediaDevices.getUserMedia(c); }
-    async function initCamera() {
-        await stopStream();
-        const primary = { video: { facingMode: { ideal: 'environment' } }, audio: false };
-        try { currentStream = await getStream(primary); }
-        catch { currentStream = await getStream({ video: true, audio: false }); }
-        video.setAttribute('playsinline','true');
-        video.srcObject = currentStream;
-        await new Promise(res => {
-            const h = () => { video.removeEventListener('loadedmetadata', h); res(); };
-            if (video.readyState >= 1) res(); else video.addEventListener('loadedmetadata', h);
+    if (video) {
+        video.addEventListener('pointerdown', (e) => {
+            if (scanBusy) return;
+
+            const rect = video.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            zoomTimer = setTimeout(() => {
+                zoomActive = true;
+                zoomPoint = { x, y };
+
+                video.classList.add('zooming');
+                video.style.transformOrigin = `${x}px ${y}px`;
+            }, ZOOM_HOLD_MS);
         });
-        try { await video.play(); } catch {}
+
+        video.addEventListener('pointermove', (e) => {
+            if (!zoomActive) return;
+
+            const rect = video.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            zoomPoint = { x, y };
+            video.style.transformOrigin = `${x}px ${y}px`;
+        });
+
+        const endPointer = async () => {
+            clearTimeout(zoomTimer);
+
+            if (!zoomActive) return;
+
+            zoomActive = false;
+            video.classList.remove('zooming');
+            video.style.transformOrigin = '';
+
+            await captureAndRecognize(true);
+        };
+
+        video.addEventListener('pointerup', endPointer);
+        video.addEventListener('pointercancel', endPointer);
     }
 
+    async function initCamera() {
+        await stopStream();
+
+        const primary = { video: { facingMode: { ideal: 'environment' } }, audio: false };
+
+        try {
+            currentStream = await getStream(primary);
+        } catch {
+            currentStream = await getStream({ video: true, audio: false });
+        }
+
+        video.setAttribute('playsinline', 'true');
+        video.srcObject = currentStream;
+
+        await new Promise(res => {
+            if (video.readyState >= 1) return res();
+            video.addEventListener('loadedmetadata', res, { once: true });
+        });
+
+        try {
+            await video.play();
+        } catch {}
+    }
+
+
     // Скан + OCR (скрытое превью по умолчанию, видим то, что отправили)
-    async function captureAndRecognize() {
+    async function captureAndRecognize(fromZoom = false) {
         if (scanBusy) return;
         scanBusy = true;
+
         if (captureBtn) captureBtn.disabled = true;
         if (btnSpinnerEl) btnSpinnerEl.style.display = 'inline-block';
         if (btnTextEl && btnTextEl !== captureBtn) btnTextEl.textContent = 'Сканируем…';
         else if (captureBtn) captureBtn.textContent = 'Сканируем…';
 
-        // включаем UI отмены
+        // UI отмены OCR
         ocrUi(true);
 
         try {
-            if (!video.videoWidth || !video.videoHeight) { alert('Камера ещё не готова'); return; }
+            if (!video.videoWidth || !video.videoHeight) {
+                alert('Камера ещё не готова');
+                return;
+            }
 
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+
+            // ===== вычисление области захвата =====
+            let sx = 0, sy = 0, sw = vw, sh = vh;
+
+            if (fromZoom && zoomPoint) {
+                const scaleX = vw / video.clientWidth;
+                const scaleY = vh / video.clientHeight;
+
+                const cx = zoomPoint.x * scaleX;
+                const cy = zoomPoint.y * scaleY;
+
+                sw = vw / ZOOM_FACTOR;
+                sh = vh / ZOOM_FACTOR;
+
+                sx = Math.max(0, cx - sw / 2);
+                sy = Math.max(0, cy - sh / 2);
+
+                if (sx + sw > vw) sx = vw - sw;
+                if (sy + sh > vh) sy = vh - sh;
+            }
+
+            // ===== canvas =====
             const canvas = document.createElement('canvas');
 
-            // Масштабирование внутрь функции (точно тот же кадр и размер, что уйдёт на сервер)
-            const scale = Math.min(1, MAX_W / Math.max(1, video.videoWidth));
-            canvas.width  = Math.round(video.videoWidth  * scale);
-            canvas.height = Math.round(video.videoHeight * scale);
+            const scale = Math.min(1, MAX_W / Math.max(sw, sh));
+            canvas.width  = Math.round(sw * scale);
+            canvas.height = Math.round(sh * scale);
 
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(
+                video,
+                sx, sy, sw, sh,
+                0, 0, canvas.width, canvas.height
+            );
 
-            // Опциональная Ч/Б-предобработка (по флагу)
+            // ===== опциональная Ч/Б-предобработка =====
             if (USE_CLIENT_BW) {
                 const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const data = img.data;
@@ -305,24 +398,28 @@
             await new Promise((resolve) => {
                 canvas.toBlob((blob) => {
                     try {
-                        if (!blob) { alert('Не удалось получить изображение'); return resolve(false); }
+                        if (!blob) {
+                            alert('Не удалось получить изображение');
+                            return resolve(false);
+                        }
 
-                        // Сохраняем ровно тот кадр, который отправляем
+                        // сохраняем именно тот кадр, что ушёл на OCR
                         if (lastPhotoURL) URL.revokeObjectURL(lastPhotoURL);
                         lastPhotoURL = URL.createObjectURL(blob);
-
-                        // На странице ничего не показываем (скрыто по умолчанию).
-                        // Превью покажется ТОЛЬКО при ошибке OCR (ниже) или по кнопке в модалке.
 
                         const formData = new FormData();
                         formData.append('image', blob, 'scan.jpg');
 
                         const csrf = getCsrf();
-                        if (!csrf) { alert('CSRF-токен не найден'); return resolve(false); }
+                        if (!csrf) {
+                            alert('CSRF-токен не найден');
+                            return resolve(false);
+                        }
 
-                        // AbortController + таймаут
                         ocrAbortCtrl = new AbortController();
-                        ocrTimer = setTimeout(() => { try { ocrAbortCtrl.abort('timeout'); } catch (_) {} }, OCR_TIMEOUT_MS);
+                        ocrTimer = setTimeout(() => {
+                            try { ocrAbortCtrl.abort('timeout'); } catch (_) {}
+                        }, OCR_TIMEOUT_MS);
 
                         fetch('/index.php?r=scan/recognize', {
                             method: 'POST',
@@ -332,39 +429,44 @@
                             signal: ocrAbortCtrl.signal
                         })
                             .then(async r => {
-                                if (r.status === 429) throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
+                                if (r.status === 429) {
+                                    throw new Error('Превышен лимит OCR-запросов. Подождите минуту и попробуйте снова.');
+                                }
                                 const ct = r.headers.get('content-type') || '';
-                                if (!ct.includes('application/json')) { throw new Error('Сервер вернул не JSON.'); }
+                                if (!ct.includes('application/json')) {
+                                    throw new Error('Сервер вернул не JSON.');
+                                }
                                 return r.json();
                             })
                             .then(res => {
                                 if (!res.success) {
                                     const msg = (res.error || '').toLowerCase();
-                                    // Покажем превью на СТРАНИЦЕ только при неудачном распознавании
-                                    if (previewImg && lastPhotoURL &&
-                                        (msg.includes('не удалось извлечь цену') || msg.includes('цена не распознана') || res.reason === 'no_amount')) {
+                                    if (
+                                        previewImg &&
+                                        lastPhotoURL &&
+                                        (
+                                            msg.includes('не удалось извлечь цену') ||
+                                            msg.includes('цена не распознана') ||
+                                            res.reason === 'no_amount'
+                                        )
+                                    ) {
                                         previewImg.src = lastPhotoURL;
                                     }
                                     throw new Error(res.error || 'Не удалось распознать цену');
                                 }
 
-                                // Успех: модалка с полями, фото скрыто (откроется по "Показать скан")
                                 if (mShowPhotoBtn) mShowPhotoBtn.style.display = '';
+
                                 mAmountEl.value = fmt2(res.recognized_amount);
                                 mQtyEl.value = 1;
                                 mNoteEl.value = '';
                                 lastParsedText = res.parsed_text || '';
 
-                                if (mAliceSelect) {
-                                    mAliceSelect.value = '';
-                                }
+                                if (mAliceSelect) mAliceSelect.value = '';
 
-
-                                // Явно скрываем и сбрасываем состояние превью в модалке
                                 resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
-                                // (кнопка "Показать скан" поднимет mPhotoWrap и возьмёт lastPhotoURL)
-
                                 bootstrapModal?.show();
+
                                 resolve(true);
                             })
                             .catch(err => {
@@ -396,6 +498,7 @@
             ocrCleanup();
         }
     }
+
 
     // Кнопки модалки
     if (mQtyMinusEl && mQtyPlusEl && mQtyEl) {

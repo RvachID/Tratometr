@@ -559,3 +559,9 @@ footer, footer .container {
 .table .done-toggle .check {
     font-size: 16px;
 }
+
+#camera.zooming {
+    transform: scale(2);
+    transition: transform 0.08s linear;
+    touch-action: none;
+}
