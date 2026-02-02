@@ -62,16 +62,23 @@ function rowValueAndLabel(array $r): array
     <div class="d-none d-sm-block">
         <table class="table table-sm align-middle">
             <thead>
-            <tr class="history-row"
-                data-url="<?= \yii\helpers\Url::to(['site/session-view', 'id' => (int)$r['id']]) ?>"
-                style="cursor:pointer;">
-
+            <thead>
+            <tr>
+                <th style="width:160px;">Дата и время</th>
+                <th>Магазин</th>
+                <th>Категория</th>
+                <th style="width:110px;">Тип</th>
+                <th class="text-end" style="width:140px;">Сумма</th>
+                <th class="text-end" style="width:90px;">Действия</th>
+            </tr>
             </thead>
             <tbody>
             <?php foreach ($items as $r):
                 [$value, $label, $isOver, $ts, $sumRub, $limitRub] = rowValueAndLabel($r);
                 ?>
-                <tr>
+                <tr class="history-row"
+                       data-url="<?= \yii\helpers\Url::to(['site/session-view', 'id' => (int)$r['id']]) ?>"
+                       style="cursor:pointer;">
                     <td>
                         <?= $fmt->asTime($ts, 'php:H:i') ?><br>
                         <span class="text-muted small"><?= $fmt->asDate($ts, 'php:d.m.Y') ?></span>

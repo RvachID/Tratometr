@@ -586,3 +586,7 @@ footer, footer .container {
 .cursor-pointer{
     cursor:pointer;
 }
+.history-row:active{
+    transform:scale(.998);
+}
+
