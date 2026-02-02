@@ -56,7 +56,7 @@ endif;
                 </button>
             </div>
         </div>
-<?php endif; ?>
+
         <!-- Модалка выбора магазина/категории -->
         <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
              data-bs-keyboard="false">
@@ -182,7 +182,7 @@ endif;
                 </div>
             </div>
         </div>
-
+<?php endif; ?>
         <?php
         $sum = (float)($total ?? 0.0);
         $lim = $limit !== null ? (float)$limit : null;
