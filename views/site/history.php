@@ -62,14 +62,10 @@ function rowValueAndLabel(array $r): array
     <div class="d-none d-sm-block">
         <table class="table table-sm align-middle">
             <thead>
-            <tr>
-                <th style="width:160px;">Дата и время</th>
-                <th>Магазин</th>
-                <th>Категория</th>
-                <th style="width:110px;">Тип</th>
-                <th class="text-end" style="width:140px;">Сумма</th>
-                <th class="text-end" style="width:90px;">Действия</th>
-            </tr>
+            <tr class="history-row"
+                data-url="<?= \yii\helpers\Url::to(['site/session-view', 'id' => (int)$r['id']]) ?>"
+                style="cursor:pointer;">
+
             </thead>
             <tbody>
             <?php foreach ($items as $r):
@@ -83,13 +79,13 @@ function rowValueAndLabel(array $r): array
                     <td><?= Html::encode($r['shop']) ?></td>
                     <td><?= Html::encode($r['category']) ?></td>
                     <td><?= Html::encode($label) ?></td>
-                    <td class="text-end <?= $isOver ? 'text-danger fw-bold' : '' ?>">
+                    <td class="text-end no-row-click <?= $isOver ? 'text-danger fw-bold' : '' ?>">
                         <?= number_format($value, 2, '.', ' ') ?>
                         <?php if ($limitRub !== null): ?>
                             <div class="text-muted small">(<?= number_format($sumRub, 2, '.', ' ') ?>)</div>
                         <?php endif; ?>
                     </td>
-                    <td class="text-end">
+                    <td class="text-end no-row-click">
                         <?= Html::beginForm(['site/delete-session', 'id' => (int)$r['id']], 'post', [
                             'onsubmit' => "return confirm('Удалить сессию и все её позиции? Это действие необратимо.');"
                         ]) ?>
@@ -107,7 +103,9 @@ function rowValueAndLabel(array $r): array
         <?php foreach ($items as $r):
             [$value, $label, $isOver, $ts, $sumRub, $limitRub] = rowValueAndLabel($r);
             ?>
-            <div class="card border-0 shadow-sm mb-2">
+            <div class="card border-0 shadow-sm mb-2 history-row"
+                 data-url="<?= \yii\helpers\Url::to(['site/session-view', 'id' => (int)$r['id']]) ?>"
+                 style="cursor:pointer;">
                 <div class="card-body py-2">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
@@ -129,7 +127,7 @@ function rowValueAndLabel(array $r): array
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-end mt-2">
+                    <div class="d-flex justify-content-end mt-2 no-row-click">
                         <?= Html::beginForm(['site/delete-session', 'id' => (int)$r['id']], 'post', [
                             'onsubmit' => "return confirm('Удалить сессию и все её позиции? Это действие необратимо.');"
                         ]) ?>
@@ -141,3 +139,20 @@ function rowValueAndLabel(array $r): array
         <?php endforeach; ?>
     </div>
 </div>
+<?php
+$this->registerJs(<<<JS
+document.addEventListener('click', function(e){
+
+    const noClick = e.target.closest('.no-row-click');
+    if (noClick) return;
+
+    const row = e.target.closest('.history-row');
+    if (!row) return;
+
+    const url = row.dataset.url;
+    if (url) {
+        window.location = url;
+    }
+});
+JS);
+?>

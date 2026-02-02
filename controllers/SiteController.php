@@ -162,6 +162,50 @@ class SiteController extends Controller
         ]);
     }
 
+    public function actionSessionView($id)
+    {
+        if (Yii::$app->user->isGuest) {
+            return $this->redirect(['auth/login']);
+        }
+
+        $userId = Yii::$app->user->id;
+
+        $session = PurchaseSession::find()
+            ->where([
+                'id' => $id,
+                'user_id' => $userId
+            ])
+            ->one();
+
+        if (!$session) {
+            throw new NotFoundHttpException();
+        }
+
+        $entries = PriceEntry::find()
+            ->where([
+                'user_id' => $userId,
+                'session_id' => $session->id,
+            ])
+            ->with('aliceItem')
+            ->orderBy(['id' => SORT_DESC])
+            ->limit(200)
+            ->all();
+
+        $total = $this->priceEntryService
+            ->getUserTotal($userId, $session->id);
+
+        return $this->render('scan', [
+            'mode'       => 'view', // 🔥 ВОТ КЛЮЧ
+            'store'      => $session->shop,
+            'category'   => $session->category,
+            'entries'    => $entries,
+            'total'      => $total,
+            'needPrompt' => false,
+            'limit'      => $this->sessionManager->formatLimit($session),
+            'aliceItems' => [], // не нужны
+        ]);
+    }
+
     public function actionSessionStatus()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;

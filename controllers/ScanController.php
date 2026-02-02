@@ -121,7 +121,6 @@ class ScanController extends Controller
         }
     }
 
-
     public function actionUpdate($id)
     {
         try {

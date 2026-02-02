@@ -10,6 +10,13 @@ $this->title = 'Сканнер';
 $total = $total ?? 0;
 $entries = $entries ?? [];
 
+$mode = $mode ?? 'scan';
+$isView = $mode === 'view';
+if (!$isView):
+    $this->registerJsFile('@web/js/scanner.js', ['depends' => [\yii\web\JqueryAsset::class]]);
+endif;
+
+
 ?>
     <div class="container mt-3 text-center"
          id="scan-root"
@@ -20,6 +27,7 @@ $entries = $entries ?? [];
         <div class="container mt-3 text-center">
             <h6 id="scan-title" class="mb-2">Тратометр</h6>
 
+<?php if (!$isView): ?>
             <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
                 <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Открыть камеру</button>
                 <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
@@ -48,7 +56,7 @@ $entries = $entries ?? [];
                 </button>
             </div>
         </div>
-
+<?php endif; ?>
         <!-- Модалка выбора магазина/категории -->
         <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
              data-bs-keyboard="false">
@@ -213,50 +221,93 @@ $entries = $entries ?? [];
             <?php endif; ?>
         </div>
 
-        <div class="mt-3 text-start">
-            <?php foreach ($entries as $entry): ?>
-                <div class="border p-2 mb-2">
-                    <?php if ($entry->aliceItem): ?>
-                        <div class="mb-2">
-        <span class="badge entry-badge">
-            <?= Html::encode($entry->aliceItem->title) ?>
-        </span>
-                        </div>
-                    <?php endif; ?>
+<div class="mt-3 text-start">
 
+    <?php foreach ($entries as $entry): ?>
 
-                    <form class="entry-form" data-id="<?= $entry->id ?>">
-                        Цена:
-                        <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
-                               class="form-control mb-1">
+        <div class="border p-2 mb-2">
 
-                        <input type="hidden" name="category" value="<?= Html::encode($entry->category) ?>">
-
-                        Штук или килограмм:
-                        <input type="number" step="0.001" name="qty" value="<?= $entry->qty ?>"
-                               class="form-control mb-1">
-
-                        <!-- сюда фронт уже кладёт текст заметки -->
-                        <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
-                    </form>
-
-                    <!-- слот для заметки (JS будет рендерить сюда) -->
-                    <div class="entry-note-wrap"></div>
-
-                    <!-- Кнопки всегда внизу -->
-                    <div class="d-flex gap-2 mt-2">
-                        <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
-                        <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
-                    </div>
+            <?php if ($entry->aliceItem): ?>
+                <div class="mb-2">
+                <span class="badge entry-badge">
+                    <?= Html::encode($entry->aliceItem->title) ?>
+                </span>
                 </div>
-            <?php endforeach; ?>
+            <?php endif; ?>
+
+
+            <?php if ($isView): ?>
+
+                <!-- READ ONLY -->
+
+                <div>
+                    <strong>Цена:</strong>
+                    <input type="text"
+                           value="<?= number_format($entry->amount, 2) ?>"
+                           class="form-control mb-1"
+                           readonly>
+                </div>
+
+                <div>
+                    <strong>Количество:</strong>
+                    <input type="text"
+                           value="<?= $entry->qty ?>"
+                           class="form-control mb-1"
+                           readonly>
+                </div>
+
+                <?php if ($entry->note): ?>
+                    <div class="text-muted small mt-1">
+                        <?= Html::encode($entry->note) ?>
+                    </div>
+                <?php endif; ?>
+
+
+            <?php else: ?>
+
+                <!-- EDIT MODE -->
+
+                <form class="entry-form" data-id="<?= $entry->id ?>">
+
+                    Цена:
+                    <input type="number"
+                           step="0.01"
+                           name="amount"
+                           value="<?= $entry->amount ?>"
+                           class="form-control mb-1">
+
+                    <input type="hidden"
+                           name="category"
+                           value="<?= Html::encode($entry->category) ?>">
+
+                    Штук или килограмм:
+                    <input type="number"
+                           step="0.001"
+                           name="qty"
+                           value="<?= $entry->qty ?>"
+                           class="form-control mb-1">
+
+                    <input type="hidden"
+                           name="note"
+                           value="<?= Html::encode($entry->note) ?>">
+                </form>
+
+                <div class="entry-note-wrap"></div>
+
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-sm btn-outline-danger delete-entry" type="button">
+                        🗑 Удалить
+                    </button>
+
+                    <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">
+                        💾
+                    </button>
+                </div>
+
+            <?php endif; ?>
+
         </div>
 
+    <?php endforeach; ?>
 
-    </div>
-    </div>
-
-<?php
-
-
-
+</div>

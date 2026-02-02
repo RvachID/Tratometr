@@ -574,3 +574,15 @@ footer, footer .container {
     background-size: 200%;
     background-position: center;
 }
+
+
+.history-row:hover {
+    background:#f5f7fa;
+}
+.card.history-row:hover{
+    transform:translateY(-2px);
+    transition:.15s;
+}
+.cursor-pointer{
+    cursor:pointer;
+}
