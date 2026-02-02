@@ -12,17 +12,6 @@ $this->title = $isView ? 'Покупки' : 'Сканнер';
 $total = $total ?? 0;
 $entries = $entries ?? [];
 
-if (!$isView) {
-    $this->registerJsFile('@web/js/scanner.js', ['depends' => [\yii\web\JqueryAsset::class]]);
-}
-
-$sum = (float)$total;
-$lim = $limit !== null ? (float)$limit : null;
-$rest = $lim !== null ? ($lim - $sum) : null;
-$isOver = $lim !== null && $rest < 0;
-
-$fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
-
 ?>
 
 <div class="container mt-3 text-center"
@@ -33,13 +22,12 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
 
 
     <!-- =====================================================
-            SCAN UI (НЕ ТРОГАЕМ)
+            SCAN UI — ОРИГИНАЛ. НЕ ТРОГАЕМ.
     ===================================================== -->
 
     <?php if (!$isView): ?>
 
         <div class="container mt-3 text-center">
-
             <h6 id="scan-title" class="mb-2">Тратометр</h6>
 
             <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
@@ -54,7 +42,8 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
                 <video id="camera"
                        autoplay
                        playsinline
-                       class="d-block w-100"></video>
+                       class="d-block w-100">
+                </video>
 
                 <div id="zoom-overlay"></div>
             </div>
@@ -64,23 +53,34 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
                 <span class="btn-text">📸 Сканировать</span>
             </button>
 
-            <button id="ocr-cancel-btn" class="btn btn-outline-secondary d-none mt-2" type="button">
-                ✖ Отмена
-            </button>
+            <button id="ocr-cancel-btn" class="btn btn-outline-secondary d-none mt-2" type="button">✖ Отмена</button>
+        </div>
 
+
+        <!-- МОДАЛКИ — тоже только scan -->
+
+        <!-- Модалка выбора магазина/категории -->
+        <div class="modal fade" id="shopModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+             data-bs-keyboard="false">
+            ...
+        </div>
+
+        <!-- Модалка предпросмотра -->
+        <div class="modal fade" id="scanModal" tabindex="-1" aria-hidden="true">
+            ...
         </div>
 
     <?php endif; ?>
 
 
     <!-- =====================================================
-            SESSION HEADER (ТОЛЬКО VIEW)
+            VIEW HEADER (новый, безопасный)
     ===================================================== -->
 
     <?php if ($isView): ?>
 
         <div class="card border-0 shadow-sm mb-3 text-start">
-            <div class="card-body py-3">
+            <div class="card-body">
 
                 <div class="fw-semibold">
                     <?= Html::encode($category) ?>
@@ -90,26 +90,16 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
                     <?= Html::encode($store) ?>
                 </div>
 
-                <?php if (!empty($sessionTs)): ?>
-                    <div class="text-muted small">
-                        <?= Yii::$app->formatter->asDatetime($sessionTs, 'php:d.m.Y H:i') ?>
-                    </div>
-                <?php endif; ?>
-
-                <?php if ($lim !== null): ?>
+                <?php if ($limit !== null): ?>
                     <div class="small mt-2">
                         Лимит:
-                        <span class="fw-semibold">
-                        <?= $fmt($lim) ?>
-                    </span>
+                        <strong><?= number_format((float)$limit, 2, '.', ' ') ?></strong>
                     </div>
                 <?php endif; ?>
 
                 <div class="mt-1">
-                    <span class="text-muted">Итого:</span>
-                    <span class="fw-bold">
-                    <?= $fmt($sum) ?>
-                </span>
+                    Итого:
+                    <strong><?= number_format((float)$total, 2, '.', ' ') ?></strong>
                 </div>
 
             </div>
@@ -119,10 +109,19 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
 
 
     <!-- =====================================================
-            TOTAL-WRAP (КРИТИЧЕСКИЙ БЛОК — ТОЛЬКО SCAN)
+            TOTAL — ТОЛЬКО SCAN
     ===================================================== -->
 
     <?php if (!$isView): ?>
+
+        <?php
+        $sum = (float)($total ?? 0.0);
+        $lim = $limit !== null ? (float)$limit : null;
+        $rest = $lim !== null ? ($lim - $sum) : null;
+        $isOver = $lim !== null && $rest < 0;
+
+        $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
+        ?>
 
         <div class="mt-3" id="total-wrap"
              data-limit="<?= $lim !== null ? $fmt($lim) : '' ?>"
@@ -131,10 +130,7 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
             <?php if ($lim === null): ?>
 
                 <div class="total-total">
-            <span class="me-1">
-                <strong id="scan-total-label"><?= $totalLabel ?? 'Общая сумма:' ?></strong>
-            </span>
-
+                    <span class="me-1"><strong id="scan-total-label"><?= $totalLabel ?? 'Общая сумма:' ?></strong></span>
                     <strong id="scan-total"><?= $fmt($sum) ?></strong>
                 </div>
 
@@ -142,9 +138,7 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
 
                 <div class="total-total">
                     <span class="me-1"><strong id="scan-remaining-label">До лимита:</strong></span>
-
-                    <strong id="scan-remaining"
-                            class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
+                    <strong id="scan-remaining" class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
                         <?= $fmt($rest) ?>
                     </strong>
                 </div>
@@ -170,41 +164,27 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
 
     <div class="mt-3 text-start">
 
-        <?php foreach ($entries as $entry):
-
-            $entrySum = $entry->qty * $entry->amount;
-            ?>
+        <?php foreach ($entries as $entry): ?>
 
             <div class="border p-2 mb-2">
 
                 <?php if ($entry->aliceItem): ?>
                     <div class="mb-2">
-            <span class="badge entry-badge">
-                <?= Html::encode($entry->aliceItem->title) ?>
-            </span>
+        <span class="badge entry-badge">
+            <?= Html::encode($entry->aliceItem->title) ?>
+        </span>
                     </div>
                 <?php endif; ?>
 
 
                 <?php if ($isView): ?>
 
-                    <!-- SAFE READ MODE (без input) -->
+                    <!-- VIEW MODE — БЕЗ INPUT -->
 
-                    <div class="d-flex justify-content-between small">
-                        <div>
-                            Кол-во:
-                            <strong><?= rtrim(rtrim(number_format($entry->qty, 3, '.', ''), '0'), '.') ?></strong>
-                        </div>
-
-                        <div>
-                            Цена:
-                            <strong><?= $fmt($entry->amount) ?></strong>
-                        </div>
-
-                        <div>
-                            Сумма:
-                            <strong><?= $fmt($entrySum) ?></strong>
-                        </div>
+                    <div class="d-flex justify-content-between">
+                        <div>Кол-во: <strong><?= $entry->qty ?></strong></div>
+                        <div>Цена: <strong><?= number_format($entry->amount, 2) ?></strong></div>
+                        <div>Сумма: <strong><?= number_format($entry->qty * $entry->amount, 2) ?></strong></div>
                     </div>
 
                     <?php if ($entry->note): ?>
@@ -216,31 +196,20 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
 
                 <?php else: ?>
 
-                    <!-- EDIT MODE — НЕ ТРОГАЕМ -->
+                    <!-- ORIGINAL SCAN FORM -->
 
                     <form class="entry-form" data-id="<?= $entry->id ?>">
-
                         Цена:
-                        <input type="number"
-                               step="0.01"
-                               name="amount"
-                               value="<?= $entry->amount ?>"
+                        <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
                                class="form-control mb-1">
 
-                        <input type="hidden"
-                               name="category"
-                               value="<?= Html::encode($entry->category) ?>">
+                        <input type="hidden" name="category" value="<?= Html::encode($entry->category) ?>">
 
                         Штук или килограмм:
-                        <input type="number"
-                               step="0.001"
-                               name="qty"
-                               value="<?= $entry->qty ?>"
+                        <input type="number" step="0.001" name="qty" value="<?= $entry->qty ?>"
                                class="form-control mb-1">
 
-                        <input type="hidden"
-                               name="note"
-                               value="<?= Html::encode($entry->note) ?>">
+                        <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
                     </form>
 
                     <div class="entry-note-wrap"></div>
@@ -257,17 +226,5 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
         <?php endforeach; ?>
 
     </div>
-
-
-    <!-- =====================================================
-            MODALS
-    ===================================================== -->
-
-    <?php if (!$isView): ?>
-        <?= $this->render('_scan_modals', [
-            'aliceItems' => $aliceItems
-        ]) ?>
-    <?php endif; ?>
-
 
 </div>
