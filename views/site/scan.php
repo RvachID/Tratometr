@@ -10,6 +10,9 @@ $this->title = 'Сканнер';
 $total = $total ?? 0;
 $entries = $entries ?? [];
 
+$mode = $mode ?? 'scan';
+$isView = $mode === 'view';
+
 ?>
     <div class="container mt-3 text-center"
          id="scan-root"
@@ -17,6 +20,8 @@ $entries = $entries ?? [];
          data-category="<?= Html::encode($category) ?>"
          data-need-prompt="<?= !empty($needPrompt) ? '1' : '0' ?>">
 
+
+<?php if (!$isView): ?>
         <div class="container mt-3 text-center">
             <h6 id="scan-title" class="mb-2">Тратометр</h6>
 
@@ -174,7 +179,39 @@ $entries = $entries ?? [];
                 </div>
             </div>
         </div>
+<?php endif; ?>
 
+<?php if ($isView): ?>
+
+    <div class="card border-0 shadow-sm mb-3 text-start">
+        <div class="card-body">
+
+            <div class="fw-semibold">
+                <?= Html::encode($category) ?>
+            </div>
+
+            <div class="text-muted small">
+                <?= Html::encode($store) ?>
+            </div>
+
+            <?php if ($limit !== null): ?>
+                <div class="small mt-2">
+                    Лимит:
+                    <strong><?= number_format((float)$limit, 2, '.', ' ') ?></strong>
+                </div>
+            <?php endif; ?>
+
+            <div class="mt-1">
+                Итого:
+                <strong><?= number_format((float)$total, 2, '.', ' ') ?></strong>
+            </div>
+
+        </div>
+    </div>
+
+<?php endif; ?>
+
+<?php if (!$isView): ?>
         <?php
         $sum = (float)($total ?? 0.0);
         $lim = $limit !== null ? (float)$limit : null;
@@ -212,7 +249,7 @@ $entries = $entries ?? [];
                 </div>
             <?php endif; ?>
         </div>
-
+<?php endif; ?>
         <div class="mt-3 text-start">
             <?php foreach ($entries as $entry): ?>
                 <div class="border p-2 mb-2">
@@ -223,35 +260,55 @@ $entries = $entries ?? [];
         </span>
                         </div>
                     <?php endif; ?>
+                    <?php if ($isView): ?>
+
+                        <!-- VIEW MODE — БЕЗ INPUT -->
+
+                        <div class="d-flex justify-content-between">
+                            <div>Кол-во: <strong><?= $entry->qty ?></strong></div>
+                            <div>Цена: <strong><?= number_format($entry->amount, 2) ?></strong></div>
+                            <div>Сумма: <strong><?= number_format($entry->qty * $entry->amount, 2) ?></strong></div>
+                        </div>
+
+                        <?php if ($entry->note): ?>
+                            <div class="text-muted small mt-1">
+                                <?= Html::encode($entry->note) ?>
+                            </div>
+                        <?php endif; ?>
 
 
-                    <form class="entry-form" data-id="<?= $entry->id ?>">
-                        Цена:
-                        <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
-                               class="form-control mb-1">
+                    <?php else: ?>
 
-                        <input type="hidden" name="category" value="<?= Html::encode($entry->category) ?>">
+                        <!-- ORIGINAL SCAN FORM -->
 
-                        Штук или килограмм:
-                        <input type="number" step="0.001" name="qty" value="<?= $entry->qty ?>"
-                               class="form-control mb-1">
+                        <form class="entry-form" data-id="<?= $entry->id ?>">
+                            Цена:
+                            <input type="number" step="0.01" name="amount" value="<?= $entry->amount ?>"
+                                   class="form-control mb-1">
 
-                        <!-- сюда фронт уже кладёт текст заметки -->
-                        <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
-                    </form>
+                            <input type="hidden" name="category" value="<?= Html::encode($entry->category) ?>">
 
-                    <!-- слот для заметки (JS будет рендерить сюда) -->
-                    <div class="entry-note-wrap"></div>
+                            Штук или килограмм:
+                            <input type="number" step="0.001" name="qty" value="<?= $entry->qty ?>"
+                                   class="form-control mb-1">
 
-                    <!-- Кнопки всегда внизу -->
-                    <div class="d-flex gap-2 mt-2">
-                        <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
-                        <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
-                    </div>
+                            <input type="hidden" name="note" value="<?= Html::encode($entry->note) ?>">
+                        </form>
+
+                        <div class="entry-note-wrap"></div>
+
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
+                            <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
+                        </div>
+
+                    <?php endif; ?>
+
                 </div>
-            <?php endforeach; ?>
-        </div>
 
+            <?php endforeach; ?>
+
+        </div>
 
     </div>
 
