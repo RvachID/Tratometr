@@ -31,43 +31,51 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
      data-category="<?= Html::encode($category) ?>"
      data-need-prompt="<?= !empty($needPrompt) ? '1' : '0' ?>">
 
-    <!-- =========================================
-            SCAN MODE ONLY
-    ========================================== -->
+
+    <!-- =====================================================
+            SCAN UI (НЕ ТРОГАЕМ)
+    ===================================================== -->
 
     <?php if (!$isView): ?>
 
-        <h6 id="scan-title" class="mb-2">Тратометр</h6>
+        <div class="container mt-3 text-center">
 
-        <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
-            <button id="start-scan" class="btn btn-outline-secondary">📷 Открыть камеру</button>
-            <button id="manual-add" class="btn btn-outline-secondary">✍️ Ввести вручную</button>
+            <h6 id="scan-title" class="mb-2">Тратометр</h6>
+
+            <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
+                <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Открыть камеру</button>
+                <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
+            </div>
+
+            <div id="camera-wrapper"
+                 class="text-center position-relative"
+                 style="display:none; max-width:400px; margin:0 auto;">
+
+                <video id="camera"
+                       autoplay
+                       playsinline
+                       class="d-block w-100"></video>
+
+                <div id="zoom-overlay"></div>
+            </div>
+
+            <button id="capture" class="btn btn-outline-secondary d-block mx-auto mt-2" type="button">
+                <span class="spinner d-none spinner-border spinner-border-sm me-1"></span>
+                <span class="btn-text">📸 Сканировать</span>
+            </button>
+
+            <button id="ocr-cancel-btn" class="btn btn-outline-secondary d-none mt-2" type="button">
+                ✖ Отмена
+            </button>
+
         </div>
-
-        <div id="camera-wrapper"
-             class="text-center position-relative"
-             style="display:none; max-width:400px; margin:0 auto;">
-
-            <video id="camera" autoplay playsinline class="d-block w-100"></video>
-            <div id="zoom-overlay"></div>
-        </div>
-
-        <button id="capture" class="btn btn-outline-secondary d-block mx-auto mt-2">
-            <span class="spinner d-none spinner-border spinner-border-sm me-1"></span>
-            <span class="btn-text">📸 Сканировать</span>
-        </button>
-
-        <button id="ocr-cancel-btn"
-                class="btn btn-outline-secondary d-none mt-2">
-            ✖ Отмена
-        </button>
 
     <?php endif; ?>
 
 
-    <!-- =========================================
-            SESSION HEADER (VIEW MODE)
-    ========================================== -->
+    <!-- =====================================================
+            SESSION HEADER (ТОЛЬКО VIEW)
+    ===================================================== -->
 
     <?php if ($isView): ?>
 
@@ -110,9 +118,9 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
     <?php endif; ?>
 
 
-    <!-- =========================================
-            TOTAL (SCAN MODE)
-    ========================================== -->
+    <!-- =====================================================
+            TOTAL-WRAP (КРИТИЧЕСКИЙ БЛОК — ТОЛЬКО SCAN)
+    ===================================================== -->
 
     <?php if (!$isView): ?>
 
@@ -123,22 +131,30 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
             <?php if ($lim === null): ?>
 
                 <div class="total-total">
-                    <span class="me-1"><strong id="scan-total-label">Общая сумма:</strong></span>
+            <span class="me-1">
+                <strong id="scan-total-label"><?= $totalLabel ?? 'Общая сумма:' ?></strong>
+            </span>
+
                     <strong id="scan-total"><?= $fmt($sum) ?></strong>
                 </div>
 
             <?php else: ?>
 
                 <div class="total-total">
-                    <span class="me-1"><strong>До лимита:</strong></span>
-                    <strong class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
+                    <span class="me-1"><strong id="scan-remaining-label">До лимита:</strong></span>
+
+                    <strong id="scan-remaining"
+                            class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
                         <?= $fmt($rest) ?>
                     </strong>
                 </div>
 
-                <div class="text-muted small mt-1">
-                    Итого: <?= $fmt($sum) ?>
-                    • Лимит: <?= $fmt($lim) ?>
+                <div class="text-muted small mt-1" id="scan-secondary">
+                    <span id="scan-sum-label">Итого:</span>
+                    <span id="scan-sum"><?= $fmt($sum) ?></span>
+                    <span class="mx-1">•</span>
+                    <span id="scan-limit-label">Лимит:</span>
+                    <span id="scan-limit"><?= $fmt($lim) ?></span>
                 </div>
 
             <?php endif; ?>
@@ -148,9 +164,9 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
     <?php endif; ?>
 
 
-    <!-- =========================================
+    <!-- =====================================================
             ENTRIES
-    ========================================== -->
+    ===================================================== -->
 
     <div class="mt-3 text-start">
 
@@ -159,94 +175,99 @@ $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
             $entrySum = $entry->qty * $entry->amount;
             ?>
 
-            <div class="card border-0 shadow-sm mb-2">
-                <div class="card-body py-2">
+            <div class="border p-2 mb-2">
 
-                    <?php if ($entry->aliceItem): ?>
-                        <div class="fw-semibold">
-                            <?= Html::encode($entry->aliceItem->title) ?>
+                <?php if ($entry->aliceItem): ?>
+                    <div class="mb-2">
+            <span class="badge entry-badge">
+                <?= Html::encode($entry->aliceItem->title) ?>
+            </span>
+                    </div>
+                <?php endif; ?>
+
+
+                <?php if ($isView): ?>
+
+                    <!-- SAFE READ MODE (без input) -->
+
+                    <div class="d-flex justify-content-between small">
+                        <div>
+                            Кол-во:
+                            <strong><?= rtrim(rtrim(number_format($entry->qty, 3, '.', ''), '0'), '.') ?></strong>
                         </div>
-                    <?php endif; ?>
+
+                        <div>
+                            Цена:
+                            <strong><?= $fmt($entry->amount) ?></strong>
+                        </div>
+
+                        <div>
+                            Сумма:
+                            <strong><?= $fmt($entrySum) ?></strong>
+                        </div>
+                    </div>
 
                     <?php if ($entry->note): ?>
-                        <div class="text-muted small">
+                        <div class="text-muted small mt-1">
                             <?= Html::encode($entry->note) ?>
                         </div>
                     <?php endif; ?>
 
 
-                    <?php if ($isView): ?>
+                <?php else: ?>
 
-                        <!-- READ MODE -->
+                    <!-- EDIT MODE — НЕ ТРОГАЕМ -->
 
-                        <div class="d-flex justify-content-between mt-2 small">
+                    <form class="entry-form" data-id="<?= $entry->id ?>">
 
-                            <div>
-                                Кол-во:
-                                <span class="fw-semibold">
-                        <?= rtrim(rtrim(number_format($entry->qty, 3, '.', ''), '0'), '.') ?>
-                    </span>
-                            </div>
+                        Цена:
+                        <input type="number"
+                               step="0.01"
+                               name="amount"
+                               value="<?= $entry->amount ?>"
+                               class="form-control mb-1">
 
-                            <div>
-                                Цена:
-                                <span class="fw-semibold">
-                        <?= $fmt($entry->amount) ?>
-                    </span>
-                            </div>
+                        <input type="hidden"
+                               name="category"
+                               value="<?= Html::encode($entry->category) ?>">
 
-                            <div>
-                                Сумма:
-                                <span class="fw-bold">
-                        <?= $fmt($entrySum) ?>
-                    </span>
-                            </div>
+                        Штук или килограмм:
+                        <input type="number"
+                               step="0.001"
+                               name="qty"
+                               value="<?= $entry->qty ?>"
+                               class="form-control mb-1">
 
-                        </div>
+                        <input type="hidden"
+                               name="note"
+                               value="<?= Html::encode($entry->note) ?>">
+                    </form>
 
-                    <?php else: ?>
+                    <div class="entry-note-wrap"></div>
 
-                        <!-- EDIT MODE -->
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-outline-danger delete-entry" type="button">🗑 Удалить</button>
+                        <button class="btn btn-sm btn-outline-success save-entry d-none" type="button">💾</button>
+                    </div>
 
-                        <form class="entry-form" data-id="<?= $entry->id ?>">
+                <?php endif; ?>
 
-                            Цена:
-                            <input type="number"
-                                   step="0.01"
-                                   name="amount"
-                                   value="<?= $entry->amount ?>"
-                                   class="form-control mb-1">
-
-                            <input type="hidden"
-                                   name="category"
-                                   value="<?= Html::encode($entry->category) ?>">
-
-                            Штук или килограмм:
-                            <input type="number"
-                                   step="0.001"
-                                   name="qty"
-                                   value="<?= $entry->qty ?>"
-                                   class="form-control mb-1">
-
-                            <input type="hidden"
-                                   name="note"
-                                   value="<?= Html::encode($entry->note) ?>">
-                        </form>
-
-                        <div class="entry-note-wrap"></div>
-
-                        <div class="d-flex gap-2 mt-2">
-                            <button class="btn btn-sm btn-outline-danger delete-entry">🗑 Удалить</button>
-                            <button class="btn btn-sm btn-outline-success save-entry d-none">💾</button>
-                        </div>
-
-                    <?php endif; ?>
-
-                </div>
             </div>
 
         <?php endforeach; ?>
 
     </div>
+
+
+    <!-- =====================================================
+            MODALS
+    ===================================================== -->
+
+    <?php if (!$isView): ?>
+        <?= $this->render('_scan_modals', [
+            'aliceItems' => $aliceItems
+        ]) ?>
+    <?php endif; ?>
+
 
 </div>
