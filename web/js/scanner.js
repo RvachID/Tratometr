@@ -56,6 +56,7 @@
     const totalWrap = document.getElementById('total-wrap');
     const totalLabelEl = document.getElementById('scan-total-label');
     const mAliceSelect  = document.getElementById('m-alice-item');
+    const shoppingPanelEl = document.getElementById('shopping-session-panel');
     const shoppingListEl = document.getElementById('shopping-session-list');
     const shoppingEmptyEl = document.getElementById('shopping-list-empty');
     const shoppingCountEl = document.getElementById('shopping-list-count');
@@ -195,10 +196,13 @@
     async function openCamera() {
         if (currentStream) return;
 
+        shoppingPanelEl?.classList.add('d-none');
         wrap?.setAttribute('style', 'display:block');
         try {
             if (!navigator.mediaDevices?.getUserMedia) {
                 alert('Доступ к камере не поддерживается в этом браузере');
+                if (wrap) wrap.style.display = 'none';
+                shoppingPanelEl?.classList.remove('d-none');
                 return;
             }
             await initCamera();
@@ -207,12 +211,14 @@
             manualBtn?.classList.add('d-none');
             document.getElementById('m-show-photo').style.display = '';
             document.getElementById('m-retake').style.display = '';
+            wrap?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (e) {
             alert('Не удалось открыть камеру: ' + (e?.message || e));
             if (wrap) wrap.style.display = 'none';
             cameraActive = false;
             startBtn.textContent = '📷 Сканировать без списка';
             manualBtn?.classList.remove('d-none');
+            shoppingPanelEl?.classList.remove('d-none');
         }
     }
 
@@ -234,6 +240,7 @@
                 cameraActive = false;
                 startBtn.textContent = '📷 Сканировать без списка';
                 manualBtn?.classList.remove('d-none');
+                shoppingPanelEl?.classList.remove('d-none');
             }
         };
     }
@@ -661,18 +668,16 @@
         row.className = 'input-group input-group-sm shopping-session-item';
         row.dataset.id = item.id;
 
-        const title = document.createElement('input');
-        title.type = 'text';
-        title.className = 'form-control shopping-session-title';
-        title.value = item.title;
-        title.maxLength = 255;
-        title.setAttribute('aria-label', 'Наименование товара');
-
         const scanButton = document.createElement('button');
         scanButton.type = 'button';
-        scanButton.className = 'btn btn-outline-secondary shopping-session-scan';
-        scanButton.title = 'Сканировать';
-        scanButton.textContent = '📷';
+        scanButton.className = 'btn btn-outline-secondary shopping-session-scan text-start flex-grow-1';
+        scanButton.textContent = item.title;
+
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'btn btn-outline-secondary shopping-session-edit';
+        editButton.title = 'Переименовать';
+        editButton.textContent = '✎';
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
@@ -680,13 +685,10 @@
         deleteButton.title = 'Удалить';
         deleteButton.textContent = '×';
 
-        let originalTitle = item.title;
-        title.addEventListener('change', async () => {
-            const newTitle = title.value.trim();
-            if (!newTitle) {
-                title.value = originalTitle;
-                return;
-            }
+        scanButton.addEventListener('click', () => scanShoppingItem(item.id, scanButton.textContent.trim()));
+        editButton.addEventListener('click', async () => {
+            const newTitle = prompt('Название товара', scanButton.textContent.trim())?.trim();
+            if (!newTitle || newTitle === scanButton.textContent.trim()) return;
 
             const fd = new FormData();
             fd.append('title', newTitle);
@@ -701,17 +703,15 @@
                     credentials: 'include'
                 });
                 if (!response.ok) throw new Error('Не удалось переименовать товар');
-                originalTitle = newTitle;
+                scanButton.textContent = newTitle;
                 await window.reloadAliceSelect?.(item.id);
             } catch (e) {
-                title.value = originalTitle;
                 alert(e.message);
             }
         });
 
-        scanButton.addEventListener('click', () => scanShoppingItem(item.id, title.value.trim()));
         deleteButton.addEventListener('click', async () => {
-            if (!confirm(`Удалить «${title.value.trim()}» из списка?`)) return;
+            if (!confirm(`Удалить «${scanButton.textContent.trim()}» из списка?`)) return;
             try {
                 const response = await fetch(`index.php?r=alice-item/delete&id=${item.id}`, {
                     method: 'POST',
@@ -728,7 +728,7 @@
             }
         });
 
-        row.append(title, scanButton, deleteButton);
+        row.append(scanButton, editButton, deleteButton);
         return row;
     }
 
@@ -895,5 +895,6 @@
         cameraActive = false;
         if (startBtn) startBtn.textContent = '📷 Сканировать без списка';
         manualBtn?.classList.remove('d-none');
+        shoppingPanelEl?.classList.remove('d-none');
     }
 })();

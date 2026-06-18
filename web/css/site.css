@@ -310,8 +310,9 @@ footer, footer .container {
     overflow-y: auto;
 }
 
-.shopping-session-title {
+.shopping-session-scan {
     min-width: 0;
+    white-space: normal;
 }
 
 .list-section-title {

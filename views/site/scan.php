@@ -47,15 +47,11 @@ $isView = $mode === 'view';
                     <div id="shopping-session-list" class="d-grid gap-2">
                         <?php foreach ($aliceItems as $item): ?>
                             <div class="input-group input-group-sm shopping-session-item" data-id="<?= (int)$item->id ?>">
-                                <input
-                                        type="text"
-                                        class="form-control shopping-session-title"
-                                        value="<?= Html::encode($item->title) ?>"
-                                        maxlength="255"
-                                        aria-label="Наименование товара"
-                                >
-                                <button class="btn btn-outline-secondary shopping-session-scan" type="button" title="Сканировать">
-                                    📷
+                                <button class="btn btn-outline-secondary shopping-session-scan text-start flex-grow-1" type="button">
+                                    <?= Html::encode($item->title) ?>
+                                </button>
+                                <button class="btn btn-outline-secondary shopping-session-edit" type="button" title="Переименовать">
+                                    ✎
                                 </button>
                                 <button class="btn btn-outline-danger shopping-session-delete" type="button" title="Удалить">
                                     ×
@@ -185,30 +181,6 @@ $isView = $mode === 'view';
                             <label class="form-label" for="m-note">Комментарий (опц.)</label>
                             <input type="text" class="form-control" id="m-note">
                         </div>
-
-                        <div class="mb-2 text-start">
-                            <label class="form-label">Из списка покупок (опц.)</label>
-
-                            <div class="alice-select-wrap">
-                                <a
-                                        href="index.php?r=alice-item/index"
-                                        class="alice-select-gear"
-                                        title="Редактировать список покупок"
-                                        aria-label="Редактировать список покупок"
-                                >
-                                    ⚙️
-                                </a>
-
-                                <select id="m-alice-item" class="form-select alice-select">
-                                    <option value="">выберите...</option>
-                                </select>
-                            </div>
-
-                            <small class="text-muted">
-                                Выбранный пункт пометим как купленный
-                            </small>
-                        </div>
-
 
                         <div class="mb-2" id="m-photo-wrap" style="display:none;">
                             <img id="m-photo" class="img-fluid" alt="Фото скана"/>
