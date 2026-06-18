@@ -151,6 +151,7 @@
                             const aliceId = container.dataset.aliceId;
                             container.remove();
                             await reloadAliceSelect();
+                            await window.reloadSessionShoppingList?.();
                             if (typeof res.total !== 'undefined') {
                                 updateTotal(res.total);
                             }
@@ -182,7 +183,7 @@
         if (!listWrap) return;
 
         const div = document.createElement('div');
-        div.className = 'border p-2 mb-2';
+        div.className = 'purchase-entry-card p-3 mb-3';
 
         const aliceTitle = (entry.alice_title ?? '').trim();
         const productName = (entry.product_name ?? aliceTitle).trim();
@@ -242,8 +243,7 @@
         const wrap = document.getElementById('total-wrap');
         if (!wrap) return;
 
-        const labelEl = document.getElementById('scan-total-label')
-            || document.getElementById('scan-remaining-label');
+        const labelEl = document.getElementById('scan-total-label');
         const totalEl = document.getElementById('scan-total');
         const remainingEl = document.getElementById('scan-remaining');
         const secondaryEl = document.getElementById('scan-secondary');
@@ -260,7 +260,7 @@
         const sum = Number(total || 0);
 
         if (Number.isNaN(limit)) {
-            if (labelEl) labelEl.textContent = 'Общая сумма:';
+            if (labelEl) labelEl.textContent = 'Итого:';
             if (totalEl) {
                 totalEl.textContent = formatValue(sum);
                 totalEl.classList.remove('text-danger', 'fw-bold');
@@ -275,18 +275,12 @@
         } else {
             const remaining = limit - sum;
             const formattedRemaining = formatValue(remaining);
-            if (labelEl) labelEl.textContent = 'До лимита:';
-
-            const targetEl = remainingEl || totalEl;
-            if (targetEl) {
-                targetEl.textContent = formattedRemaining;
-                targetEl.classList.toggle('text-danger', remaining < 0);
-                targetEl.classList.toggle('fw-bold', remaining < 0);
-            }
-            if (totalEl && totalEl !== targetEl) {
-                totalEl.textContent = formattedRemaining;
-                totalEl.classList.toggle('text-danger', remaining < 0);
-                totalEl.classList.toggle('fw-bold', remaining < 0);
+            if (labelEl) labelEl.textContent = 'Итого:';
+            if (totalEl) totalEl.textContent = formatValue(sum);
+            if (remainingEl) {
+                remainingEl.textContent = formattedRemaining;
+                remainingEl.classList.toggle('text-danger', remaining < 0);
+                remainingEl.classList.toggle('fw-bold', remaining < 0);
             }
             if (secondaryEl) secondaryEl.classList.remove('d-none');
             if (sumEl) sumEl.textContent = formatValue(sum);
@@ -295,7 +289,7 @@
     }
 
     // Инициализация на странице списка
-    document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.border')));
+    document.querySelectorAll('.entry-form').forEach(f => bindEntryRow(f.closest('.purchase-entry-card')));
 
     // экспорт для scanner.js
     window.addEntryToTop = addEntryToTop;

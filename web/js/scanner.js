@@ -59,12 +59,31 @@
     const shoppingPanelEl = document.getElementById('shopping-session-panel');
     const shoppingListEl = document.getElementById('shopping-session-list');
     const shoppingCountEl = document.getElementById('shopping-list-count');
+    const shoppingProgressLabelEl = document.getElementById('shopping-progress-label');
+    const shoppingProgressPercentEl = document.getElementById('shopping-progress-percent');
+    const shoppingProgressBarEl = document.getElementById('shopping-progress-bar');
     const shoppingAddForm = document.getElementById('shopping-list-add');
     const shoppingNewTitleEl = document.getElementById('shopping-list-new-title');
     let hasShoppingItems = (shoppingListEl?.children.length || 0) > 0;
 
     function syncShoppingPanelVisibility() {
         shoppingPanelEl?.classList.toggle('d-none', !hasShoppingItems || cameraActive);
+    }
+
+    function renderShoppingProgress(purchased, total) {
+        const safeTotal = Math.max(0, Number(total) || 0);
+        const safePurchased = Math.min(safeTotal, Math.max(0, Number(purchased) || 0));
+        const percent = safeTotal > 0 ? Math.round(safePurchased * 100 / safeTotal) : 0;
+
+        if (shoppingCountEl) shoppingCountEl.textContent = String(safeTotal);
+        if (shoppingProgressLabelEl) {
+            shoppingProgressLabelEl.textContent = `Куплено ${safePurchased} из ${safeTotal} товаров`;
+        }
+        if (shoppingProgressPercentEl) shoppingProgressPercentEl.textContent = `${percent}%`;
+        if (shoppingProgressBarEl) {
+            shoppingProgressBarEl.style.width = `${percent}%`;
+            shoppingProgressBarEl.parentElement?.setAttribute('aria-valuenow', String(percent));
+        }
     }
     const ensureTotalsMarkup = () => {
         const wrapEl = document.getElementById('total-wrap');
@@ -74,43 +93,23 @@
         const limitValue = parseFloat(limitAttr);
         const hasLimit = limitAttr !== '' && !Number.isNaN(limitValue);
 
-        if (hasLimit) {
-            if (!document.getElementById('scan-remaining')) {
-                wrapEl.innerHTML = `
-                    <div class="total-total">
-                        <span class="me-1"><strong id="scan-remaining-label">До лимита:</strong></span>
-                        <strong id="scan-remaining"></strong>
-                    </div>
-                    <div class="text-muted small mt-1" id="scan-secondary">
-                        <span id="scan-sum-label">Итого:</span>
-                        <span id="scan-sum"></span>
-                        <span class="mx-1">/</span>
-                        <span id="scan-limit-label">Лимит:</span>
-                        <span id="scan-limit"></span>
-                    </div>
-                `;
-                if (!document.getElementById('scan-total')) {
-                    const hiddenTotal = document.createElement('strong');
-                    hiddenTotal.id = 'scan-total';
-                    hiddenTotal.style.display = 'none';
-                    wrapEl.appendChild(hiddenTotal);
-                }
-            } else {
-                const secondary = document.getElementById('scan-secondary');
-                if (secondary) secondary.classList.remove('d-none');
-            }
-        } else {
-            if (!document.getElementById('scan-total')) {
-                wrapEl.innerHTML = `
-                    <div class="total-total">
-                        <span class="me-1"><strong id="scan-total-label">Итого:</strong></span>
-                        <strong id="scan-total"></strong>
-                    </div>
-                `;
-            }
-            const secondary = document.getElementById('scan-secondary');
-            if (secondary) secondary.classList.add('d-none');
+        if (!document.getElementById('scan-total')) {
+            wrapEl.innerHTML = `
+                <div class="total-total">
+                    <strong id="scan-total-label">Итого:</strong>
+                    <strong id="scan-total">0.00</strong>
+                    <span>RSD</span>
+                </div>
+                <div class="text-muted small mt-1" id="scan-secondary">
+                    <span id="scan-remaining-label">До лимита:</span>
+                    <span id="scan-remaining"></span> <span>RSD</span>
+                    <span class="mx-1">•</span>
+                    <span id="scan-limit-label">Лимит:</span>
+                    <span id="scan-limit"></span> <span>RSD</span>
+                </div>
+            `;
         }
+        document.getElementById('scan-secondary')?.classList.toggle('d-none', !hasLimit);
     };
     const originalUpdateTotal = typeof window.updateTotal === 'function' ? window.updateTotal : null;
 
@@ -170,15 +169,15 @@
     }
 
     function updateScanTitle() {
-        const h2 = document.getElementById('scan-title');
-        if (!h2) return;
+        const heading = document.getElementById('scan-title');
+        const categoryEl = document.getElementById('scan-category-title');
+        const storeEl = document.getElementById('scan-store-title');
+        if (!heading) return;
         const cat = scanRoot?.dataset.category || metaCategory || '';
         const sto = scanRoot?.dataset.store || metaStore || '';
-        if (cat || sto) {
-            h2.textContent = `Покупаем: ${cat || '—'}. В магазине: ${sto || '—'}`;
-        } else {
-            h2.textContent = 'Тратометр';
-        }
+        if (categoryEl) categoryEl.textContent = cat || '—';
+        if (storeEl) storeEl.textContent = sto || '—';
+        heading.classList.toggle('d-none', !cat && !sto);
     }
     updateScanTitle();
 
@@ -213,6 +212,8 @@
             cameraActive = true;
             startBtn.textContent = '✖ Закрыть камеру';
             manualBtn?.classList.add('d-none');
+            captureBtn?.classList.remove('d-none');
+            captureBtn?.classList.add('d-block');
             document.getElementById('m-show-photo').style.display = '';
             document.getElementById('m-retake').style.display = '';
             wrap?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -222,6 +223,8 @@
             cameraActive = false;
             startBtn.textContent = '📷 Сканировать без списка';
             manualBtn?.classList.remove('d-none');
+            captureBtn?.classList.add('d-none');
+            captureBtn?.classList.remove('d-block');
             syncShoppingPanelVisibility();
         }
     }
@@ -244,6 +247,8 @@
                 cameraActive = false;
                 startBtn.textContent = '📷 Сканировать без списка';
                 manualBtn?.classList.remove('d-none');
+                captureBtn?.classList.add('d-none');
+                captureBtn?.classList.remove('d-block');
                 syncShoppingPanelVisibility();
             }
         };
@@ -668,29 +673,24 @@
     }
 
     function createShoppingItemRow(item) {
-        const row = document.createElement('div');
-        row.className = 'shopping-session-item d-flex align-items-stretch';
-        row.dataset.id = item.id;
+        const swipeWrap = document.createElement('div');
+        swipeWrap.className = 'shopping-swipe-wrap';
+
+        const actions = document.createElement('div');
+        actions.className = 'shopping-swipe-actions';
+        actions.setAttribute('aria-hidden', 'true');
+        actions.innerHTML = `
+            <span class="shopping-swipe-edit-label">Изменить</span>
+            <span class="shopping-swipe-delete-label">Удалить</span>
+        `;
 
         const scanButton = document.createElement('button');
         scanButton.type = 'button';
-        scanButton.className = 'btn shopping-session-scan text-start flex-grow-1';
+        scanButton.className = 'btn shopping-session-item shopping-session-scan text-start w-100';
+        scanButton.dataset.id = item.id;
         scanButton.textContent = item.title;
 
-        const editButton = document.createElement('button');
-        editButton.type = 'button';
-        editButton.className = 'btn shopping-session-edit';
-        editButton.title = 'Переименовать';
-        editButton.textContent = '✎';
-
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'btn shopping-session-delete';
-        deleteButton.title = 'Удалить';
-        deleteButton.textContent = '×';
-
-        scanButton.addEventListener('click', () => scanShoppingItem(item.id, scanButton.textContent.trim()));
-        editButton.addEventListener('click', async () => {
+        async function renameItem() {
             const newTitle = prompt('Название товара', scanButton.textContent.trim())?.trim();
             if (!newTitle || newTitle === scanButton.textContent.trim()) return;
 
@@ -712,9 +712,9 @@
             } catch (e) {
                 alert(e.message);
             }
-        });
+        }
 
-        deleteButton.addEventListener('click', async () => {
+        async function deleteItem() {
             if (!confirm(`Удалить «${scanButton.textContent.trim()}» из списка?`)) return;
             try {
                 const response = await fetch(`index.php?r=alice-item/delete&id=${item.id}`, {
@@ -730,28 +730,86 @@
             } catch (e) {
                 alert(e.message);
             }
+        }
+
+        let startX = 0;
+        let startY = 0;
+        let currentX = 0;
+        let horizontalSwipe = false;
+        let suppressClick = false;
+
+        scanButton.addEventListener('click', (event) => {
+            if (suppressClick) {
+                event.preventDefault();
+                return;
+            }
+            scanShoppingItem(item.id, scanButton.textContent.trim());
         });
 
-        row.append(scanButton, editButton, deleteButton);
-        return row;
+        scanButton.addEventListener('touchstart', (event) => {
+            const touch = event.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            currentX = 0;
+            horizontalSwipe = false;
+            scanButton.style.transition = 'none';
+        }, { passive: true });
+
+        scanButton.addEventListener('touchmove', (event) => {
+            const touch = event.touches[0];
+            const deltaX = touch.clientX - startX;
+            const deltaY = touch.clientY - startY;
+            if (!horizontalSwipe && Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+            horizontalSwipe = true;
+            event.preventDefault();
+            currentX = Math.max(-100, Math.min(100, deltaX));
+            scanButton.style.transform = `translateX(${currentX}px)`;
+            swipeWrap.classList.toggle('show-edit', currentX > 0);
+            swipeWrap.classList.toggle('show-delete', currentX < 0);
+        }, { passive: false });
+
+        scanButton.addEventListener('touchend', () => {
+            scanButton.style.transition = 'transform .2s ease';
+            scanButton.style.transform = 'translateX(0)';
+            swipeWrap.classList.remove('show-edit', 'show-delete');
+
+            if (!horizontalSwipe || Math.abs(currentX) < 72) return;
+            suppressClick = true;
+            setTimeout(() => { suppressClick = false; }, 350);
+            if (currentX > 0) renameItem();
+            else deleteItem();
+        });
+
+        scanButton.addEventListener('touchcancel', () => {
+            scanButton.style.transition = 'transform .2s ease';
+            scanButton.style.transform = 'translateX(0)';
+            swipeWrap.classList.remove('show-edit', 'show-delete');
+        });
+
+        swipeWrap.append(actions, scanButton);
+        return swipeWrap;
     }
 
     async function loadShoppingList() {
         if (!shoppingListEl) return;
 
         try {
-            const response = await fetch('index.php?r=alice-item/list-json', { credentials: 'include' });
+            const response = await fetch('index.php?r=alice-item/list-json&with_progress=1', { credentials: 'include' });
             if (!response.ok) throw new Error('Не удалось загрузить список покупок');
-            const items = await response.json();
+            const payload = await response.json();
+            const items = payload.items || [];
 
             shoppingListEl.replaceChildren(...items.map(createShoppingItemRow));
             hasShoppingItems = items.length > 0;
-            if (shoppingCountEl) shoppingCountEl.textContent = String(items.length);
+            renderShoppingProgress(payload.purchased, payload.total);
             syncShoppingPanelVisibility();
         } catch (e) {
             console.error('shopping list load error', e);
         }
     }
+
+    window.reloadSessionShoppingList = loadShoppingList;
 
     shoppingAddForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -813,12 +871,12 @@
                     metaLimit = res.limit;
                     scanRoot?.setAttribute('data-limit', String(metaLimit));
                     if (totalWrap) totalWrap.dataset.limit = String(metaLimit);
-                    if (totalLabelEl) totalLabelEl.textContent = 'До лимита:';
+                    if (totalLabelEl) totalLabelEl.textContent = 'Итого:';
                 } else {
                     metaLimit = null;
                     scanRoot?.setAttribute('data-limit', '');
                     if (totalWrap) totalWrap.dataset.limit = '';
-                    if (totalLabelEl) totalLabelEl.textContent = 'Общая сумма:';
+                    if (totalLabelEl) totalLabelEl.textContent = 'Итого:';
                 }
 
                 scanRoot?.setAttribute('data-store', metaStore);
@@ -879,7 +937,7 @@
             const totalWrap    = document.getElementById('total-wrap');
             const totalLabelEl = document.getElementById('scan-total-label');
             if (totalWrap) totalWrap.dataset.limit = metaLimit !== null ? String(metaLimit) : '';
-            if (totalLabelEl) totalLabelEl.textContent = metaLimit !== null ? 'До лимита:' : 'Общая сумма:';
+            if (totalLabelEl) totalLabelEl.textContent = 'Итого:';
 
             // новая сессия — текущая сумма 0; сразу корректно отрисуем «Лимит»
             if (typeof window.updateTotals === 'function') window.updateTotals();
@@ -900,6 +958,8 @@
         cameraActive = false;
         if (startBtn) startBtn.textContent = '📷 Сканировать без списка';
         manualBtn?.classList.remove('d-none');
+        captureBtn?.classList.add('d-none');
+        captureBtn?.classList.remove('d-block');
         syncShoppingPanelVisibility();
     }
 })();

@@ -12,9 +12,14 @@ $entries = $entries ?? [];
 
 $mode = $mode ?? 'scan';
 $isView = $mode === 'view';
+$purchasedListCount = $purchasedListCount ?? 0;
+$shoppingListTotal = $shoppingListTotal ?? count($aliceItems ?? []);
+$shoppingProgress = $shoppingListTotal > 0
+    ? (int)round($purchasedListCount * 100 / $shoppingListTotal)
+    : 0;
 
 ?>
-    <div class="container mt-3 text-center"
+    <div class="container mt-3 text-center <?= !$isView ? 'has-fixed-session-total' : '' ?>"
          id="scan-root"
          data-store="<?= Html::encode($store) ?>"
          data-category="<?= Html::encode($category) ?>"
@@ -23,12 +28,24 @@ $isView = $mode === 'view';
 
 <?php if (!$isView): ?>
         <div class="container mt-3 text-center">
-            <h6 id="scan-title" class="mb-2">Тратометр</h6>
+            <div id="scan-title" class="session-heading text-start mb-3 <?= ($category || $store) ? '' : 'd-none' ?>">
+                <div class="session-heading-category">🛒 <span id="scan-category-title"><?= Html::encode($category) ?></span></div>
+                <div class="session-heading-store">📍 <span id="scan-store-title"><?= Html::encode($store) ?></span></div>
+            </div>
 
             <div class="shopping-session-panel mb-3 text-start <?= $aliceItems ? '' : 'd-none' ?>" id="shopping-session-panel">
-                    <div class="shopping-session-header d-flex justify-content-between align-items-center mb-2">
-                        <strong class="small text-muted">Список покупок</strong>
-                        <span class="small text-muted" id="shopping-list-count"><?= count($aliceItems) ?></span>
+                    <div class="shopping-session-header mb-2">
+                        <strong>Список покупок (<span id="shopping-list-count"><?= $shoppingListTotal ?></span>)</strong>
+                    </div>
+
+                    <div class="shopping-progress mb-3">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span id="shopping-progress-label">Куплено <?= $purchasedListCount ?> из <?= $shoppingListTotal ?> товаров</span>
+                            <span id="shopping-progress-percent"><?= $shoppingProgress ?>%</span>
+                        </div>
+                        <div class="progress" role="progressbar" aria-label="Прогресс покупок" aria-valuenow="<?= $shoppingProgress ?>" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" id="shopping-progress-bar" style="width: <?= $shoppingProgress ?>%"></div>
+                        </div>
                     </div>
 
                     <form id="shopping-list-add" class="input-group mb-2">
@@ -36,33 +53,31 @@ $isView = $mode === 'view';
                                 type="text"
                                 class="form-control"
                                 id="shopping-list-new-title"
-                                placeholder="Добавить товар и сканировать"
+                                placeholder="Добавить товар..."
                                 maxlength="255"
                                 required
                         >
-                        <button class="btn btn-outline-secondary" type="submit">Добавить</button>
+                        <button class="btn shopping-list-add-button" type="submit" aria-label="Добавить товар">+</button>
                     </form>
 
                     <div id="shopping-session-list" class="shopping-session-list">
                         <?php foreach ($aliceItems as $item): ?>
-                            <div class="shopping-session-item d-flex align-items-stretch" data-id="<?= (int)$item->id ?>">
-                                <button class="btn shopping-session-scan text-start flex-grow-1" type="button">
+                            <div class="shopping-swipe-wrap">
+                                <div class="shopping-swipe-actions" aria-hidden="true">
+                                    <span class="shopping-swipe-edit-label">Изменить</span>
+                                    <span class="shopping-swipe-delete-label">Удалить</span>
+                                </div>
+                                <button class="btn shopping-session-item shopping-session-scan text-start w-100" type="button" data-id="<?= (int)$item->id ?>">
                                     <?= Html::encode($item->title) ?>
-                                </button>
-                                <button class="btn shopping-session-edit" type="button" title="Переименовать">
-                                    ✎
-                                </button>
-                                <button class="btn shopping-session-delete" type="button" title="Удалить">
-                                    ×
                                 </button>
                             </div>
                         <?php endforeach; ?>
                     </div>
             </div>
 
-            <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
-                <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Сканировать без списка</button>
-                <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
+            <div class="scan-secondary-actions d-flex justify-content-center gap-3 mb-3">
+                <button id="start-scan" class="btn btn-link" type="button">📷 Сканировать без списка</button>
+                <button id="manual-add" class="btn btn-link" type="button">✍️ Ввести вручную</button>
             </div>
 
             <div id="camera-wrapper"
@@ -79,7 +94,7 @@ $isView = $mode === 'view';
                 <div id="zoom-overlay"></div>
             </div>
 
-            <button id="capture" class="btn btn-outline-secondary d-block mx-auto mt-2" type="button">
+            <button id="capture" class="btn btn-outline-secondary d-none mx-auto mt-2" type="button">
                     <span class="spinner d-none spinner-border spinner-border-sm me-1"></span>
                     <span class="btn-text">📸 Сканировать</span>
                 </button>
@@ -236,39 +251,28 @@ $isView = $mode === 'view';
 
         $fmt = fn($v) => number_format((float)$v, 2, '.', ' ');
         ?>
-        <div class="mt-3" id="total-wrap"
+        <div class="fixed-session-total" id="total-wrap"
              data-limit="<?= $lim !== null ? $fmt($lim) : '' ?>"
              data-has-limit="<?= $lim !== null ? '1' : '0' ?>">
-
-            <?php if ($lim === null): ?>
-                <!-- режим без лимита -->
-                <div class="total-total">
-                    <span class="me-1"><strong
-                                id="scan-total-label"><?= $totalLabel ?? 'Общая сумма:' ?></strong></span>
-                    <strong id="scan-total" class=""><?= $fmt($sum) ?></strong>
-                </div>
-            <?php else: ?>
-                <!-- режим с лимитом: главная строка — остаток/перерасход -->
-                <div class="total-total">
-                    <span class="me-1"><strong id="scan-remaining-label">До лимита:</strong></span>
-                    <strong id="scan-remaining" class="<?= $isOver ? 'text-danger fw-bold' : '' ?>">
-                        <?= $fmt($rest) ?>
-                    </strong>
-                </div>
-                <!-- тонкая вторая строка: итог + лимит -->
-                <div class="text-muted small mt-1" id="scan-secondary">
-                    <span id="scan-sum-label">Итого:</span>
-                    <span id="scan-sum"><?= $fmt($sum) ?></span>
-                    <span class="mx-1">•</span>
-                    <span id="scan-limit-label">Лимит:</span>
-                    <span id="scan-limit"><?= $fmt($lim) ?></span>
-                </div>
-            <?php endif; ?>
+            <div class="total-total">
+                <strong id="scan-total-label">Итого:</strong>
+                <strong id="scan-total"><?= $fmt($sum) ?></strong>
+                <span>RSD</span>
+            </div>
+            <div class="text-muted small mt-1 <?= $lim === null ? 'd-none' : '' ?>" id="scan-secondary">
+                <span id="scan-remaining-label">До лимита:</span>
+                <span id="scan-remaining" class="<?= $isOver ? 'text-danger fw-bold' : '' ?>"><?= $rest !== null ? $fmt($rest) : '' ?></span>
+                <span>RSD</span>
+                <span class="mx-1">•</span>
+                <span id="scan-limit-label">Лимит:</span>
+                <span id="scan-limit"><?= $lim !== null ? $fmt($lim) : '' ?></span>
+                <span>RSD</span>
+            </div>
         </div>
 <?php endif; ?>
         <div class="mt-3 text-start">
             <?php foreach ($entries as $entry): ?>
-                <div class="border p-2 mb-2">
+                <div class="purchase-entry-card p-3 mb-3">
                     <?php $productName = $entry->product_name ?: ($entry->aliceItem->title ?? null); ?>
                     <?php if ($productName): ?>
                         <div class="mb-2">

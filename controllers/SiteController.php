@@ -150,6 +150,14 @@ class SiteController extends Controller
         // <-- ВСЕГДА грузим актуальный список покупок Алисы
         $aliceService = new AliceListService();
         $aliceItems   = $aliceService->getForDropdown($userId);
+        $purchasedListIds = [];
+        foreach ($entries as $entry) {
+            if ($entry->alice_item_id) {
+                $purchasedListIds[(int)$entry->alice_item_id] = true;
+            }
+        }
+        $purchasedListCount = count($purchasedListIds);
+        $shoppingListTotal = count($aliceItems) + $purchasedListCount;
 
         return $this->render('scan', [
             'store'      => $store,
@@ -159,6 +167,8 @@ class SiteController extends Controller
             'needPrompt' => $needPrompt,
             'limit'      => $limit,
             'aliceItems' => $aliceItems,
+            'purchasedListCount' => $purchasedListCount,
+            'shoppingListTotal' => $shoppingListTotal,
         ]);
     }
 

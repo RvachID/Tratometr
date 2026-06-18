@@ -2,6 +2,7 @@
 
 namespace app\controllers;
 
+use app\models\PriceEntry;
 use app\services\Alice\AliceListService;
 use Yii;
 use yii\filters\AccessControl;
@@ -207,11 +208,35 @@ class AliceItemController extends Controller
         $service = new AliceListService();
         $items = $service->getForDropdown(Yii::$app->user->id);
 
-        return array_map(static fn($i) => [
+        $result = array_map(static fn($i) => [
             'id' => $i->id,
             'title' => $i->title,
             'is_done' => (int)$i->is_done,
             'is_pinned' => (int)$i->is_pinned,
         ], $items);
+
+        if (!Yii::$app->request->get('with_progress')) {
+            return $result;
+        }
+
+        $purchased = 0;
+        $session = Yii::$app->ps->active(Yii::$app->user->id);
+        if ($session) {
+            $purchased = (int)PriceEntry::find()
+                ->select('alice_item_id')
+                ->where([
+                    'user_id' => Yii::$app->user->id,
+                    'session_id' => $session->id,
+                ])
+                ->andWhere(['not', ['alice_item_id' => null]])
+                ->distinct()
+                ->count();
+        }
+
+        return [
+            'items' => $result,
+            'purchased' => $purchased,
+            'total' => count($result) + $purchased,
+        ];
     }
 }

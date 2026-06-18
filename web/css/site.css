@@ -305,34 +305,120 @@ footer, footer .container {
     font-size: 0.95rem;
 }
 
+.purchase-entry-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .055);
+}
+
 .shopping-session-panel {
     background: transparent;
+}
+
+.session-heading-category {
+    font-size: 1.05rem;
+    font-weight: 650;
+}
+
+.session-heading-store {
+    margin-top: 3px;
+    color: #6c757d;
+    font-size: .92rem;
 }
 
 .shopping-session-header {
     padding: 0 4px;
 }
 
+.shopping-progress {
+    padding: 0 4px;
+}
+
+.shopping-progress .progress {
+    height: 6px;
+    background: #ece8e4;
+    border-radius: 999px;
+}
+
+.shopping-progress .progress-bar {
+    background: #9a6a48;
+    border-radius: 999px;
+    transition: width .25s ease;
+}
+
 #shopping-list-add {
     width: auto;
 }
 
+#shopping-list-add .form-control {
+    min-height: 44px;
+    border: 0;
+    border-radius: 12px 0 0 12px;
+    background: #f4f2f0;
+    box-shadow: none;
+}
+
+.shopping-list-add-button {
+    width: 46px;
+    border: 0;
+    border-radius: 0 12px 12px 0;
+    background: #f4f2f0;
+    color: #7c4f35;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
 .shopping-session-list {
-    max-height: 260px;
-    overflow-y: auto;
-    background: #fff;
-    border: 1px solid rgba(124, 79, 53, .14);
+    border-radius: 16px;
+}
+
+.shopping-swipe-wrap {
+    position: relative;
+    overflow: hidden;
+    min-height: 58px;
+    margin-bottom: 8px;
     border-radius: 14px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .055);
+}
+
+.shopping-swipe-actions {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    color: #fff;
+    font-size: .82rem;
+    font-weight: 600;
+}
+
+.shopping-swipe-edit-label,
+.shopping-swipe-delete-label {
+    opacity: 0;
+    transition: opacity .12s ease;
+}
+
+.shopping-swipe-wrap.show-edit {
+    background: #9a6a48;
+}
+
+.shopping-swipe-wrap.show-delete {
+    background: #c05d5d;
+}
+
+.shopping-swipe-wrap.show-edit .shopping-swipe-edit-label,
+.shopping-swipe-wrap.show-delete .shopping-swipe-delete-label {
+    opacity: 1;
 }
 
 .shopping-session-item {
-    min-height: 54px;
+    position: relative;
+    z-index: 1;
+    min-height: 58px;
     background: #fff;
-}
-
-.shopping-session-item + .shopping-session-item {
-    border-top: 1px solid #eee;
+    touch-action: pan-y;
 }
 
 .shopping-session-scan {
@@ -340,9 +426,10 @@ footer, footer .container {
     white-space: normal;
     border: 0;
     border-radius: 0;
-    padding: 12px 14px;
+    padding: 14px 16px;
     font-size: 1rem;
     color: #212529;
+    transition: transform .2s ease, background-color .15s ease;
 }
 
 .shopping-session-scan:hover,
@@ -351,19 +438,28 @@ footer, footer .container {
     color: #212529;
 }
 
-.shopping-session-edit,
-.shopping-session-delete {
-    width: 44px;
-    flex: 0 0 44px;
-    border: 0;
-    border-radius: 0;
-    padding: 0;
-    font-size: 1.15rem;
-    color: #8a8a8a;
+.scan-secondary-actions .btn-link {
+    padding: 6px 4px;
+    color: #777;
+    font-size: .9rem;
+    text-decoration: none;
 }
 
-.shopping-session-delete {
-    color: #b45b5b;
+.fixed-session-total {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1020;
+    padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, .09);
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+#scan-root.has-fixed-session-total {
+    padding-bottom: 88px;
 }
 
 @media (max-width: 575.98px) {
@@ -373,16 +469,14 @@ footer, footer .container {
     }
 
     .shopping-session-header,
+    .shopping-progress,
     #shopping-list-add {
         margin-left: 12px;
         margin-right: 12px;
     }
 
     .shopping-session-list {
-        border-left: 0;
-        border-right: 0;
-        border-radius: 0;
-        box-shadow: none;
+        padding: 0 12px;
     }
 }
 
