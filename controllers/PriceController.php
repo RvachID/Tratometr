@@ -56,6 +56,7 @@ class PriceController extends Controller
                     'created_at' => Yii::$app->formatter->asDatetime($m->created_at),
                     'store' => (string)$m->store,
                     'category' => (string)$m->category,
+                    'product_name' => (string)$m->product_name,
                     'amount' => (float)$m->amount,
                     'qty' => (float)$m->qty,
                     'rowTotal' => number_format($m->amount * $m->qty, 2, '.', ''),

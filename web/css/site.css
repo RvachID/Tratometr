@@ -305,6 +305,15 @@ footer, footer .container {
     font-size: 0.95rem;
 }
 
+#shopping-session-list {
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.shopping-session-title {
+    min-width: 0;
+}
+
 .list-section-title {
     font-size: 12px;
     font-weight: 600;
@@ -589,4 +598,3 @@ footer, footer .container {
 .history-row:active{
     transform:scale(.998);
 }
-

@@ -149,7 +149,7 @@ class SiteController extends Controller
 
         // <-- ВСЕГДА грузим актуальный список покупок Алисы
         $aliceService = new AliceListService();
-        $aliceItems   = $aliceService->getActiveList($userId); // только is_done = 0
+        $aliceItems   = $aliceService->getForDropdown($userId);
 
         return $this->render('scan', [
             'store'      => $store,

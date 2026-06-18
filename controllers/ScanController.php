@@ -84,6 +84,7 @@ class ScanController extends Controller
 
             $amount = (float)Yii::$app->request->post('amount');
             $qty    = (float)Yii::$app->request->post('qty', 1);
+            $productName = (string)Yii::$app->request->post('product_name', '');
             $note   = (string)Yii::$app->request->post('note', '');
             $text   = (string)Yii::$app->request->post('parsed_text', '');
             $aliceItemId = Yii::$app->request->post('alice_item_id');
@@ -93,6 +94,7 @@ class ScanController extends Controller
                 $session,
                 $amount,
                 $qty,
+                $productName,
                 $note,
                 $text,
                 $aliceItemId ? (int)$aliceItemId : null
@@ -106,6 +108,7 @@ class ScanController extends Controller
                     'id'          => $entry->id,
                     'amount'      => (float)$entry->amount,
                     'qty'         => (float)$entry->qty,
+                    'product_name'=> (string)$entry->product_name,
                     'note'        => (string)$entry->note,
                     'store'       => (string)$entry->store,
                     'category'    => $entry->category,

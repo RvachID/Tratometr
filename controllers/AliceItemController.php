@@ -65,12 +65,29 @@ class AliceItemController extends Controller
         $service = new AliceListService();
 
         try {
-            $service->addItem(
+            $item = $service->addItem(
                 Yii::$app->user->id,
                 (string)Yii::$app->request->post('title')
             );
         } catch (\DomainException $e) {
+            if (Yii::$app->request->isAjax) {
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                Yii::$app->response->statusCode = 400;
+                return ['success' => false, 'error' => $e->getMessage()];
+            }
             Yii::$app->session->setFlash('error', $e->getMessage());
+        }
+
+        if (Yii::$app->request->isAjax) {
+            Yii::$app->response->format = Response::FORMAT_JSON;
+            return [
+                'success' => true,
+                'item' => [
+                    'id' => $item->id,
+                    'title' => $item->title,
+                    'is_pinned' => (int)$item->is_pinned,
+                ],
+            ];
         }
 
         return $this->redirect(['index']);
@@ -126,6 +143,11 @@ class AliceItemController extends Controller
     {
         $service = new AliceListService();
         $service->deleteItem(Yii::$app->user->id, (int)$id);
+
+        if (Yii::$app->request->isAjax) {
+            Yii::$app->response->format = Response::FORMAT_JSON;
+            return ['success' => true];
+        }
 
         return $this->redirect(['index']);
     }

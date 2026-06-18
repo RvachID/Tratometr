@@ -22,6 +22,7 @@
     const mQtyEl        = document.getElementById('m-qty');
     const mQtyMinusEl   = document.getElementById('m-qty-minus');
     const mQtyPlusEl    = document.getElementById('m-qty-plus');
+    const mProductEl    = document.getElementById('m-product-name');
     const mNoteEl       = document.getElementById('m-note');
     const mShowPhotoBtn = document.getElementById('m-show-photo');
     const mPhotoWrap    = document.getElementById('m-photo-wrap');
@@ -41,6 +42,7 @@
     let lastParsedText = '';
     let wasSaved = false;
     let cameraActive = false;
+    let selectedShoppingItemId = '';
     const scanRoot  = document.getElementById('scan-root');
     let   metaStore    = scanRoot?.dataset.store || '';
     let   metaCategory = scanRoot?.dataset.category || '';
@@ -54,6 +56,11 @@
     const totalWrap = document.getElementById('total-wrap');
     const totalLabelEl = document.getElementById('scan-total-label');
     const mAliceSelect  = document.getElementById('m-alice-item');
+    const shoppingListEl = document.getElementById('shopping-session-list');
+    const shoppingEmptyEl = document.getElementById('shopping-list-empty');
+    const shoppingCountEl = document.getElementById('shopping-list-count');
+    const shoppingAddForm = document.getElementById('shopping-list-add');
+    const shoppingNewTitleEl = document.getElementById('shopping-list-new-title');
     const ensureTotalsMarkup = () => {
         const wrapEl = document.getElementById('total-wrap');
         if (!wrapEl) return;
@@ -179,37 +186,53 @@
         if (selectOnFocusNext) { e.target.select(); selectOnFocusNext = false; }
     });
 
+    function selectShoppingItem(id = '', title = '') {
+        selectedShoppingItemId = id ? String(id) : '';
+        if (mAliceSelect) mAliceSelect.value = id ? String(id) : '';
+        if (mProductEl) mProductEl.value = title || '';
+    }
+
+    async function openCamera() {
+        if (currentStream) return;
+
+        wrap?.setAttribute('style', 'display:block');
+        try {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                alert('Доступ к камере не поддерживается в этом браузере');
+                return;
+            }
+            await initCamera();
+            cameraActive = true;
+            startBtn.textContent = '✖ Закрыть камеру';
+            manualBtn?.classList.add('d-none');
+            document.getElementById('m-show-photo').style.display = '';
+            document.getElementById('m-retake').style.display = '';
+        } catch (e) {
+            alert('Не удалось открыть камеру: ' + (e?.message || e));
+            if (wrap) wrap.style.display = 'none';
+            cameraActive = false;
+            startBtn.textContent = '📷 Сканировать без списка';
+            manualBtn?.classList.remove('d-none');
+        }
+    }
+
+    async function scanShoppingItem(id, title) {
+        selectShoppingItem(id, title);
+        await openCamera();
+    }
+
     // Переключатель камеры
     if (startBtn) {
         startBtn.onclick = async () => {
             cameraActive = !!currentStream;
             if (!cameraActive) {
-                wrap?.setAttribute('style','display:block');
-                try {
-                    if (!navigator.mediaDevices?.getUserMedia) {
-                        alert('Доступ к камере не поддерживается в этом браузере'); return;
-                    }
-                    await initCamera();
-                    cameraActive = true;
-                    startBtn.textContent = '✖ Закрыть камеру';
-                    manualBtn?.classList.add('d-none');
-
-                    // При запуске камеры снова показываем кнопки
-                    document.getElementById('m-show-photo').style.display = '';
-                    document.getElementById('m-retake').style.display = '';
-
-                } catch (e) {
-                    alert('Не удалось открыть камеру: ' + (e?.message || e));
-                    if (wrap) wrap.style.display = 'none';
-                    cameraActive = false;
-                    startBtn.textContent = '📷 Открыть камеру';
-                    manualBtn?.classList.remove('d-none');
-                }
+                selectShoppingItem();
+                await openCamera();
             } else {
                 await stopStream();
                 if (wrap) wrap.style.display = 'none';
                 cameraActive = false;
-                startBtn.textContent = '📷 Открыть камеру';
+                startBtn.textContent = '📷 Сканировать без списка';
                 manualBtn?.classList.remove('d-none');
             }
         };
@@ -222,17 +245,14 @@
                 await stopStream();
                 if (wrap) wrap.style.display = 'none';
                 cameraActive = false;
-                if (startBtn) startBtn.textContent = '📷 Открыть камеру';
+                if (startBtn) startBtn.textContent = '📷 Сканировать без списка';
             }
 
             mAmountEl.value = fmt2(0);
             mQtyEl.value = 1;
+            selectShoppingItem();
             mNoteEl.value = '';
             lastParsedText = '';
-
-            if (mAliceSelect) {
-                mAliceSelect.value = '';
-            }
 
             // Скрыть кнопки "Скан" и "Переснять"
             document.getElementById('m-show-photo').style.display = 'none';
@@ -491,8 +511,6 @@
                                 mNoteEl.value = '';
                                 lastParsedText = res.parsed_text || '';
 
-                                if (mAliceSelect) mAliceSelect.value = '';
-
                                 resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
                                 bootstrapModal?.show();
 
@@ -545,6 +563,13 @@
     if (mAmountEl) {
         mAmountEl.addEventListener('blur', () => { mAmountEl.value = fmt2(mAmountEl.value); });
     }
+    mAliceSelect?.addEventListener('change', () => {
+        selectedShoppingItemId = mAliceSelect.value || '';
+        const option = mAliceSelect.selectedOptions[0];
+        if (mAliceSelect.value && option && mProductEl) {
+            mProductEl.value = option.textContent.trim();
+        }
+    });
 
     if (mShowPhotoBtn && mPhotoWrap && mPhotoImg) {
         const SHOW = 'Показать скан';
@@ -580,15 +605,22 @@
     if (mSaveBtn) {
         mSaveBtn.onclick = async () => {
             const csrf = getCsrf();
+            const productName = (mProductEl?.value || '').trim();
+            if (!productName) {
+                mProductEl?.focus();
+                alert('Укажите наименование товара');
+                return;
+            }
             const fd = new FormData();
             fd.append('amount', mAmountEl.value);
             fd.append('qty', mQtyEl.value);
+            fd.append('product_name', productName);
             fd.append('note', mNoteEl.value);
             fd.append('parsed_text', lastParsedText);
             fd.append('store',    metaStore);
             fd.append('category', metaCategory);
 
-            const selectedAliceId = mAliceSelect ? (mAliceSelect.value || '') : '';
+            const selectedAliceId = selectedShoppingItemId;
             if (selectedAliceId !== '') {
                 fd.append('alice_item_id', selectedAliceId);
             }
@@ -611,6 +643,9 @@
                     if (opt) opt.remove();
                     mAliceSelect.value = '';
                 }
+                selectedShoppingItemId = '';
+
+                await loadShoppingList();
 
                 await closeCameraUI();
                 wasSaved = true;
@@ -620,6 +655,128 @@
             } catch (e) { alert(e.message); }
         };
     }
+
+    function createShoppingItemRow(item) {
+        const row = document.createElement('div');
+        row.className = 'input-group input-group-sm shopping-session-item';
+        row.dataset.id = item.id;
+
+        const title = document.createElement('input');
+        title.type = 'text';
+        title.className = 'form-control shopping-session-title';
+        title.value = item.title;
+        title.maxLength = 255;
+        title.setAttribute('aria-label', 'Наименование товара');
+
+        const scanButton = document.createElement('button');
+        scanButton.type = 'button';
+        scanButton.className = 'btn btn-outline-secondary shopping-session-scan';
+        scanButton.title = 'Сканировать';
+        scanButton.textContent = '📷';
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'btn btn-outline-danger shopping-session-delete';
+        deleteButton.title = 'Удалить';
+        deleteButton.textContent = '×';
+
+        let originalTitle = item.title;
+        title.addEventListener('change', async () => {
+            const newTitle = title.value.trim();
+            if (!newTitle) {
+                title.value = originalTitle;
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('title', newTitle);
+            try {
+                const response = await fetch(`index.php?r=alice-item/update&id=${item.id}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': getCsrf(),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: fd,
+                    credentials: 'include'
+                });
+                if (!response.ok) throw new Error('Не удалось переименовать товар');
+                originalTitle = newTitle;
+                await window.reloadAliceSelect?.(item.id);
+            } catch (e) {
+                title.value = originalTitle;
+                alert(e.message);
+            }
+        });
+
+        scanButton.addEventListener('click', () => scanShoppingItem(item.id, title.value.trim()));
+        deleteButton.addEventListener('click', async () => {
+            if (!confirm(`Удалить «${title.value.trim()}» из списка?`)) return;
+            try {
+                const response = await fetch(`index.php?r=alice-item/delete&id=${item.id}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': getCsrf(),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'include'
+                });
+                if (!response.ok) throw new Error('Не удалось удалить товар');
+                await Promise.all([loadShoppingList(), window.reloadAliceSelect?.()]);
+            } catch (e) {
+                alert(e.message);
+            }
+        });
+
+        row.append(title, scanButton, deleteButton);
+        return row;
+    }
+
+    async function loadShoppingList() {
+        if (!shoppingListEl) return;
+
+        try {
+            const response = await fetch('index.php?r=alice-item/list-json', { credentials: 'include' });
+            if (!response.ok) throw new Error('Не удалось загрузить список покупок');
+            const items = await response.json();
+
+            shoppingListEl.replaceChildren(...items.map(createShoppingItemRow));
+            if (shoppingCountEl) shoppingCountEl.textContent = String(items.length);
+            shoppingEmptyEl?.classList.toggle('d-none', items.length > 0);
+        } catch (e) {
+            console.error('shopping list load error', e);
+        }
+    }
+
+    shoppingAddForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const title = (shoppingNewTitleEl?.value || '').trim();
+        if (!title) return;
+
+        const fd = new FormData();
+        fd.append('title', title);
+        try {
+            const response = await fetch('index.php?r=alice-item/create', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': getCsrf(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: fd,
+                credentials: 'include'
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Не удалось добавить товар');
+            }
+
+            shoppingNewTitleEl.value = '';
+            await Promise.all([loadShoppingList(), window.reloadAliceSelect?.(result.item.id)]);
+            await scanShoppingItem(result.item.id, result.item.title);
+        } catch (e) {
+            alert(e.message);
+        }
+    });
 
 
     // init
@@ -666,7 +823,11 @@
         } catch (e) { /* тихо */ }
     }
 
-    document.addEventListener('DOMContentLoaded', checkShopSession, reloadAliceSelect());
+    document.addEventListener('DOMContentLoaded', () => {
+        checkShopSession();
+        window.reloadAliceSelect?.();
+        loadShoppingList();
+    });
 
     // После закрытия модалки — обновляем заголовок на всякий случай
     shopModalEl?.addEventListener('hidden.bs.modal', () => {
@@ -732,7 +893,7 @@
         if (wrap) wrap.style.display = 'none';
         // Обновить флаги/кнопки
         cameraActive = false;
-        if (startBtn) startBtn.textContent = '📷 Открыть камеру';
+        if (startBtn) startBtn.textContent = '📷 Сканировать без списка';
         manualBtn?.classList.remove('d-none');
     }
 })();

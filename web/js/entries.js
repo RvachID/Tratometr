@@ -185,14 +185,15 @@
         div.className = 'border p-2 mb-2';
 
         const aliceTitle = (entry.alice_title ?? '').trim();
+        const productName = (entry.product_name ?? aliceTitle).trim();
         const noteVal    = (entry.note ?? '').trim();
 
-        // --- верхний бейдж, если есть товар из списка ---
-        if (aliceTitle) {
+        // --- наименование товара ---
+        if (productName) {
             div.innerHTML = `
             <div class="mb-2">
                 <span class="badge entry-badge">
-                    ${escapeHtml(aliceTitle)}
+                    ${escapeHtml(productName)}
                 </span>
             </div>
         `;
@@ -232,7 +233,7 @@
         bindEntryRow(div);
 
         // --- рендерим заметку ТОЛЬКО если она отличается от заголовка ---
-        if (typeof renderNote === 'function' && noteVal && noteVal !== aliceTitle) {
+        if (typeof renderNote === 'function' && noteVal && noteVal !== productName) {
             renderNote(div, noteVal);
         }
     }

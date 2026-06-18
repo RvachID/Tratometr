@@ -25,8 +25,52 @@ $isView = $mode === 'view';
         <div class="container mt-3 text-center">
             <h6 id="scan-title" class="mb-2">Тратометр</h6>
 
+            <div class="card border-0 shadow-sm mb-3 text-start" id="shopping-session-panel">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Список покупок</strong>
+                        <span class="badge bg-light text-dark" id="shopping-list-count"><?= count($aliceItems) ?></span>
+                    </div>
+
+                    <form id="shopping-list-add" class="input-group input-group-sm mb-2">
+                        <input
+                                type="text"
+                                class="form-control"
+                                id="shopping-list-new-title"
+                                placeholder="Добавить товар и сканировать"
+                                maxlength="255"
+                                required
+                        >
+                        <button class="btn btn-outline-secondary" type="submit">Добавить</button>
+                    </form>
+
+                    <div id="shopping-session-list" class="d-grid gap-2">
+                        <?php foreach ($aliceItems as $item): ?>
+                            <div class="input-group input-group-sm shopping-session-item" data-id="<?= (int)$item->id ?>">
+                                <input
+                                        type="text"
+                                        class="form-control shopping-session-title"
+                                        value="<?= Html::encode($item->title) ?>"
+                                        maxlength="255"
+                                        aria-label="Наименование товара"
+                                >
+                                <button class="btn btn-outline-secondary shopping-session-scan" type="button" title="Сканировать">
+                                    📷
+                                </button>
+                                <button class="btn btn-outline-danger shopping-session-delete" type="button" title="Удалить">
+                                    ×
+                                </button>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div id="shopping-list-empty" class="text-muted small text-center py-2 <?= $aliceItems ? 'd-none' : '' ?>">
+                        Список пока пуст
+                    </div>
+                </div>
+            </div>
+
             <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
-                <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Открыть камеру</button>
+                <button id="start-scan" class="btn btn-outline-secondary" type="button">📷 Сканировать без списка</button>
                 <button id="manual-add" class="btn btn-outline-secondary" type="button">✍️ Ввести вручную</button>
             </div>
 
@@ -133,7 +177,12 @@ $isView = $mode === 'view';
                         </div>
 
                         <div class="mb-2 text-start">
-                            <label class="form-label">Заметка или название товара (опц.)</label>
+                            <label class="form-label" for="m-product-name">Товар</label>
+                            <input type="text" class="form-control" id="m-product-name" maxlength="255" required>
+                        </div>
+
+                        <div class="mb-2 text-start">
+                            <label class="form-label" for="m-note">Комментарий (опц.)</label>
                             <input type="text" class="form-control" id="m-note">
                         </div>
 
@@ -253,10 +302,11 @@ $isView = $mode === 'view';
         <div class="mt-3 text-start">
             <?php foreach ($entries as $entry): ?>
                 <div class="border p-2 mb-2">
-                    <?php if ($entry->aliceItem): ?>
+                    <?php $productName = $entry->product_name ?: ($entry->aliceItem->title ?? null); ?>
+                    <?php if ($productName): ?>
                         <div class="mb-2">
         <span class="badge entry-badge">
-            <?= Html::encode($entry->aliceItem->title) ?>
+            <?= Html::encode($productName) ?>
         </span>
                         </div>
                     <?php endif; ?>

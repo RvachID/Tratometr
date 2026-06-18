@@ -11,6 +11,7 @@ use yii\db\ActiveRecord;
  * @property float $qty
  * @property string|null $store
  * @property string|null $category
+ * @property string|null $product_name
  * @property string $source
  * @property string|null $note
  * @property string|null $photo_path
@@ -34,7 +35,7 @@ class PriceEntry extends ActiveRecord
             [['user_id', 'created_at', 'updated_at'], 'integer'],
             [['amount', 'qty', 'recognized_amount'], 'number'],
             [['recognized_text'], 'string'],
-            [['store', 'category', 'source', 'note', 'photo_path'], 'string', 'max' => 255],
+            [['store', 'category', 'product_name', 'source', 'note', 'photo_path'], 'string', 'max' => 255],
             ['session_id', 'integer'],
             [['source'], 'in', 'range' => ['manual', 'price_tag', 'receipt']],
             ['alice_item_id', 'integer'],

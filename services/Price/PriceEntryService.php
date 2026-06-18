@@ -49,6 +49,7 @@ class PriceEntryService
         PurchaseSession $session,
         float $amount,
         float $qty,
+        ?string $productName,
         ?string $note,
         ?string $parsedText,
         ?int $aliceItemId = null
@@ -61,6 +62,25 @@ class PriceEntryService
             $qty = 1.0;
         }
 
+        $aliceItem = null;
+        if ($aliceItemId) {
+            $aliceItem = AliceItem::findOne([
+                'id' => $aliceItemId,
+                'user_id' => $userId,
+            ]);
+            if (!$aliceItem) {
+                throw new DomainException('Пункт списка покупок не найден');
+            }
+            if (trim((string)$productName) === '') {
+                $productName = $aliceItem->title;
+            }
+        }
+
+        $productName = trim((string)$productName);
+        if ($productName === '') {
+            throw new DomainException('Укажите наименование товара');
+        }
+
         $entry = new PriceEntry();
         $entry->user_id = $userId;
         $entry->session_id = $session->id;
@@ -68,6 +88,7 @@ class PriceEntryService
         $entry->qty = round($qty, 3);
         $entry->store = $session->shop;
         $entry->category = $session->category ?: null;
+        $entry->product_name = mb_substr($productName, 0, 255);
         $entry->note = $note ?: null;
         $entry->recognized_text = $parsedText ?: null;
         $entry->recognized_amount = $entry->amount;
@@ -83,19 +104,13 @@ class PriceEntryService
         }
 
         // если привязали пункт Алисы — помечаем его купленным
-        if ($entry->alice_item_id) {
-            $aliceItem = AliceItem::findOne([
-                'id' => $entry->alice_item_id,
-                'user_id' => $userId,
-            ]);
-            if ($aliceItem) {
-                $aliceItem->is_done = 1;
-                $aliceItem->updated_at = time();
-                $aliceItem->save(false);
+        if ($aliceItem) {
+            $aliceItem->is_done = 1;
+            $aliceItem->updated_at = time();
+            $aliceItem->save(false);
 
-                // чтобы relation был сразу доступен без лишнего запроса
-                $entry->populateRelation('aliceItem', $aliceItem);
-            }
+            // Keep the relation available for the response without another query.
+            $entry->populateRelation('aliceItem', $aliceItem);
         }
 
         $this->sessionService->touch($session);
