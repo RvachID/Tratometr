@@ -58,10 +58,14 @@
     const mAliceSelect  = document.getElementById('m-alice-item');
     const shoppingPanelEl = document.getElementById('shopping-session-panel');
     const shoppingListEl = document.getElementById('shopping-session-list');
-    const shoppingEmptyEl = document.getElementById('shopping-list-empty');
     const shoppingCountEl = document.getElementById('shopping-list-count');
     const shoppingAddForm = document.getElementById('shopping-list-add');
     const shoppingNewTitleEl = document.getElementById('shopping-list-new-title');
+    let hasShoppingItems = (shoppingListEl?.children.length || 0) > 0;
+
+    function syncShoppingPanelVisibility() {
+        shoppingPanelEl?.classList.toggle('d-none', !hasShoppingItems || cameraActive);
+    }
     const ensureTotalsMarkup = () => {
         const wrapEl = document.getElementById('total-wrap');
         if (!wrapEl) return;
@@ -202,7 +206,7 @@
             if (!navigator.mediaDevices?.getUserMedia) {
                 alert('Доступ к камере не поддерживается в этом браузере');
                 if (wrap) wrap.style.display = 'none';
-                shoppingPanelEl?.classList.remove('d-none');
+                syncShoppingPanelVisibility();
                 return;
             }
             await initCamera();
@@ -218,7 +222,7 @@
             cameraActive = false;
             startBtn.textContent = '📷 Сканировать без списка';
             manualBtn?.classList.remove('d-none');
-            shoppingPanelEl?.classList.remove('d-none');
+            syncShoppingPanelVisibility();
         }
     }
 
@@ -240,7 +244,7 @@
                 cameraActive = false;
                 startBtn.textContent = '📷 Сканировать без списка';
                 manualBtn?.classList.remove('d-none');
-                shoppingPanelEl?.classList.remove('d-none');
+                syncShoppingPanelVisibility();
             }
         };
     }
@@ -665,23 +669,23 @@
 
     function createShoppingItemRow(item) {
         const row = document.createElement('div');
-        row.className = 'input-group input-group-sm shopping-session-item';
+        row.className = 'shopping-session-item d-flex align-items-stretch';
         row.dataset.id = item.id;
 
         const scanButton = document.createElement('button');
         scanButton.type = 'button';
-        scanButton.className = 'btn btn-outline-secondary shopping-session-scan text-start flex-grow-1';
+        scanButton.className = 'btn shopping-session-scan text-start flex-grow-1';
         scanButton.textContent = item.title;
 
         const editButton = document.createElement('button');
         editButton.type = 'button';
-        editButton.className = 'btn btn-outline-secondary shopping-session-edit';
+        editButton.className = 'btn shopping-session-edit';
         editButton.title = 'Переименовать';
         editButton.textContent = '✎';
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
-        deleteButton.className = 'btn btn-outline-danger shopping-session-delete';
+        deleteButton.className = 'btn shopping-session-delete';
         deleteButton.title = 'Удалить';
         deleteButton.textContent = '×';
 
@@ -741,8 +745,9 @@
             const items = await response.json();
 
             shoppingListEl.replaceChildren(...items.map(createShoppingItemRow));
+            hasShoppingItems = items.length > 0;
             if (shoppingCountEl) shoppingCountEl.textContent = String(items.length);
-            shoppingEmptyEl?.classList.toggle('d-none', items.length > 0);
+            syncShoppingPanelVisibility();
         } catch (e) {
             console.error('shopping list load error', e);
         }
@@ -895,6 +900,6 @@
         cameraActive = false;
         if (startBtn) startBtn.textContent = '📷 Сканировать без списка';
         manualBtn?.classList.remove('d-none');
-        shoppingPanelEl?.classList.remove('d-none');
+        syncShoppingPanelVisibility();
     }
 })();

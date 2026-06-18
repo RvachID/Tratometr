@@ -25,14 +25,13 @@ $isView = $mode === 'view';
         <div class="container mt-3 text-center">
             <h6 id="scan-title" class="mb-2">Тратометр</h6>
 
-            <div class="card border-0 shadow-sm mb-3 text-start" id="shopping-session-panel">
-                <div class="card-body p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <strong>Список покупок</strong>
-                        <span class="badge bg-light text-dark" id="shopping-list-count"><?= count($aliceItems) ?></span>
+            <div class="shopping-session-panel mb-3 text-start <?= $aliceItems ? '' : 'd-none' ?>" id="shopping-session-panel">
+                    <div class="shopping-session-header d-flex justify-content-between align-items-center mb-2">
+                        <strong class="small text-muted">Список покупок</strong>
+                        <span class="small text-muted" id="shopping-list-count"><?= count($aliceItems) ?></span>
                     </div>
 
-                    <form id="shopping-list-add" class="input-group input-group-sm mb-2">
+                    <form id="shopping-list-add" class="input-group mb-2">
                         <input
                                 type="text"
                                 class="form-control"
@@ -44,25 +43,21 @@ $isView = $mode === 'view';
                         <button class="btn btn-outline-secondary" type="submit">Добавить</button>
                     </form>
 
-                    <div id="shopping-session-list" class="d-grid gap-2">
+                    <div id="shopping-session-list" class="shopping-session-list">
                         <?php foreach ($aliceItems as $item): ?>
-                            <div class="input-group input-group-sm shopping-session-item" data-id="<?= (int)$item->id ?>">
-                                <button class="btn btn-outline-secondary shopping-session-scan text-start flex-grow-1" type="button">
+                            <div class="shopping-session-item d-flex align-items-stretch" data-id="<?= (int)$item->id ?>">
+                                <button class="btn shopping-session-scan text-start flex-grow-1" type="button">
                                     <?= Html::encode($item->title) ?>
                                 </button>
-                                <button class="btn btn-outline-secondary shopping-session-edit" type="button" title="Переименовать">
+                                <button class="btn shopping-session-edit" type="button" title="Переименовать">
                                     ✎
                                 </button>
-                                <button class="btn btn-outline-danger shopping-session-delete" type="button" title="Удалить">
+                                <button class="btn shopping-session-delete" type="button" title="Удалить">
                                     ×
                                 </button>
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <div id="shopping-list-empty" class="text-muted small text-center py-2 <?= $aliceItems ? 'd-none' : '' ?>">
-                        Список пока пуст
-                    </div>
-                </div>
             </div>
 
             <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-3">
