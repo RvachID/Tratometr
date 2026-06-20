@@ -27,12 +27,17 @@ class AliceListService
             return $reply;
         }
 
-        // 2. Показать список
+        // 2. Удаление одного товара
+        if ($reply = $this->tryDeleteItem($userId, $cmd)) {
+            return $reply;
+        }
+
+        // 3. Показать список
         if ($reply = $this->tryShowList($userId, $cmd)) {
             return $reply;
         }
 
-        // 3. Добавление товаров
+        // 4. Добавление товаров
         $added = $this->addFromCommand($userId, $cmd);
         if (!empty($added)) {
             $titles = array_map(fn($i) => $i->title, $added);
@@ -236,22 +241,7 @@ class AliceListService
 
     private function tryClearList(int $userId, string $cmd): ?string
     {
-        $pattern = '~\b(
-            очист(и|ить|ка|и всё)? |
-            удал(и|ить|яй)? |
-            сброс(ь|ить)? |
-            убер(и|ать)? |
-            отметь.*куплен |
-            всё\s+куплен
-        )\b
-        .*\b(
-            список |
-            всё |
-            все |
-            покупки
-        )\b~ux';
-
-        if (!preg_match($pattern, $cmd)) {
+        if (!$this->isClearCommand($cmd)) {
             return null;
         }
 
@@ -262,6 +252,175 @@ class AliceListService
         }
 
         return "Отметила как купленные {$affected} позиций. Список очищен.";
+    }
+
+    private function isClearCommand(string $cmd): bool
+    {
+        $patterns = [
+            '~^(?:очисти|очистить|сбрось|сбросить)\s+(?:весь\s+)?(?:список(?:\s+покупок)?|покупки)$~u',
+            '~^(?:удали|удалить|убери|убрать)\s+(?:все|всё)(?:\s+покупки)?(?:\s+из\s+списка)?$~u',
+            '~^отметь\s+(?:все|всё)(?:\s+покупки)?\s+(?:как\s+)?купленн(?:ыми|ое)$~u',
+            '~^(?:все|всё)\s+куплено$~u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $cmd)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function tryDeleteItem(int $userId, string $cmd): ?string
+    {
+        $query = $this->extractDeleteQuery($cmd);
+        if ($query === null) {
+            return null;
+        }
+
+        $items = $this->getActiveList($userId);
+        if (empty($items)) {
+            return 'Список покупок пуст.';
+        }
+
+        $matches = $this->findDeleteMatches($query, $items);
+        if (count($matches['exact']) === 1) {
+            $item = $matches['exact'][0];
+            $title = $item->title;
+            $this->deleteItem($userId, (int)$item->id);
+
+            return 'Удалила из списка: ' . $title . '.';
+        }
+
+        if (count($matches['exact']) > 1) {
+            return $this->deleteChoiceReply($matches['exact']);
+        }
+
+        $suggestions = !empty($matches['partial'])
+            ? $matches['partial']
+            : $matches['fuzzy'];
+
+        if (count($suggestions) === 1) {
+            $title = $suggestions[0]->title;
+            return 'В списке есть «' . $title . '». Чтобы удалить, скажи: «удали ' . $title . '».';
+        }
+
+        if (count($suggestions) > 1) {
+            return $this->deleteChoiceReply($suggestions);
+        }
+
+        return 'Не нашла «' . $query . '» в списке покупок.';
+    }
+
+    private function extractDeleteQuery(string $cmd): ?string
+    {
+        if (!preg_match(
+            '~^(?:удали|удалить|убери|убрать)\s+(.+?)(?:\s+из\s+списка(?:\s+покупок)?)?$~u',
+            $cmd,
+            $matches
+        )) {
+            return null;
+        }
+
+        $query = trim($matches[1]);
+        return $query === '' || in_array($query, ['все', 'всё'], true) ? null : $query;
+    }
+
+    private function findDeleteMatches(string $query, array $items): array
+    {
+        $normalizedQuery = $this->normalizeItemTitle($query);
+        $result = ['exact' => [], 'partial' => [], 'fuzzy' => []];
+
+        foreach ($items as $item) {
+            $normalizedTitle = $this->normalizeItemTitle((string)$item->title);
+
+            if ($normalizedTitle === $normalizedQuery) {
+                $result['exact'][] = $item;
+                continue;
+            }
+
+            if (mb_strpos(' ' . $normalizedTitle . ' ', ' ' . $normalizedQuery . ' ') !== false) {
+                $result['partial'][] = $item;
+                continue;
+            }
+
+            if ($this->isFuzzyTitleMatch($normalizedQuery, $normalizedTitle)) {
+                $result['fuzzy'][] = $item;
+            }
+        }
+
+        return $result;
+    }
+
+    private function normalizeItemTitle(string $title): string
+    {
+        $title = str_replace('ё', 'е', mb_strtolower($title, 'UTF-8'));
+        $title = preg_replace('~[^\p{L}\p{N}]+~u', ' ', $title);
+        return trim(preg_replace('~\s+~u', ' ', $title));
+    }
+
+    private function isFuzzyTitleMatch(string $query, string $title): bool
+    {
+        $queryWords = explode(' ', $query);
+        $titleWords = explode(' ', $title);
+
+        foreach ($queryWords as $queryWord) {
+            if (mb_strlen($queryWord, 'UTF-8') < 4) {
+                if (!in_array($queryWord, $titleWords, true)) {
+                    return false;
+                }
+                continue;
+            }
+
+            $bestDistance = null;
+            foreach ($titleWords as $titleWord) {
+                $distance = $this->unicodeLevenshtein($queryWord, $titleWord);
+                $bestDistance = $bestDistance === null ? $distance : min($bestDistance, $distance);
+            }
+
+            $maxDistance = mb_strlen($queryWord, 'UTF-8') >= 6 ? 2 : 1;
+            if ($bestDistance === null || $bestDistance > $maxDistance) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function unicodeLevenshtein(string $left, string $right): int
+    {
+        $leftChars = preg_split('//u', $left, -1, PREG_SPLIT_NO_EMPTY);
+        $rightChars = preg_split('//u', $right, -1, PREG_SPLIT_NO_EMPTY);
+        $previous = range(0, count($rightChars));
+
+        foreach ($leftChars as $leftIndex => $leftChar) {
+            $current = [$leftIndex + 1];
+
+            foreach ($rightChars as $rightIndex => $rightChar) {
+                $current[] = min(
+                    $current[$rightIndex] + 1,
+                    $previous[$rightIndex + 1] + 1,
+                    $previous[$rightIndex] + ($leftChar === $rightChar ? 0 : 1)
+                );
+            }
+
+            $previous = $current;
+        }
+
+        return $previous[count($rightChars)];
+    }
+
+    private function deleteChoiceReply(array $items): string
+    {
+        $titles = array_map(static fn($item) => '«' . $item->title . '»', array_slice($items, 0, 3));
+        $reply = 'Нашла несколько вариантов: ' . implode(', ', $titles) . '.';
+
+        if (count($items) > 3) {
+            $reply .= ' И ещё ' . (count($items) - 3) . '.';
+        }
+
+        return $reply . ' Назови товар полностью.';
     }
 
     private function requireOwned(int $userId, int $id): AliceItem
