@@ -98,6 +98,36 @@ class AliceListServiceTest extends \Codeception\Test\Unit
         $this->assertCount(2, $fuzzy['fuzzy']);
     }
 
+    /**
+     * @dataProvider helpCommandProvider
+     */
+    public function testRecognizesHelpCommands(string $command, bool $expected): void
+    {
+        $this->assertSame($expected, $this->invoke('isHelpCommand', $command));
+    }
+
+    public function helpCommandProvider(): array
+    {
+        return [
+            ['помощь', true],
+            ['что ты умеешь', true],
+            ['какие есть команды', true],
+            ['расскажи о командах', true],
+            ['как тобой пользоваться', true],
+            ['добавь помощь', false],
+        ];
+    }
+
+    public function testHelpTextDescribesCurrentCommands(): void
+    {
+        $text = (new AliceListService())->getHelpText();
+
+        $this->assertStringContainsString('добавь хлеб и молоко', $text);
+        $this->assertStringContainsString('что в списке', $text);
+        $this->assertStringContainsString('удали молоко', $text);
+        $this->assertStringContainsString('очисти список', $text);
+    }
+
     private function extractItems(string $command): array
     {
         return $this->invoke('extractItemsFromAddCommand', $command);

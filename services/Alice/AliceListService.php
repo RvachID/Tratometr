@@ -22,22 +22,27 @@ class AliceListService
             return null;
         }
 
-        // 1. Очистка списка
+        // 1. Справка
+        if ($this->isHelpCommand($cmd)) {
+            return $this->getHelpText();
+        }
+
+        // 2. Очистка списка
         if ($reply = $this->tryClearList($userId, $cmd)) {
             return $reply;
         }
 
-        // 2. Удаление одного товара
+        // 3. Удаление одного товара
         if ($reply = $this->tryDeleteItem($userId, $cmd)) {
             return $reply;
         }
 
-        // 3. Показать список
+        // 4. Показать список
         if ($reply = $this->tryShowList($userId, $cmd)) {
             return $reply;
         }
 
-        // 4. Добавление товаров
+        // 5. Добавление товаров
         $added = $this->addFromCommand($userId, $cmd);
         if (!empty($added)) {
             $titles = array_map(fn($i) => $i->title, $added);
@@ -51,6 +56,14 @@ class AliceListService
         }
 
         return null;
+    }
+
+    public function getHelpText(): string
+    {
+        return 'Я умею вести список покупок. '
+            . 'Скажи: «добавь хлеб и молоко», «что в списке», '
+            . '«удали молоко» или «очисти список». '
+            . 'Если название указано не полностью, я предложу подходящие варианты.';
     }
 
     /**
@@ -237,6 +250,25 @@ class AliceListService
 
         $cmd = trim($cmd, " \t\n\r\0\x0B.!?,");
         return preg_replace('~\s+~u', ' ', $cmd);
+    }
+
+    private function isHelpCommand(string $cmd): bool
+    {
+        $patterns = [
+            '~^(?:помощь|помоги|справка)$~u',
+            '~^(?:что|чего)\s+ты\s+умеешь$~u',
+            '~^(?:какие|покажи|назови)\s+(?:есть\s+)?команды$~u',
+            '~^(?:расскажи|скажи)\s+(?:о\s+)?командах$~u',
+            '~^как\s+(?:тобой\s+)?пользоваться$~u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $cmd)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function tryClearList(int $userId, string $cmd): ?string
