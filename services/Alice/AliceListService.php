@@ -314,23 +314,31 @@ class AliceListService
         $cmd = mb_strtolower($command, 'UTF-8');
         $cmd = trim($cmd);
 
-        // === 1. Убираем стартовые служебные фразы ===
+        // Добавление разрешено только при явном намерении пользователя.
+        // Иначе любая нераспознанная фраза превращается в товар.
         $serviceStarts = [
             'добавь в список покупок',
             'добавить в список покупок',
             'добавь в список',
             'добавить в список',
-            'добавь',
-            'добавить',
             'добавь добавь',
             'добавить добавить',
+            'добавь',
+            'добавить',
         ];
 
+        $hasAddIntent = false;
+
         foreach ($serviceStarts as $start) {
-            if (mb_strpos($cmd, $start) === 0) {
+            if ($cmd === $start || mb_strpos($cmd, $start . ' ') === 0) {
                 $cmd = trim(mb_substr($cmd, mb_strlen($start)));
+                $hasAddIntent = true;
                 break;
             }
+        }
+
+        if (!$hasAddIntent) {
+            return [];
         }
 
         // === 2. Убираем хвостовые служебные фразы ===
