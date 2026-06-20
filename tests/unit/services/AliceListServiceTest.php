@@ -89,13 +89,33 @@ class AliceListServiceTest extends \Codeception\Test\Unit
             $this->item('Хлеб'),
         ];
 
-        $exact = $this->invoke('findDeleteMatches', 'молоко 33 коровы', $items);
-        $partial = $this->invoke('findDeleteMatches', 'молоко', $items);
-        $fuzzy = $this->invoke('findDeleteMatches', 'малако', $items);
+        $exact = $this->invoke('findItemMatches', 'молоко 33 коровы', $items);
+        $partial = $this->invoke('findItemMatches', 'молоко', $items);
+        $fuzzy = $this->invoke('findItemMatches', 'малако', $items);
 
         $this->assertCount(1, $exact['exact']);
         $this->assertCount(2, $partial['partial']);
         $this->assertCount(2, $fuzzy['fuzzy']);
+    }
+
+    /**
+     * @dataProvider completeQueryProvider
+     */
+    public function testExtractsAProductFromCompleteCommand(string $command, ?string $expected): void
+    {
+        $this->assertSame($expected, $this->invoke('extractCompleteQuery', $command));
+    }
+
+    public function completeQueryProvider(): array
+    {
+        return [
+            ['молоко куплено', 'молоко'],
+            ['отметь хлеб купленным', 'хлеб'],
+            ['отметь сыр как купленный', 'сыр'],
+            ['купила яблоки', 'яблоки'],
+            ['всё куплено', null],
+            ['что куплено', null],
+        ];
     }
 
     /**
@@ -125,6 +145,7 @@ class AliceListServiceTest extends \Codeception\Test\Unit
         $this->assertStringContainsString('добавь хлеб и молоко', $text);
         $this->assertStringContainsString('что в списке', $text);
         $this->assertStringContainsString('удали молоко', $text);
+        $this->assertStringContainsString('молоко куплено', $text);
         $this->assertStringContainsString('очисти список', $text);
     }
 

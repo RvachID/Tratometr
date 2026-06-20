@@ -37,12 +37,17 @@ class AliceListService
             return $reply;
         }
 
-        // 4. Показать список
+        // 4. Отметить один товар купленным
+        if ($reply = $this->tryCompleteItem($userId, $cmd)) {
+            return $reply;
+        }
+
+        // 5. Показать список
         if ($reply = $this->tryShowList($userId, $cmd)) {
             return $reply;
         }
 
-        // 5. Добавление товаров
+        // 6. Добавление товаров
         $added = $this->addFromCommand($userId, $cmd);
         if (!empty($added)) {
             $titles = array_map(fn($i) => $i->title, $added);
@@ -62,7 +67,7 @@ class AliceListService
     {
         return 'Я умею вести список покупок. '
             . 'Скажи: «добавь хлеб и молоко», «что в списке», '
-            . '«удали молоко» или «очисти список». '
+            . '«удали молоко», «молоко куплено» или «очисти список». '
             . 'Если название указано не полностью, я предложу подходящие варианты.';
     }
 
@@ -316,7 +321,7 @@ class AliceListService
             return 'Список покупок пуст.';
         }
 
-        $matches = $this->findDeleteMatches($query, $items);
+        $matches = $this->findItemMatches($query, $items);
         if (count($matches['exact']) === 1) {
             $item = $matches['exact'][0];
             $title = $item->title;
@@ -326,7 +331,7 @@ class AliceListService
         }
 
         if (count($matches['exact']) > 1) {
-            return $this->deleteChoiceReply($matches['exact']);
+            return $this->itemChoiceReply($matches['exact'], 'удалить');
         }
 
         $suggestions = !empty($matches['partial'])
@@ -339,7 +344,7 @@ class AliceListService
         }
 
         if (count($suggestions) > 1) {
-            return $this->deleteChoiceReply($suggestions);
+            return $this->itemChoiceReply($suggestions, 'удалить');
         }
 
         return 'Не нашла «' . $query . '» в списке покупок.';
@@ -359,7 +364,67 @@ class AliceListService
         return $query === '' || in_array($query, ['все', 'всё'], true) ? null : $query;
     }
 
-    private function findDeleteMatches(string $query, array $items): array
+    private function tryCompleteItem(int $userId, string $cmd): ?string
+    {
+        $query = $this->extractCompleteQuery($cmd);
+        if ($query === null) {
+            return null;
+        }
+
+        $items = $this->getActiveList($userId);
+        if (empty($items)) {
+            return 'Список покупок пуст.';
+        }
+
+        $matches = $this->findItemMatches($query, $items);
+        if (count($matches['exact']) === 1) {
+            $item = $matches['exact'][0];
+            $this->toggleDone($userId, (int)$item->id);
+
+            return 'Отметила как купленное: ' . $item->title . '.';
+        }
+
+        if (count($matches['exact']) > 1) {
+            return $this->itemChoiceReply($matches['exact'], 'отметить купленным');
+        }
+
+        $suggestions = !empty($matches['partial'])
+            ? $matches['partial']
+            : $matches['fuzzy'];
+
+        if (count($suggestions) === 1) {
+            $title = $suggestions[0]->title;
+            return 'В списке есть «' . $title . '». Чтобы отметить покупку, скажи: «' . $title . ' куплено».';
+        }
+
+        if (count($suggestions) > 1) {
+            return $this->itemChoiceReply($suggestions, 'отметить купленным');
+        }
+
+        return 'Не нашла «' . $query . '» в списке покупок.';
+    }
+
+    private function extractCompleteQuery(string $cmd): ?string
+    {
+        $patterns = [
+            '~^(.+?)\s+(?:куплено|куплен|куплена|куплены)$~u',
+            '~^отметь\s+(.+?)\s+(?:как\s+)?купленн(?:ый|ая|ое|ые|ым|ой|ыми)$~u',
+            '~^(?:купил|купила|купили)\s+(.+)$~u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $cmd, $matches)) {
+                $query = trim($matches[1]);
+                if (!in_array($query, ['все', 'всё', 'что', 'кто', 'это'], true)) {
+                    return $query;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findItemMatches(string $query, array $items): array
     {
         $normalizedQuery = $this->normalizeItemTitle($query);
         $result = ['exact' => [], 'partial' => [], 'fuzzy' => []];
@@ -443,7 +508,7 @@ class AliceListService
         return $previous[count($rightChars)];
     }
 
-    private function deleteChoiceReply(array $items): string
+    private function itemChoiceReply(array $items, string $action): string
     {
         $titles = array_map(static fn($item) => '«' . $item->title . '»', array_slice($items, 0, 3));
         $reply = 'Нашла несколько вариантов: ' . implode(', ', $titles) . '.';
@@ -452,7 +517,7 @@ class AliceListService
             $reply .= ' И ещё ' . (count($items) - 3) . '.';
         }
 
-        return $reply . ' Назови товар полностью.';
+        return $reply . ' Назови полностью, какой товар нужно ' . $action . '.';
     }
 
     private function requireOwned(int $userId, int $id): AliceItem
