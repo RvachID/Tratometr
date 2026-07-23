@@ -56,6 +56,7 @@
     const totalWrap = document.getElementById('total-wrap');
     const totalLabelEl = document.getElementById('scan-total-label');
     const mAliceSelect  = document.getElementById('m-alice-item');
+    const mAliceSelectWrap = document.getElementById('m-alice-item-wrap');
     const shoppingPanelEl = document.getElementById('shopping-session-panel');
     const shoppingListEl = document.getElementById('shopping-session-list');
     const shoppingCountEl = document.getElementById('shopping-list-count');
@@ -196,9 +197,14 @@
         if (mProductEl) mProductEl.value = title || '';
     }
 
+    function toggleManualProductSelector(show) {
+        mAliceSelectWrap?.classList.toggle('d-none', !show);
+    }
+
     async function openCamera() {
         if (currentStream) return;
 
+        toggleManualProductSelector(false);
         shoppingPanelEl?.classList.add('d-none');
         wrap?.setAttribute('style', 'display:block');
         try {
@@ -269,6 +275,8 @@
             selectShoppingItem();
             mNoteEl.value = '';
             lastParsedText = '';
+            toggleManualProductSelector(true);
+            await window.reloadAliceSelect?.();
 
             // Скрыть кнопки "Скан" и "Переснять"
             document.getElementById('m-show-photo').style.display = 'none';
@@ -626,6 +634,15 @@
         const option = mAliceSelect.selectedOptions[0];
         if (mAliceSelect.value && option && mProductEl) {
             mProductEl.value = option.textContent.trim();
+        }
+    });
+    mProductEl?.addEventListener('input', () => {
+        if (!mAliceSelect || mAliceSelectWrap?.classList.contains('d-none')) return;
+        const option = mAliceSelect.selectedOptions[0];
+        const selectedTitle = option?.textContent.trim() || '';
+        if (mAliceSelect.value && mProductEl.value.trim() !== selectedTitle) {
+            mAliceSelect.value = '';
+            selectedShoppingItemId = '';
         }
     });
 

@@ -184,6 +184,14 @@ $shoppingProgress = $shoppingListTotal > 0
 
                         <div class="mb-2 text-start">
                             <label class="form-label" for="m-product-name">Товар</label>
+                            <div class="mb-2 d-none" id="m-alice-item-wrap">
+                                <select id="m-alice-item" class="form-select">
+                                    <option value="">Выбрать из списка покупок...</option>
+                                </select>
+                                <small class="text-muted">
+                                    Если выбрать товар из списка, он подставится в название и после сохранения отметится купленным.
+                                </small>
+                            </div>
                             <input type="text" class="form-control" id="m-product-name" maxlength="255" required>
                         </div>
 
