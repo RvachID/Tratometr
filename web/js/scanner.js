@@ -281,6 +281,10 @@
 
     // ===== Камера =====
     async function stopStream() {
+        clearTimeout(zoomTimer);
+        zoomTimer = null;
+        hideZoomPreview();
+
         if (currentStream) {
             currentStream.getTracks().forEach(t => t.stop());
             currentStream = null;
@@ -298,59 +302,30 @@
 
     const overlay = document.getElementById('zoom-overlay');
 
-    if (video) {
-        video.addEventListener('pointerdown', (e) => {
-            if (scanBusy) return;
+    function showCenterZoomPreview() {
+        if (!video || !overlay) return false;
 
-            const rect = video.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+        const frame = getVideoFrameDataURL();
+        if (!frame) return false;
 
-            zoomTimer = setTimeout(() => {
-                const frame = getVideoFrameDataURL();
-                if (!frame) return;
+        const rect = video.getBoundingClientRect();
+        const x = rect.width / 2;
+        const y = rect.height / 2;
 
-                zoomActive = true;
-                zoomPoint = { x, y };
+        zoomActive = true;
+        zoomPoint = { x, y };
 
-                overlay.style.display = 'block';
-                overlay.style.backgroundImage = `url(${frame})`;
-                overlay.style.backgroundSize = `${ZOOM_FACTOR * 100}%`;
+        overlay.style.display = 'block';
+        overlay.style.backgroundImage = `url(${frame})`;
+        overlay.style.backgroundSize = `${ZOOM_FACTOR * 100}%`;
+        overlay.style.backgroundPosition = '50% 50%';
 
-                const bx = (x / rect.width) * 100;
-                const by = (y / rect.height) * 100;
-                overlay.style.backgroundPosition = `${bx}% ${by}%`;
-            }, ZOOM_HOLD_MS);
-        });
+        return true;
+    }
 
-        video.addEventListener('pointermove', (e) => {
-            if (!zoomActive) return;
-
-            const rect = video.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-
-            zoomPoint = { x, y };
-
-            const bx = (x / rect.width) * 100;
-            const by = (y / rect.height) * 100;
-            overlay.style.backgroundPosition = `${bx}% ${by}%`;
-        });
-
-        const endPointer = async () => {
-            clearTimeout(zoomTimer);
-
-            if (!zoomActive) return;
-
-            zoomActive = false;
-            overlay.style.display = 'none';
-
-            // 🔥 Скан СТРОГО после отпускания
-            await captureAndRecognize(true);
-        };
-
-        video.addEventListener('pointerup', endPointer);
-        video.addEventListener('pointercancel', endPointer);
+    function hideZoomPreview() {
+        zoomActive = false;
+        if (overlay) overlay.style.display = 'none';
     }
 
 
@@ -560,6 +535,73 @@
             else if (captureBtn) captureBtn.textContent = '📸 Сканировать';
             ocrCleanup();
         }
+    }
+
+    function bindCaptureButton() {
+        if (!captureBtn) return;
+
+        let pointerStarted = false;
+        let suppressClick = false;
+
+        const clearZoomTimer = () => {
+            if (!zoomTimer) return;
+            clearTimeout(zoomTimer);
+            zoomTimer = null;
+        };
+
+        captureBtn.addEventListener('pointerdown', (e) => {
+            if (scanBusy || captureBtn.disabled) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+            pointerStarted = true;
+            clearZoomTimer();
+
+            try {
+                captureBtn.setPointerCapture(e.pointerId);
+            } catch (_) {}
+
+            zoomTimer = setTimeout(() => {
+                zoomTimer = null;
+                showCenterZoomPreview();
+            }, ZOOM_HOLD_MS);
+        });
+
+        const finishPointer = async (shouldScan) => {
+            if (!pointerStarted && !zoomActive) return;
+
+            pointerStarted = false;
+            clearZoomTimer();
+
+            if (!zoomActive) return;
+
+            suppressClick = true;
+            hideZoomPreview();
+
+            if (shouldScan) await captureAndRecognize(true);
+
+            setTimeout(() => {
+                suppressClick = false;
+            }, 0);
+        };
+
+        captureBtn.addEventListener('pointerup', () => {
+            finishPointer(true);
+        });
+
+        captureBtn.addEventListener('pointercancel', () => {
+            finishPointer(false);
+        });
+
+        captureBtn.addEventListener('click', (event) => {
+            if (suppressClick) {
+                event.preventDefault();
+                event.stopPropagation();
+                suppressClick = false;
+                return;
+            }
+
+            captureAndRecognize();
+        });
     }
 
 
@@ -843,7 +885,7 @@
 
 
     // init
-    if (captureBtn) captureBtn.onclick = captureAndRecognize;
+    bindCaptureButton();
 
     // --- checkShopSession: тянем лимит, обновляем data-атрибуты и подпись тотала
     async function checkShopSession() {
