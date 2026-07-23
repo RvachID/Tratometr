@@ -192,6 +192,11 @@ $shoppingProgress = $shoppingListTotal > 0
                             </small>
                         </div>
 
+                        <div class="mb-2 text-start d-none" id="m-product-name-wrap">
+                            <label class="form-label" for="m-product-name">Товар</label>
+                            <input type="text" class="form-control" id="m-product-name" maxlength="255">
+                        </div>
+
                         <div class="mb-2 text-start">
                             <label class="form-label" for="m-note">Комментарий (опц.)</label>
                             <input type="text" class="form-control" id="m-note">

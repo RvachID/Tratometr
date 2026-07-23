@@ -58,6 +58,7 @@
     const totalLabelEl = document.getElementById('scan-total-label');
     const mAliceSelect  = document.getElementById('m-alice-item');
     const mAliceSelectWrap = document.getElementById('m-alice-item-wrap');
+    const mProductWrap = document.getElementById('m-product-name-wrap');
     const shoppingPanelEl = document.getElementById('shopping-session-panel');
     const shoppingListEl = document.getElementById('shopping-session-list');
     const shoppingCountEl = document.getElementById('shopping-list-count');
@@ -199,14 +200,17 @@
         if (mProductEl) mProductEl.value = title || '';
     }
 
-    function toggleManualProductSelector(show) {
-        mAliceSelectWrap?.classList.toggle('d-none', !show);
+    function setProductSelectorMode(mode) {
+        const showList = mode === 'list';
+        const showFreeInput = mode === 'free';
+        mAliceSelectWrap?.classList.toggle('d-none', !showList);
+        mProductWrap?.classList.toggle('d-none', !showFreeInput);
     }
 
     async function openCamera() {
         if (currentStream) return;
 
-        toggleManualProductSelector(false);
+        setProductSelectorMode('none');
         shoppingPanelEl?.classList.add('d-none');
         wrap?.setAttribute('style', 'display:block');
         try {
@@ -277,7 +281,7 @@
             selectShoppingItem();
             mNoteEl.value = '';
             lastParsedText = '';
-            toggleManualProductSelector(true);
+            setProductSelectorMode('list');
             await window.reloadAliceSelect?.();
 
             // Скрыть кнопки "Скан" и "Переснять"
@@ -511,10 +515,7 @@
                                 mQtyEl.value = 1;
                                 mNoteEl.value = '';
                                 lastParsedText = res.parsed_text || '';
-                                toggleManualProductSelector(!selectedShoppingItemId);
-                                if (!selectedShoppingItemId) {
-                                    await window.reloadAliceSelect?.();
-                                }
+                                setProductSelectorMode(selectedShoppingItemId ? 'none' : 'free');
 
                                 resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
                                 bootstrapModal?.show();
