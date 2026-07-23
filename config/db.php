@@ -9,7 +9,7 @@ return [
         getenv('DB_NAME') ?: 'tratometr'
     ),
     'username' => getenv('DB_USER') ?: 'tratometr',
-    'password' => getenv('DB_PASS') ?: '',
+    'password' => getenv('DB_PASS') !== false ? getenv('DB_PASS') : '',
     'charset' => 'utf8mb4',
 
     // Schema cache options (for production environment)
