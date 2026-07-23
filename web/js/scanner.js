@@ -43,6 +43,7 @@
     let wasSaved = false;
     let cameraActive = false;
     let selectedShoppingItemId = '';
+    let selectedShoppingItemTitle = '';
     const scanRoot  = document.getElementById('scan-root');
     let   metaStore    = scanRoot?.dataset.store || '';
     let   metaCategory = scanRoot?.dataset.category || '';
@@ -193,6 +194,7 @@
 
     function selectShoppingItem(id = '', title = '') {
         selectedShoppingItemId = id ? String(id) : '';
+        selectedShoppingItemTitle = title || '';
         if (mAliceSelect) mAliceSelect.value = id ? String(id) : '';
         if (mProductEl) mProductEl.value = title || '';
     }
@@ -486,7 +488,7 @@
                                 }
                                 return r.json();
                             })
-                            .then(res => {
+                            .then(async res => {
                                 if (!res.success) {
                                     const msg = (res.error || '').toLowerCase();
                                     if (
@@ -509,6 +511,10 @@
                                 mQtyEl.value = 1;
                                 mNoteEl.value = '';
                                 lastParsedText = res.parsed_text || '';
+                                toggleManualProductSelector(!selectedShoppingItemId);
+                                if (!selectedShoppingItemId) {
+                                    await window.reloadAliceSelect?.();
+                                }
 
                                 resetPhotoPreview(mPhotoWrap, mShowPhotoBtn, mPhotoImg);
                                 bootstrapModal?.show();
@@ -632,6 +638,7 @@
     mAliceSelect?.addEventListener('change', () => {
         selectedShoppingItemId = mAliceSelect.value || '';
         const option = mAliceSelect.selectedOptions[0];
+        selectedShoppingItemTitle = selectedShoppingItemId && option ? option.textContent.trim() : '';
         if (mAliceSelect.value && option && mProductEl) {
             mProductEl.value = option.textContent.trim();
         }
@@ -680,9 +687,15 @@
     if (mSaveBtn) {
         mSaveBtn.onclick = async () => {
             const csrf = getCsrf();
-            const productName = (mProductEl?.value || '').trim();
+            const selectedOption = mAliceSelect?.selectedOptions[0] || null;
+            const selectedOptionTitle = mAliceSelect?.value ? (selectedOption?.textContent || '') : '';
+            const productName = (selectedShoppingItemTitle || selectedOptionTitle || mProductEl?.value || '').trim();
             if (!productName) {
-                mProductEl?.focus();
+                if (mAliceSelectWrap && !mAliceSelectWrap.classList.contains('d-none')) {
+                    mAliceSelect?.focus();
+                } else {
+                    mProductEl?.focus();
+                }
                 alert('Укажите наименование товара');
                 return;
             }
@@ -719,6 +732,7 @@
                     mAliceSelect.value = '';
                 }
                 selectedShoppingItemId = '';
+                selectedShoppingItemTitle = '';
 
                 await loadShoppingList();
 
