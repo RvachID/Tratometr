@@ -10,8 +10,6 @@ final class SkillController extends Controller
 {
     public $enableCsrfValidation = false;
 
-    private const WEB_USER_ID = 3; // временно
-
     public function actionWebhook()
     {
         // --- защита по секрету ---
@@ -28,13 +26,25 @@ final class SkillController extends Controller
         $request = $data['request'] ?? [];
 
         $command = trim((string)($request['command'] ?? ''));
-        $userId  = self::WEB_USER_ID;
+        $userId = $this->getCurrentUserId();
 
         $service = new AliceListService();
 
         $text = null;
 
         try {
+            if ($userId === null) {
+                return $this->jsonOut([
+                    'version' => '1.0',
+                    'session' => $session ?: new \stdClass(),
+                    'response' => [
+                        'text' => 'Сначала войдите в Тратометр, чтобы я могла работать с вашим списком покупок.',
+                        'tts'  => 'Сначала войдите в Тратометр, чтобы я могла работать с вашим списком покупок.',
+                        'end_session' => false,
+                    ],
+                ]);
+            }
+
             // ===== ОСНОВНАЯ ЛОГИКА =====
             if ($command !== '') {
                 $reply = $service->handleCommand($userId, $command);
@@ -87,6 +97,15 @@ final class SkillController extends Controller
     {
         $env = getenv('ALICE_WEBHOOK_SECRET');
         return is_string($env) ? trim($env) : '';
+    }
+
+    private function getCurrentUserId(): ?int
+    {
+        if (Yii::$app->user->isGuest) {
+            return null;
+        }
+
+        return (int)Yii::$app->user->id;
     }
 
     private function errorResponse(string $text, bool $end = false): array
