@@ -9,7 +9,10 @@ $this->title = 'Список покупок';
 
 <div class="container mt-3">
 
-    <h1 class="h4 mb-3">Список покупок</h1>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">Список покупок</h1>
+        <?= Html::a('Привязка Алисы', ['alice-link/index'], ['class' => 'btn btn-outline-secondary btn-sm']) ?>
+    </div>
 
     <!-- ===== Добавление ===== -->
     <div class="mb-3">

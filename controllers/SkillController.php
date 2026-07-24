@@ -2,6 +2,7 @@
 
 namespace app\controllers;
 
+use app\services\Alice\AliceAccountLinkService;
 use app\services\Alice\AliceListService;
 use Yii;
 use yii\web\Controller;
@@ -26,23 +27,36 @@ final class SkillController extends Controller
         $request = $data['request'] ?? [];
 
         $command = trim((string)($request['command'] ?? ''));
-        $userId = $this->getCurrentUserId();
+        $applicationId = $this->getAliceApplicationId($data);
 
+        $linkService = new AliceAccountLinkService();
         $service = new AliceListService();
 
         $text = null;
 
         try {
+            if ($applicationId === null) {
+                return $this->jsonOut($this->aliceResponse(
+                    $session,
+                    'Не получила идентификатор приложения Алисы. Попробуйте запустить навык еще раз.'
+                ));
+            }
+
+            $userId = $linkService->findUserIdByApplicationId($applicationId);
+
             if ($userId === null) {
-                return $this->jsonOut([
-                    'version' => '1.0',
-                    'session' => $session ?: new \stdClass(),
-                    'response' => [
-                        'text' => 'Сначала войдите в Тратометр, чтобы я могла работать с вашим списком покупок.',
-                        'tts'  => 'Сначала войдите в Тратометр, чтобы я могла работать с вашим списком покупок.',
-                        'end_session' => false,
-                    ],
-                ]);
+                if ($this->isLinkCommand($command)) {
+                    $code = $linkService->createCode($applicationId);
+                    return $this->jsonOut($this->aliceResponse(
+                        $session,
+                        'Код привязки: ' . $code . '. Войдите в Тратометр, откройте страницу Привязка Алисы и введите этот код. Код действует 10 минут.'
+                    ));
+                }
+
+                return $this->jsonOut($this->aliceResponse(
+                    $session,
+                    'Навык еще не привязан к вашему аккаунту Тратометра. Скажите: привязать аккаунт.'
+                ));
             }
 
             // ===== ОСНОВНАЯ ЛОГИКА =====
@@ -99,13 +113,37 @@ final class SkillController extends Controller
         return is_string($env) ? trim($env) : '';
     }
 
-    private function getCurrentUserId(): ?int
+    private function getAliceApplicationId(array $data): ?string
     {
-        if (Yii::$app->user->isGuest) {
-            return null;
-        }
+        $applicationId = $data['session']['application']['application_id']
+            ?? $data['application']['application_id']
+            ?? null;
 
-        return (int)Yii::$app->user->id;
+        $applicationId = trim((string)$applicationId);
+        return $applicationId === '' ? null : $applicationId;
+    }
+
+    private function isLinkCommand(string $command): bool
+    {
+        $command = mb_strtolower(trim($command), 'UTF-8');
+
+        return (bool)preg_match(
+            '~^(?:привязать|привяжи|подключить|подключи|связать|свяжи)\s+(?:аккаунт|профиль|тратометр)|^код(?:\s+привязки)?$~u',
+            $command
+        );
+    }
+
+    private function aliceResponse(array $session, string $text, bool $end = false): array
+    {
+        return [
+            'version' => '1.0',
+            'session' => $session ?: new \stdClass(),
+            'response' => [
+                'text' => $text,
+                'tts'  => $text,
+                'end_session' => $end,
+            ],
+        ];
     }
 
     private function errorResponse(string $text, bool $end = false): array
